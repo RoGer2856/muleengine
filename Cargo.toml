@@ -1,0 +1,13 @@
+[package]
+name = "game_2"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+env_logger = "0.9"
+log = "0.4"
+sdl2 = "0.35"
+tokio = { version = "1.20", features = ["full"] }
+gl = "0.14"
