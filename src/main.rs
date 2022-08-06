@@ -1,8 +1,5 @@
-mod muleengine;
-mod sdl2_opengl_engine;
-
+use game_2::sdl2_opengl_engine::{self, GLProfile};
 use sdl2::event::Event;
-use sdl2_opengl_engine::GLProfile;
 
 fn main() {
     env_logger::builder()
