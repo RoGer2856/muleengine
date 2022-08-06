@@ -15,7 +15,7 @@ pub fn canonicalize_path(path: String) -> String {
             if let None = component.chars().find(|chr| *chr != '.') {
                 // component contains only dots ('.')
                 let number_of_dots = component.len();
-                for i in 1..number_of_dots {
+                for _ in 1..number_of_dots {
                     if !components.is_empty() {
                         components.pop();
                     }
