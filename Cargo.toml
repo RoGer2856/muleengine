@@ -15,3 +15,6 @@ gl = "0.14"
 # muleengine
 vek = "0.15"
 image = "0.24"
+assimp = "0.3.1"
+assimp-sys = "0.3.1"
+tempfile = "3"
