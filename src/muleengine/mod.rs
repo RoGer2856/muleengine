@@ -5,4 +5,5 @@ pub mod image;
 pub mod image_container;
 pub mod mesh;
 pub mod mesh_container;
+pub mod mesh_creator;
 pub mod object_pool;
