@@ -118,13 +118,13 @@ mod tests {
         aabb2.add_vertex(Vec3::new(-2.0, -2.0, -2.0));
 
         let mut aabb3 = AxisAlignedBoundingBox::new(Vec3::new(0.0, 1.1, 1.1));
-        aabb1.add_vertex(Vec3::new(1.0, 2.0, 2.0));
+        aabb3.add_vertex(Vec3::new(1.0, 2.0, 2.0));
 
         let mut aabb4 = AxisAlignedBoundingBox::new(Vec3::new(1.1, 0.0, 1.1));
         aabb4.add_vertex(Vec3::new(2.0, 1.0, 2.0));
 
         let mut aabb5 = AxisAlignedBoundingBox::new(Vec3::new(1.1, 1.1, 0.0));
-        aabb1.add_vertex(Vec3::new(2.0, 2.0, 1.0));
+        aabb5.add_vertex(Vec3::new(2.0, 2.0, 1.0));
 
         assert!(!aabb0.collide(&aabb1));
         assert!(!aabb0.collide(&aabb2));
