@@ -1,12 +1,14 @@
+mod opengl_utils;
+
 use sdl2::event::Event;
 use sdl2::video::{GLContext, Window, WindowBuildError};
 use sdl2::{video, EventPump, Sdl, VideoSubsystem};
 
 pub struct Engine {
-    sdl_context: Sdl,
+    _sdl_context: Sdl,
+    _sdl_video: VideoSubsystem,
+    _gl_context: GLContext,
     sdl_window: Window,
-    sdl_video: VideoSubsystem,
-    gl_context: GLContext,
     event_pump: EventPump,
 }
 
@@ -83,10 +85,10 @@ pub fn init(
             .map_err(|e| ContextCreationError::CouldNotCreateEventPump(e))?;
 
         Ok(Engine {
-            sdl_context,
+            _sdl_context: sdl_context,
             sdl_window,
-            sdl_video,
-            gl_context,
+            _sdl_video: sdl_video,
+            _gl_context: gl_context,
             event_pump,
         })
     }
