@@ -2,14 +2,45 @@ use std::{ffi::c_void, mem::size_of};
 
 use gl::types::GLuint;
 
+pub enum DataType {
+    F32,
+    F64,
+
+    U8,
+    U16,
+    U32,
+
+    I8,
+    I16,
+    I32,
+}
+
+pub enum DataCount {
+    Single,
+
+    Coords2,
+    Coords3,
+    Coords4,
+
+    Rgb,
+    Rgba,
+}
+
 pub struct VertexBufferObject {
-    buffer_id: GLuint,
-    size_of_element: usize,
+    pub(super) buffer_id: GLuint,
+    pub(super) size_of_element: usize,
+    pub(super) data_type: DataType,
+    pub(super) data_count: DataCount,
     data_pointer: *const c_void,
 }
 
 impl VertexBufferObject {
-    pub fn new<ElementType>(data_pointer: *const ElementType, number_of_elements: usize) -> Self
+    pub fn new<ElementType>(
+        data_pointer: *const ElementType,
+        number_of_elements: usize,
+        data_type: DataType,
+        data_count: DataCount,
+    ) -> Self
     where
         ElementType: Sized,
     {
@@ -25,34 +56,26 @@ impl VertexBufferObject {
                 data_pointer,
                 gl::STATIC_DRAW,
             );
+            gl::BindBuffer(gl::ARRAY_BUFFER, 0);
         };
         Self {
             buffer_id,
             size_of_element,
+            data_type,
+            data_count,
             data_pointer,
         }
     }
 
     pub fn update_from_pointer(&mut self, element_offset: usize, number_of_elements: usize) {
-        self.use_buffer();
         unsafe {
+            gl::BindBuffer(gl::ARRAY_BUFFER, self.buffer_id);
             gl::BufferSubData(
                 gl::ARRAY_BUFFER,
                 (self.size_of_element * element_offset) as isize,
                 (self.size_of_element * number_of_elements) as isize,
                 self.data_pointer.add(self.size_of_element * element_offset),
             );
-        }
-    }
-
-    pub fn use_buffer(&self) {
-        unsafe {
-            gl::BindBuffer(gl::ARRAY_BUFFER, self.buffer_id);
-        }
-    }
-
-    pub fn unuse() {
-        unsafe {
             gl::BindBuffer(gl::ARRAY_BUFFER, 0);
         }
     }

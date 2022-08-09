@@ -1,4 +1,4 @@
-mod opengl_utils;
+pub mod opengl_utils;
 
 use sdl2::event::Event;
 use sdl2::video::{GLContext, Window, WindowBuildError};
