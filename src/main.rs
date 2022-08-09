@@ -1,20 +1,72 @@
-use game_2::sdl2_opengl_engine::{self, GLProfile};
+use game_2::sdl2_opengl_engine::{
+    self,
+    opengl_utils::{
+        index_buffer_object::{IndexBufferObject, PrimitiveMode},
+        shader::{Shader, ShaderType},
+        shader_program::ShaderProgram,
+        vertex_array_object::VertexArrayObject,
+        vertex_buffer_object::{DataCount, DataType, VertexBufferObject},
+    },
+    GLProfile,
+};
 use sdl2::event::Event;
+use vek::Vec3;
 
 fn main() {
     env_logger::builder()
         .filter_level(log::LevelFilter::Debug)
         .init();
 
-    let mut engine = sdl2_opengl_engine::init("game_2", 800, 600, GLProfile::Core, 3, 3).unwrap();
+    let mut engine = sdl2_opengl_engine::init("game_2", 800, 600, GLProfile::Core, 4, 0).unwrap();
+
+    // mesh initialization
+    let indices = vec![0, 1, 2];
+    let positions: Vec<Vec3<f32>> = vec![
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(1.0, 1.0, 0.0),
+    ];
+
+    let index_buffer_object =
+        IndexBufferObject::new(indices.as_ptr(), indices.len(), PrimitiveMode::Triangles);
+    let positions_vbo = VertexBufferObject::new(
+        positions.as_ptr(),
+        positions.len(),
+        DataType::F32,
+        DataCount::Coords3,
+    );
+
+    let vertex_shader =
+        Shader::new(ShaderType::Vertex, include_str!("shaders/unlit.vert")).unwrap();
+    let fragment_shader =
+        Shader::new(ShaderType::Fragment, include_str!("shaders/unlit.frag")).unwrap();
+
+    let vao = VertexArrayObject::new(|vao_interface| {
+        vao_interface.use_index_buffer_object(&index_buffer_object);
+
+        vao_interface.use_vertex_buffer_object(&positions_vbo, 0);
+    });
+
+    // shader initialization
+    let mut shader_program = ShaderProgram::new();
+    shader_program.attach_shader(vertex_shader);
+    shader_program.attach_shader(fragment_shader);
+    shader_program.link_program().unwrap();
 
     'running: loop {
-        unsafe {
-            gl::ClearColor(0.6, 0.0, 0.8, 1.0);
-            gl::Clear(gl::COLOR_BUFFER_BIT);
-        }
+        // draw
+        {
+            unsafe {
+                gl::ClearColor(0.2, 0.2, 0.2, 1.0);
+                gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
+            }
 
-        engine.gl_swap_window();
+            shader_program.use_program();
+            vao.use_vao();
+            index_buffer_object.draw();
+
+            engine.gl_swap_window();
+        }
 
         while let Some(event) = engine.poll_event() {
             log::info!("{:?}", event);
