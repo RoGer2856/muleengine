@@ -63,14 +63,14 @@ pub fn create(radius: f32, height: f32, resolution: i32) -> Mesh {
     );
 
     mesh.add_face(
-        mesh.number_of_vertices() - 4,
-        mesh.number_of_vertices() - 3,
-        mesh.number_of_vertices() - 2,
+        (mesh.number_of_vertices() - 4) as u32,
+        (mesh.number_of_vertices() - 3) as u32,
+        (mesh.number_of_vertices() - 2) as u32,
     );
     mesh.add_face(
-        mesh.number_of_vertices() - 4,
-        mesh.number_of_vertices() - 2,
-        mesh.number_of_vertices() - 1,
+        (mesh.number_of_vertices() - 4) as u32,
+        (mesh.number_of_vertices() - 2) as u32,
+        (mesh.number_of_vertices() - 1) as u32,
     );
 
     // up semicircle
@@ -117,16 +117,16 @@ pub fn create(radius: f32, height: f32, resolution: i32) -> Mesh {
         );
 
         mesh.add_face(
-            top_center_index,
-            mesh.number_of_vertices() - 2,
-            mesh.number_of_vertices() - 1,
+            top_center_index as u32,
+            (mesh.number_of_vertices() - 2) as u32,
+            (mesh.number_of_vertices() - 1) as u32,
         );
     }
 
     mesh.add_face(
-        top_center_index,
-        mesh.number_of_vertices() - 1,
-        top_center_index + 1,
+        top_center_index as u32,
+        (mesh.number_of_vertices() - 1) as u32,
+        (top_center_index + 1) as u32,
     );
 
     // down semicircle
@@ -173,16 +173,16 @@ pub fn create(radius: f32, height: f32, resolution: i32) -> Mesh {
         );
 
         mesh.add_face(
-            bottom_center_index,
-            mesh.number_of_vertices() - 2,
-            mesh.number_of_vertices() - 1,
+            bottom_center_index as u32,
+            (mesh.number_of_vertices() - 2) as u32,
+            (mesh.number_of_vertices() - 1) as u32,
         );
     }
 
     mesh.add_face(
-        bottom_center_index,
-        mesh.number_of_vertices() - 1,
-        bottom_center_index + 1,
+        bottom_center_index as u32,
+        (mesh.number_of_vertices() - 1) as u32,
+        (bottom_center_index + 1) as u32,
     );
 
     mesh.compute_tangents(0);

@@ -105,7 +105,7 @@ unsafe impl std::marker::Send for Material {}
 
 #[repr(C)]
 pub struct Mesh {
-    faces: Vec<usize>,
+    faces: Vec<u32>,
     vertex_bone_weights: Vec<VertexBoneWeight>,
     positions: Vec<Vec3<f32>>,
     normals: Vec<Vec3<f32>>,
@@ -404,9 +404,9 @@ impl Mesh {
 
             // add face to mesh
             mesh.add_face(
-                mesh.number_of_vertices() - 3,
-                mesh.number_of_vertices() - 2,
-                mesh.number_of_vertices() - 1,
+                (mesh.number_of_vertices() - 3) as u32,
+                (mesh.number_of_vertices() - 2) as u32,
+                (mesh.number_of_vertices() - 1) as u32,
             );
         }
 
@@ -587,7 +587,7 @@ impl Mesh {
         self.bones.push(bone);
     }
 
-    pub fn add_face(&mut self, vertex_index0: usize, vertex_index1: usize, vertex_index2: usize) {
+    pub fn add_face(&mut self, vertex_index0: u32, vertex_index1: u32, vertex_index2: u32) {
         if self.faces.is_empty() {
             self.aabb =
                 AxisAlignedBoundingBox::new(self.positions.as_slice()[vertex_index0 as usize]);
