@@ -57,14 +57,14 @@ pub fn create(width: f32, height: f32) -> Mesh {
     );
 
     mesh.add_face(
-        mesh.number_of_vertices() - 4,
-        mesh.number_of_vertices() - 3,
-        mesh.number_of_vertices() - 2,
+        (mesh.number_of_vertices() - 4) as u32,
+        (mesh.number_of_vertices() - 3) as u32,
+        (mesh.number_of_vertices() - 2) as u32,
     );
     mesh.add_face(
-        mesh.number_of_vertices() - 4,
-        mesh.number_of_vertices() - 2,
-        mesh.number_of_vertices() - 1,
+        (mesh.number_of_vertices() - 4) as u32,
+        (mesh.number_of_vertices() - 2) as u32,
+        (mesh.number_of_vertices() - 1) as u32,
     );
 
     mesh.compute_tangents(0);

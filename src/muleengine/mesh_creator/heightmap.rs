@@ -136,9 +136,9 @@ pub fn create(height_map: &HeightMap) -> Mesh {
                     && height_map.get_mask_map()[x + 1][y + 1] != 0
                 {
                     mesh.add_face(
-                        (y + 1) * height_map.get_row_count() + x + 1,
-                        (y + 0) * height_map.get_row_count() + x + 1,
-                        (y + 0) * height_map.get_row_count() + x + 0,
+                        ((y + 1) * height_map.get_row_count() + x + 1) as u32,
+                        ((y + 0) * height_map.get_row_count() + x + 1) as u32,
+                        ((y + 0) * height_map.get_row_count() + x + 0) as u32,
                     );
                 }
                 if height_map.get_mask_map()[x][y] != 0
@@ -146,9 +146,9 @@ pub fn create(height_map: &HeightMap) -> Mesh {
                     && height_map.get_mask_map()[x][y + 1] != 0
                 {
                     mesh.add_face(
-                        (y + 1) * height_map.get_row_count() + x + 0,
-                        (y + 1) * height_map.get_row_count() + x + 1,
-                        (y + 0) * height_map.get_row_count() + x + 0,
+                        ((y + 1) * height_map.get_row_count() + x + 0) as u32,
+                        ((y + 1) * height_map.get_row_count() + x + 1) as u32,
+                        ((y + 0) * height_map.get_row_count() + x + 0) as u32,
                     );
                 }
             }

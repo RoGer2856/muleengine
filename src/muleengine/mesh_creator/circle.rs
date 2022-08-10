@@ -56,12 +56,12 @@ pub fn create(radius: f32, resolution: i32) -> Mesh {
 
         mesh.add_face(
             0,
-            mesh.number_of_vertices() - 2,
-            mesh.number_of_vertices() - 1,
+            (mesh.number_of_vertices() - 2) as u32,
+            (mesh.number_of_vertices() - 1) as u32,
         );
     }
 
-    mesh.add_face(0, mesh.number_of_vertices() - 1, 1);
+    mesh.add_face(0, (mesh.number_of_vertices() - 1) as u32, 1);
 
     mesh.compute_tangents(0);
 
