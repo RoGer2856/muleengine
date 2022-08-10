@@ -1,0 +1,29 @@
+newmtl SkyboxRight
+Kd 1.0 1.0 1.0
+Tr 1.0
+map_Kd Assets/objects/skybox/skyboxRight.png
+
+newmtl SkyboxLeft
+Kd 1.0 1.0 1.0
+Tr 1.0
+map_Kd Assets/objects/skybox/skyboxLeft.png
+
+newmtl SkyboxTop
+Kd 1.0 1.0 1.0
+Tr 1.0
+map_Kd Assets/objects/skybox/skyboxTop.png
+
+newmtl SkyboxBottom
+Kd 1.0 1.0 1.0
+Tr 1.0
+map_Kd Assets/objects/skybox/skyboxBottom.png
+
+newmtl SkyboxFront
+Kd 1.0 1.0 1.0
+Tr 1.0
+map_Kd Assets/objects/skybox/skyboxFront.png
+
+newmtl SkyboxBack
+Kd 1.0 1.0 1.0
+Tr 1.0
+map_Kd Assets/objects/skybox/skyboxBack.png
