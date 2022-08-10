@@ -1,6 +1,7 @@
 use std::ops::Index;
 use std::os::raw::{c_float, c_uint};
 use std::str::Utf8Error;
+use std::sync::Arc;
 
 use vek::{Mat4, Vec2, Vec3, Vec4};
 
@@ -121,7 +122,7 @@ unsafe impl std::marker::Sync for Mesh {}
 unsafe impl std::marker::Send for Mesh {}
 
 pub struct Scene {
-    meshes: Vec<Result<Mesh, MeshConvertError>>,
+    meshes: Vec<Result<Arc<Mesh>, MeshConvertError>>,
 }
 
 unsafe impl std::marker::Sync for Scene {}
@@ -714,12 +715,10 @@ impl Scene {
                 let materials = unsafe {
                     std::slice::from_raw_parts(scene.materials, scene.num_materials as usize)
                 };
-                meshes.push(Mesh::from_assimp_mesh(
-                    assets_reader,
-                    scene_path,
-                    mesh,
-                    materials,
-                ));
+                meshes.push(
+                    Mesh::from_assimp_mesh(assets_reader, scene_path, mesh, materials)
+                        .map(|mesh| Arc::new(mesh)),
+                );
             }
         }
 
@@ -772,7 +771,7 @@ impl Scene {
         Ok(Self::from_assimp_scene(assets_reader, scene_path, scene))
     }
 
-    pub fn meshes_ref(&self) -> &Vec<Result<Mesh, MeshConvertError>> {
+    pub fn meshes_ref(&self) -> &Vec<Result<Arc<Mesh>, MeshConvertError>> {
         &self.meshes
     }
 }
