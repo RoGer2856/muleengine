@@ -188,7 +188,7 @@ impl ShaderProgram {
             match String::from_utf8(attribute_name) {
                 Ok(attribute_name) => self.attributes.push(Ok(ShaderAttribute::new(ShaderInput {
                     name: attribute_name,
-                    location: location as u32,
+                    location,
                     data_type,
                     array_size,
                 }))),
@@ -234,7 +234,7 @@ impl ShaderProgram {
             match String::from_utf8(uniform_name) {
                 Ok(uniform_name) => self.uniforms.push(Ok(ShaderUniform::new(ShaderInput {
                     name: uniform_name,
-                    location: location as u32,
+                    location,
                     data_type,
                     array_size,
                 }))),

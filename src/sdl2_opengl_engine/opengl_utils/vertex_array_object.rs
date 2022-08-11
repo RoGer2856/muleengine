@@ -40,7 +40,7 @@ impl VertexArrayObjectInterface {
             };
 
             gl::VertexAttribPointer(
-                attrib.0.location,
+                attrib.0.location as u32,
                 data_count,
                 data_type,
                 gl::FALSE,
