@@ -73,7 +73,7 @@ impl IndexBufferObject {
                 self.primitive_mode,
                 self.number_of_elements as i32,
                 gl::UNSIGNED_INT,
-                null::<c_void>(),
+                null(),
             );
         }
     }
@@ -84,7 +84,7 @@ impl IndexBufferObject {
                 self.primitive_mode,
                 number_of_elements as i32,
                 gl::UNSIGNED_INT,
-                null::<c_void>(),
+                null(),
             );
         }
     }
@@ -95,7 +95,7 @@ impl IndexBufferObject {
                 self.primitive_mode,
                 self.number_of_elements as i32,
                 gl::UNSIGNED_INT,
-                null::<c_void>(),
+                null(),
                 number_of_instances as i32,
             );
         }
