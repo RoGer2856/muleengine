@@ -12,7 +12,7 @@ use game_2::sdl2_opengl_engine::{
     GLProfile,
 };
 use sdl2::event::Event;
-use vek::Vec3;
+use vek::{Mat4, Transform, Vec3};
 
 fn main() {
     env_logger::builder()
@@ -37,6 +37,8 @@ fn main() {
     shader_program.attach_shader(vertex_shader);
     shader_program.attach_shader(fragment_shader);
     shader_program.link_program().unwrap();
+
+    let shader_object_matrix_uniform = shader_program.get_uniform_by_name("objectMatrix").unwrap();
 
     // mesh initialization
     let indices = vec![0, 1, 2];
@@ -64,6 +66,11 @@ fn main() {
         );
     });
 
+    // mesh transform
+    let mut mesh_transform = Transform::<f32, f32, f32>::default();
+    mesh_transform.position.x = -0.5;
+    let mesh_object_matrix = Into::<Mat4<f32>>::into(mesh_transform);
+
     'running: loop {
         // draw
         {
@@ -73,6 +80,10 @@ fn main() {
             }
 
             shader_program.use_program();
+
+            shader_object_matrix_uniform
+                .send_uniform_matrix_4fv(mesh_object_matrix.as_col_ptr(), 1);
+
             vao.use_vao();
             index_buffer_object.draw();
 
