@@ -1,8 +1,9 @@
+use std::marker::PhantomData;
 use std::ptr::null;
-use std::{ffi::c_void, marker::PhantomData};
 
 use gl::types::GLuint;
 
+use super::shader_input::ShaderAttribute;
 use super::vertex_buffer_object::{DataCount, DataType};
 use super::{index_buffer_object::IndexBufferObject, vertex_buffer_object::VertexBufferObject};
 
@@ -11,7 +12,7 @@ pub struct VertexArrayObjectInterface {
 }
 
 impl VertexArrayObjectInterface {
-    pub fn use_vertex_buffer_object(&self, vbo: &VertexBufferObject, attrib_location: GLuint) {
+    pub fn use_vertex_buffer_object(&self, vbo: &VertexBufferObject, attrib: &ShaderAttribute) {
         unsafe {
             gl::BindBuffer(gl::ARRAY_BUFFER, vbo.buffer_id);
             gl::EnableVertexAttribArray(0);
@@ -39,12 +40,12 @@ impl VertexArrayObjectInterface {
             };
 
             gl::VertexAttribPointer(
-                attrib_location,
+                attrib.0.location,
                 data_count,
                 data_type,
                 gl::FALSE,
                 vbo.size_of_element as i32,
-                null::<c_void>(),
+                null(),
             );
         }
     }

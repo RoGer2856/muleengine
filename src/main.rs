@@ -1,3 +1,5 @@
+use std::fs::read_to_string;
+
 use game_2::sdl2_opengl_engine::{
     self,
     opengl_utils::{
@@ -19,6 +21,23 @@ fn main() {
 
     let mut engine = sdl2_opengl_engine::init("game_2", 800, 600, GLProfile::Core, 4, 0).unwrap();
 
+    // shader initialization
+    let vertex_shader = Shader::new(
+        ShaderType::Vertex,
+        read_to_string("src/shaders/unlit.vert").unwrap().as_str(),
+    )
+    .unwrap();
+    let fragment_shader = Shader::new(
+        ShaderType::Fragment,
+        read_to_string("src/shaders/unlit.frag").unwrap().as_str(),
+    )
+    .unwrap();
+
+    let mut shader_program = ShaderProgram::new();
+    shader_program.attach_shader(vertex_shader);
+    shader_program.attach_shader(fragment_shader);
+    shader_program.link_program().unwrap();
+
     // mesh initialization
     let indices = vec![0, 1, 2];
     let positions: Vec<Vec3<f32>> = vec![
@@ -36,22 +55,14 @@ fn main() {
         DataCount::Coords3,
     );
 
-    let vertex_shader =
-        Shader::new(ShaderType::Vertex, include_str!("shaders/unlit.vert")).unwrap();
-    let fragment_shader =
-        Shader::new(ShaderType::Fragment, include_str!("shaders/unlit.frag")).unwrap();
-
     let vao = VertexArrayObject::new(|vao_interface| {
         vao_interface.use_index_buffer_object(&index_buffer_object);
 
-        vao_interface.use_vertex_buffer_object(&positions_vbo, 0);
+        vao_interface.use_vertex_buffer_object(
+            &positions_vbo,
+            &shader_program.get_attribute_by_name("position").unwrap(),
+        );
     });
-
-    // shader initialization
-    let mut shader_program = ShaderProgram::new();
-    shader_program.attach_shader(vertex_shader);
-    shader_program.attach_shader(fragment_shader);
-    shader_program.link_program().unwrap();
 
     'running: loop {
         // draw

@@ -2,7 +2,10 @@ use std::string::FromUtf8Error;
 
 use gl::types::GLuint;
 
-use super::shader::Shader;
+use super::{
+    shader::Shader,
+    shader_input::{ShaderAttribute, ShaderInput, ShaderUniform},
+};
 
 #[derive(Debug)]
 pub enum ShaderProgramError {
@@ -14,6 +17,8 @@ pub enum ShaderProgramError {
 pub struct ShaderProgram {
     attached_shaders: Vec<Shader>,
     program_id: GLuint,
+    attributes: Vec<Result<ShaderAttribute, FromUtf8Error>>,
+    uniforms: Vec<Result<ShaderUniform, FromUtf8Error>>,
 }
 
 impl ShaderProgram {
@@ -23,6 +28,8 @@ impl ShaderProgram {
         Self {
             program_id,
             attached_shaders: Vec::new(),
+            attributes: Vec::new(),
+            uniforms: Vec::new(),
         }
     }
 
@@ -49,6 +56,7 @@ impl ShaderProgram {
                 &mut actual_info_log_length,
                 error_log.as_mut_ptr() as *mut i8,
             );
+            error_log.resize(actual_info_log_length as usize, 0);
 
             let error_msg = String::from_utf8(error_log)
                 .map_err(|e| ShaderProgramError::LinkErrorToString(e))?;
@@ -73,6 +81,9 @@ impl ShaderProgram {
                     error_msg: info_log,
                 })
             } else {
+                self.gather_attributes();
+                self.gather_uniforms();
+
                 Ok(())
             }
         }
@@ -99,6 +110,135 @@ impl ShaderProgram {
                 }
             } else {
                 Ok(())
+            }
+        }
+    }
+
+    pub fn get_attribute_by_name(&self, name: &str) -> Option<ShaderAttribute> {
+        let mut ret = None;
+
+        for attribute in self.attributes.iter() {
+            match attribute {
+                Ok(attribute) => {
+                    if attribute.0.name == name {
+                        ret = Some(attribute.clone())
+                    }
+                }
+                Err(_) => {}
+            }
+        }
+
+        ret
+    }
+
+    pub fn get_uniform_by_name(&self, name: &str) -> Option<ShaderUniform> {
+        let mut ret = None;
+
+        for uniform in self.uniforms.iter() {
+            match uniform {
+                Ok(uniform) => {
+                    if uniform.0.name == name {
+                        ret = Some(uniform.clone())
+                    }
+                }
+                Err(_) => {}
+            }
+        }
+
+        ret
+    }
+
+    unsafe fn gather_attributes(&mut self) {
+        let mut attributes_count = 0;
+
+        gl::GetProgramiv(
+            self.program_id,
+            gl::ACTIVE_ATTRIBUTES,
+            &mut attributes_count,
+        );
+
+        let mut max_length = 0;
+        gl::GetProgramiv(
+            self.program_id,
+            gl::ACTIVE_ATTRIBUTE_MAX_LENGTH,
+            &mut max_length,
+        );
+
+        let mut data_type = 0;
+        let mut array_size = 0;
+
+        let mut length = 0;
+
+        for i in 0..attributes_count as GLuint {
+            let mut attribute_name = vec![0u8; max_length as usize + 1];
+            gl::GetActiveAttrib(
+                self.program_id,
+                i,
+                max_length,
+                &mut length,
+                &mut array_size,
+                &mut data_type,
+                attribute_name.as_mut_ptr() as *mut i8,
+            );
+            attribute_name.resize(length as usize, 0);
+
+            let location =
+                gl::GetAttribLocation(self.program_id, attribute_name.as_ptr() as *const i8);
+
+            match String::from_utf8(attribute_name) {
+                Ok(attribute_name) => self.attributes.push(Ok(ShaderAttribute::new(ShaderInput {
+                    name: attribute_name,
+                    location: location as u32,
+                    data_type,
+                    array_size,
+                }))),
+                Err(e) => self.attributes.push(Err(e)),
+            }
+        }
+    }
+
+    unsafe fn gather_uniforms(&mut self) {
+        let mut uniforms_count = 0;
+
+        gl::GetProgramiv(self.program_id, gl::ACTIVE_UNIFORMS, &mut uniforms_count);
+
+        let mut max_length = 0;
+        gl::GetProgramiv(
+            self.program_id,
+            gl::ACTIVE_UNIFORM_MAX_LENGTH,
+            &mut max_length,
+        );
+
+        let mut data_type = 0;
+        let mut array_size = 0;
+
+        let mut length = 0;
+
+        for i in 0..uniforms_count as GLuint {
+            let mut uniform_name = vec![0u8; max_length as usize + 1];
+
+            gl::GetActiveUniform(
+                self.program_id,
+                i,
+                max_length,
+                &mut length,
+                &mut array_size,
+                &mut data_type,
+                uniform_name.as_mut_ptr() as *mut i8,
+            );
+            uniform_name.resize(length as usize, 0);
+
+            let location =
+                gl::GetUniformLocation(self.program_id, uniform_name.as_ptr() as *const i8);
+
+            match String::from_utf8(uniform_name) {
+                Ok(uniform_name) => self.uniforms.push(Ok(ShaderUniform::new(ShaderInput {
+                    name: uniform_name,
+                    location: location as u32,
+                    data_type,
+                    array_size,
+                }))),
+                Err(e) => self.uniforms.push(Err(e)),
             }
         }
     }
