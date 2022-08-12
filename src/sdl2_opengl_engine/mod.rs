@@ -1,6 +1,8 @@
 pub mod opengl_utils;
 
 use sdl2::event::Event;
+use sdl2::keyboard::KeyboardState;
+use sdl2::mouse::MouseState;
 use sdl2::video::{GLContext, Window, WindowBuildError};
 use sdl2::{video, EventPump, Sdl, VideoSubsystem};
 
@@ -97,6 +99,14 @@ pub fn init(
 impl Engine {
     pub fn poll_event(&mut self) -> Option<Event> {
         self.event_pump.poll_event()
+    }
+
+    pub fn keyboard_state(&self) -> KeyboardState {
+        self.event_pump.keyboard_state()
+    }
+
+    pub fn mouse_state(&self) -> MouseState {
+        self.event_pump.mouse_state()
     }
 
     pub fn gl_swap_window(&mut self) {
