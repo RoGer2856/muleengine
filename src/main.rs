@@ -1,5 +1,7 @@
 mod application_context;
 
+use std::time::Instant;
+
 use game_2::sdl2_opengl_engine::{self, GLProfile};
 use sdl2::event::Event;
 use vek::Vec3;
@@ -15,7 +17,13 @@ fn main() {
 
     let mut application_context = ApplicationContext::new();
 
+    let mut last_loop_start = Instant::now();
+
     'running: loop {
+        let now = Instant::now();
+        let delta_time = now - last_loop_start;
+        last_loop_start = now;
+
         // rendering
         unsafe {
             gl::ClearColor(0.2, 0.2, 0.2, 1.0);
@@ -54,7 +62,7 @@ fn main() {
 
         application_context.set_moving_direction(moving_direction);
 
-        application_context.tick(1.0);
+        application_context.tick(delta_time.as_secs_f32());
 
         // handling events
         while let Some(event) = engine.poll_event() {
