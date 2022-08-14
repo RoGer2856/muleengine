@@ -700,6 +700,46 @@ impl Mesh {
             }
         }
     }
+
+    pub fn get_faces(&self) -> &Vec<u32> {
+        &self.faces
+    }
+
+    pub fn get_vertex_bone_weights(&self) -> &Vec<VertexBoneWeight> {
+        &self.vertex_bone_weights
+    }
+
+    pub fn get_positions(&self) -> &Vec<Vec3<f32>> {
+        &self.positions
+    }
+
+    pub fn get_normals(&self) -> &Vec<Vec3<f32>> {
+        &self.normals
+    }
+
+    pub fn get_tangents(&self) -> &Vec<Vec3<f32>> {
+        &self.tangents
+    }
+
+    pub fn get_bitangents(&self) -> &Vec<Vec3<f32>> {
+        &self.bitangents
+    }
+
+    pub fn get_uv_channels(&self) -> &Vec<Vec<Vec2<f32>>> {
+        &self.uv_channels
+    }
+
+    pub fn get_bones(&self) -> &Vec<Bone> {
+        &self.bones
+    }
+
+    pub fn get_material(&self) -> &Material {
+        &self.material
+    }
+
+    pub fn get_aabb(&self) -> &AxisAlignedBoundingBox {
+        &self.aabb
+    }
 }
 
 impl Scene {
