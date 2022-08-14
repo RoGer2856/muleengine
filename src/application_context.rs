@@ -38,6 +38,7 @@ struct Attributes {
 }
 
 struct Uniforms {
+    projection_matrix: ShaderUniform,
     object_matrix: ShaderUniform,
     view_matrix: ShaderUniform,
 }
@@ -52,10 +53,17 @@ pub struct ApplicationContext {
     drawable_mesh: DrawableMesh,
     camera: Camera,
     moving_direction: Vec3<f32>,
+
+    // projection
+    window_dimensions: (usize, usize),
+    projection_matrix: Mat4<f32>,
+    fov_y_degrees: f32,
+    near_plane: f32,
+    far_plane: f32,
 }
 
 impl ApplicationContext {
-    pub fn new() -> Self {
+    pub fn new(initial_window_dimensions: (usize, usize)) -> Self {
         // shader program info
         let shader_program_info = Arc::new({
             let vertex_shader = Shader::new(
@@ -79,6 +87,9 @@ impl ApplicationContext {
             };
 
             let uniforms = Uniforms {
+                projection_matrix: shader_program
+                    .get_uniform_by_name("projectionMatrix")
+                    .unwrap(),
                 object_matrix: shader_program.get_uniform_by_name("objectMatrix").unwrap(),
                 view_matrix: shader_program.get_uniform_by_name("viewMatrix").unwrap(),
             };
@@ -119,7 +130,7 @@ impl ApplicationContext {
         // mesh object initialization
         let mesh_object = Arc::new({
             let mut transform = Transform::<f32, f32, f32>::default();
-            transform.position.x = -0.5;
+            transform.position.z = -1.0;
             let object_matrix = Into::<Mat4<f32>>::into(transform);
 
             MeshObject {
@@ -150,10 +161,29 @@ impl ApplicationContext {
         // camera
         let camera = Camera::new();
 
+        // projection
+        let fov_y_degrees = 45.0f32;
+        let near_plane = 0.01;
+        let far_plane = 1000.0;
+        let projection_matrix = Mat4::perspective_fov_rh_zo(
+            fov_y_degrees.to_radians(),
+            initial_window_dimensions.0 as f32,
+            initial_window_dimensions.1 as f32,
+            near_plane,
+            far_plane,
+        );
+
         Self {
             drawable_mesh,
             camera,
             moving_direction: Vec3::zero(),
+
+            // projection
+            window_dimensions: initial_window_dimensions,
+            projection_matrix,
+            fov_y_degrees,
+            near_plane,
+            far_plane,
         }
     }
 
@@ -172,11 +202,33 @@ impl ApplicationContext {
         self.moving_direction = direction
     }
 
+    pub fn window_resized(&mut self, width: usize, height: usize) {
+        self.window_dimensions = (width, height);
+
+        unsafe {
+            gl::Viewport(0, 0, width as i32, height as i32);
+        }
+
+        self.projection_matrix = Mat4::perspective_fov_rh_zo(
+            self.fov_y_degrees.to_radians(),
+            width as f32,
+            height as f32,
+            self.near_plane,
+            self.far_plane,
+        );
+    }
+
     pub fn render(&self) {
         self.drawable_mesh
             .shader_program_info
             .shader_program
             .use_program();
+
+        self.drawable_mesh
+            .shader_program_info
+            .uniforms
+            .projection_matrix
+            .send_uniform_matrix_4fv(self.projection_matrix.as_col_ptr(), 1);
 
         self.drawable_mesh
             .shader_program_info

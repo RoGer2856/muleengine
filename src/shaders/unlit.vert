@@ -36,5 +36,5 @@ uniform vec3 shininessColor;
 
 void main()
 {
-	gl_Position = viewMatrix * objectMatrix * vec4(position, 1.0f);
+	gl_Position = projectionMatrix * viewMatrix * objectMatrix * vec4(position, 1.0f);
 }

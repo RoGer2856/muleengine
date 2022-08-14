@@ -3,7 +3,7 @@ mod application_context;
 use std::time::{Duration, Instant};
 
 use game_2::sdl2_opengl_engine::{self, GLProfile};
-use sdl2::event::Event;
+use sdl2::event::{Event, WindowEvent};
 use vek::Vec3;
 
 use crate::application_context::ApplicationContext;
@@ -58,9 +58,19 @@ fn main() {
         .filter_level(log::LevelFilter::Debug)
         .init();
 
-    let mut engine = sdl2_opengl_engine::init("game_2", 800, 600, GLProfile::Core, 4, 0).unwrap();
+    let initial_window_dimensions = (800usize, 600usize);
 
-    let mut application_context = ApplicationContext::new();
+    let mut engine = sdl2_opengl_engine::init(
+        "game_2",
+        initial_window_dimensions.0 as u32,
+        initial_window_dimensions.1 as u32,
+        GLProfile::Core,
+        4,
+        0,
+    )
+    .unwrap();
+
+    let mut application_context = ApplicationContext::new(initial_window_dimensions);
 
     const DESIRED_FPS: f32 = 30.0;
 
@@ -102,6 +112,12 @@ fn main() {
         while let Some(event) = engine.poll_event() {
             log::info!("{:?}", event);
             match event {
+                Event::Window { win_event, .. } => match win_event {
+                    WindowEvent::Resized(width, height) => {
+                        application_context.window_resized(width as usize, height as usize);
+                    }
+                    _ => {}
+                },
                 Event::Quit { .. } => break 'running,
                 _ => {}
             }
