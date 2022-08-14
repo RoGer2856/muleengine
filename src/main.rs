@@ -1,12 +1,57 @@
 mod application_context;
 
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use game_2::sdl2_opengl_engine::{self, GLProfile};
 use sdl2::event::Event;
 use vek::Vec3;
 
 use crate::application_context::ApplicationContext;
+
+pub struct MainLoop {
+    desired_fps: f32,
+}
+
+impl MainLoop {
+    pub fn new(desired_fps: f32) -> Self {
+        Self { desired_fps }
+    }
+
+    pub fn iter(&self) -> MainLoopIterator {
+        MainLoopIterator {
+            desired_delta_time_in_secs: 1.0 / self.desired_fps,
+            last_next_time: Instant::now(),
+        }
+    }
+}
+
+pub struct MainLoopIterator {
+    desired_delta_time_in_secs: f32,
+    last_next_time: Instant,
+}
+
+impl Iterator for MainLoopIterator {
+    type Item = f32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let now = Instant::now();
+        let last_loop_duration = now - self.last_next_time;
+        self.last_next_time = now;
+
+        let mut last_loop_duration_in_secs = last_loop_duration.as_secs_f32();
+
+        let count = f32::floor(last_loop_duration_in_secs / self.desired_delta_time_in_secs);
+        last_loop_duration_in_secs -= count * self.desired_delta_time_in_secs;
+
+        if last_loop_duration_in_secs < self.desired_delta_time_in_secs {
+            let remaining_time_in_secs =
+                self.desired_delta_time_in_secs - last_loop_duration_in_secs;
+            std::thread::sleep(Duration::from_secs_f32(remaining_time_in_secs));
+        }
+
+        Some(self.desired_delta_time_in_secs)
+    }
+}
 
 fn main() {
     env_logger::builder()
@@ -17,21 +62,10 @@ fn main() {
 
     let mut application_context = ApplicationContext::new();
 
-    let mut last_loop_start = Instant::now();
+    const DESIRED_FPS: f32 = 30.0;
 
-    'running: loop {
-        let now = Instant::now();
-        let delta_time = now - last_loop_start;
-        last_loop_start = now;
-
-        // rendering
-        unsafe {
-            gl::ClearColor(0.2, 0.2, 0.2, 1.0);
-            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
-        }
-
-        application_context.render();
-
+    let main_loop = MainLoop::new(DESIRED_FPS);
+    'running: for delta_time_in_secs in main_loop.iter() {
         engine.gl_swap_window();
 
         // controlling the camera
@@ -62,7 +96,7 @@ fn main() {
 
         application_context.set_moving_direction(moving_direction);
 
-        application_context.tick(delta_time.as_secs_f32());
+        application_context.tick(delta_time_in_secs);
 
         // handling events
         while let Some(event) = engine.poll_event() {
@@ -72,5 +106,13 @@ fn main() {
                 _ => {}
             }
         }
+
+        // rendering
+        unsafe {
+            gl::ClearColor(0.2, 0.2, 0.2, 1.0);
+            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
+        }
+
+        application_context.render();
     }
 }
