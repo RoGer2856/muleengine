@@ -1,46 +1,13 @@
-use std::{fs::read_to_string, sync::Arc};
+use std::sync::Arc;
 
 use game_2::{
-    muleengine::{camera::Camera, mesh::Mesh, mesh_creator},
-    sdl2_opengl_engine::opengl_utils::{
-        index_buffer_object::{IndexBufferObject, PrimitiveMode},
-        shader::{Shader, ShaderType},
-        shader_input::{ShaderAttribute, ShaderUniform},
-        shader_program::ShaderProgram,
-        vertex_array_object::VertexArrayObject,
-        vertex_buffer_object::{DataCount, DataType, VertexBufferObject},
+    muleengine::{camera::Camera, mesh_creator},
+    sdl2_opengl_engine::{
+        gl_mesh::{GLDrawableMesh, GLMesh},
+        gl_mesh_shader_program::GLMeshShaderProgram,
     },
 };
 use vek::{Mat4, Transform, Vec3};
-
-struct GLMesh {
-    _mesh: Arc<Mesh>,
-
-    index_buffer_object: IndexBufferObject,
-    positions_vbo: VertexBufferObject,
-}
-
-struct GLDrawableMesh {
-    gl_mesh: Arc<GLMesh>,
-    vertex_array_object: VertexArrayObject,
-    shader_program_info: Arc<ShaderProgramInfo>,
-}
-
-struct Attributes {
-    position: ShaderAttribute,
-}
-
-struct Uniforms {
-    projection_matrix: ShaderUniform,
-    object_matrix: ShaderUniform,
-    view_matrix: ShaderUniform,
-}
-
-struct ShaderProgramInfo {
-    shader_program: ShaderProgram,
-    uniforms: Uniforms,
-    attributes: Attributes,
-}
 
 pub struct ApplicationContext {
     drawable_mesh: GLDrawableMesh,
@@ -57,84 +24,11 @@ pub struct ApplicationContext {
 
 impl ApplicationContext {
     pub fn new(initial_window_dimensions: (usize, usize)) -> Self {
-        // ShaderProgramInfo
-        let shader_program_info = Arc::new({
-            let vertex_shader = Shader::new(
-                ShaderType::Vertex,
-                read_to_string("src/shaders/unlit.vert").unwrap().as_str(),
-            )
-            .unwrap();
-            let fragment_shader = Shader::new(
-                ShaderType::Fragment,
-                read_to_string("src/shaders/unlit.frag").unwrap().as_str(),
-            )
-            .unwrap();
-
-            let mut shader_program = ShaderProgram::new();
-            shader_program.attach_shader(vertex_shader);
-            shader_program.attach_shader(fragment_shader);
-            shader_program.link_program().unwrap();
-
-            let attributes = Attributes {
-                position: shader_program.get_attribute_by_name("position").unwrap(),
-            };
-
-            let uniforms = Uniforms {
-                projection_matrix: shader_program
-                    .get_uniform_by_name("projectionMatrix")
-                    .unwrap(),
-                object_matrix: shader_program.get_uniform_by_name("objectMatrix").unwrap(),
-                view_matrix: shader_program.get_uniform_by_name("viewMatrix").unwrap(),
-            };
-
-            ShaderProgramInfo {
-                shader_program,
-                uniforms,
-                attributes,
-            }
-        });
-
-        // Mesh initialization
+        let gl_mesh_shader_program =
+            Arc::new(GLMeshShaderProgram::new("src/shaders/unlit".to_string()).unwrap());
         let mesh = Arc::new(mesh_creator::capsule::create(0.5, 2.0, 16));
-
-        // GLMesh initialization
-        let gl_mesh = Arc::new({
-            let index_buffer_object = IndexBufferObject::new(
-                mesh.get_faces().as_ptr(),
-                mesh.get_faces().len(),
-                PrimitiveMode::Triangles,
-            );
-            let positions_vbo = VertexBufferObject::new(
-                mesh.get_positions().as_ptr(),
-                mesh.get_positions().len(),
-                DataType::F32,
-                DataCount::Coords3,
-            );
-
-            GLMesh {
-                index_buffer_object,
-                positions_vbo,
-                _mesh: mesh,
-            }
-        });
-
-        // GLDrawableMesh initialization
-        let gl_drawable_mesh = {
-            let vertex_array_object = VertexArrayObject::new(|vao_interface| {
-                vao_interface.use_index_buffer_object(&gl_mesh.index_buffer_object);
-
-                vao_interface.use_vertex_buffer_object(
-                    &gl_mesh.positions_vbo,
-                    &shader_program_info.attributes.position,
-                );
-            });
-
-            GLDrawableMesh {
-                gl_mesh,
-                vertex_array_object,
-                shader_program_info,
-            }
-        };
+        let gl_mesh = Arc::new(GLMesh::new(mesh));
+        let gl_drawable_mesh = GLDrawableMesh::new(gl_mesh, gl_mesh_shader_program);
 
         // camera
         let camera = Camera::new();
@@ -201,29 +95,9 @@ impl ApplicationContext {
         transform.position.z = -5.0;
         let object_matrix = Into::<Mat4<f32>>::into(transform);
 
-        self.drawable_mesh
-            .shader_program_info
-            .shader_program
-            .use_program();
+        let view_matrix = self.camera.compute_view_matrix();
 
         self.drawable_mesh
-            .shader_program_info
-            .uniforms
-            .projection_matrix
-            .send_uniform_matrix_4fv(self.projection_matrix.as_col_ptr(), 1);
-
-        self.drawable_mesh
-            .shader_program_info
-            .uniforms
-            .object_matrix
-            .send_uniform_matrix_4fv(object_matrix.as_col_ptr(), 1);
-        self.drawable_mesh
-            .shader_program_info
-            .uniforms
-            .view_matrix
-            .send_uniform_matrix_4fv(self.camera.compute_view_matrix().as_col_ptr(), 1);
-
-        self.drawable_mesh.vertex_array_object.use_vao();
-        self.drawable_mesh.gl_mesh.index_buffer_object.draw();
+            .render(&self.projection_matrix, &view_matrix, &object_matrix);
     }
 }
