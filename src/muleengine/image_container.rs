@@ -16,7 +16,7 @@ pub enum ImageContainerError {
 
 impl ImageContainer {
     pub fn new() -> Self {
-        ImageContainer {
+        Self {
             images: HashMap::new(),
         }
     }

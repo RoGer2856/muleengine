@@ -8,7 +8,7 @@ use game_2::{
     },
     sdl2_opengl_engine::{
         gl_mesh::{GLDrawableMesh, GLMesh},
-        gl_mesh_shader_program::GLMeshShaderProgram,
+        gl_shader_program_container::GLShaderProgramContainer,
     },
 };
 use vek::{Mat4, Transform, Vec3};
@@ -17,6 +17,7 @@ pub struct ApplicationContext {
     assets_reader: AssetsReader,
     mesh_container: MeshContainer,
     image_container: ImageContainer,
+    shader_program_container: GLShaderProgramContainer,
 
     drawable_object_storage: DrawableObjectStorage,
 
@@ -49,6 +50,7 @@ impl ApplicationContext {
             assets_reader: AssetsReader::new(),
             mesh_container: MeshContainer::new(),
             image_container: ImageContainer::new(),
+            shader_program_container: GLShaderProgramContainer::new(),
 
             drawable_object_storage: DrawableObjectStorage::new(),
 
@@ -63,10 +65,10 @@ impl ApplicationContext {
             far_plane,
         };
 
-        let gl_mesh_shader_program = Arc::new(
-            GLMeshShaderProgram::new("src/shaders/unlit".to_string(), &mut ret.assets_reader)
-                .unwrap(),
-        );
+        let gl_mesh_shader_program = ret
+            .shader_program_container
+            .get_mesh_shader_program("src/shaders/unlit", &ret.assets_reader)
+            .unwrap();
         let mesh = Arc::new(mesh_creator::capsule::create(0.5, 2.0, 16));
         let gl_mesh = Arc::new(GLMesh::new(mesh));
         let gl_drawable_mesh = GLDrawableMesh::new(gl_mesh, gl_mesh_shader_program);
