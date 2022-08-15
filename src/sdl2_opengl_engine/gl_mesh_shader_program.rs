@@ -1,4 +1,6 @@
-use std::fs::read_to_string;
+use std::io::Read;
+
+use crate::muleengine::assets_reader::AssetsReader;
 
 use super::opengl_utils::{
     shader::{Shader, ShaderCreationError, ShaderType},
@@ -24,7 +26,8 @@ pub struct GLMeshShaderProgram {
 
 #[derive(Debug)]
 pub enum GLMeshShaderProgramError {
-    AssetReadError(std::io::Error),
+    AssetNotFoundError { path: String },
+    AssetReadError { error: std::io::Error, path: String },
     ShaderCreationError(ShaderCreationError),
     ShaderProgramError(ShaderProgramError),
     AttributeNotFound { attribute_name: String },
@@ -32,25 +35,41 @@ pub enum GLMeshShaderProgramError {
 }
 
 impl GLMeshShaderProgram {
-    pub fn new(shader_base_path: String) -> Result<Self, GLMeshShaderProgramError> {
+    pub fn new(
+        shader_base_path: String,
+        assets_reader: &mut AssetsReader,
+    ) -> Result<Self, GLMeshShaderProgramError> {
         let vertex_shader_path = shader_base_path.clone() + ".vert";
         let fragment_shader_path = shader_base_path + ".frag";
 
-        let vertex_shader = Shader::new(
-            ShaderType::Vertex,
-            read_to_string(vertex_shader_path)
-                .map_err(|e| GLMeshShaderProgramError::AssetReadError(e))?
-                .as_str(),
-        )
-        .map_err(|e| GLMeshShaderProgramError::ShaderCreationError(e))?;
+        let mut vertex_shader_source = String::new();
+        assets_reader
+            .get_reader(&vertex_shader_path)
+            .ok_or(GLMeshShaderProgramError::AssetNotFoundError {
+                path: vertex_shader_path,
+            })?
+            .read_to_string(&mut vertex_shader_source)
+            .map_err(|e| GLMeshShaderProgramError::AssetReadError {
+                error: e,
+                path: vertex_shader_source.clone(),
+            })?;
+        let mut fragment_shader_source = String::new();
+        assets_reader
+            .get_reader(&fragment_shader_path)
+            .ok_or(GLMeshShaderProgramError::AssetNotFoundError {
+                path: fragment_shader_path,
+            })?
+            .read_to_string(&mut fragment_shader_source)
+            .map_err(|e| GLMeshShaderProgramError::AssetReadError {
+                error: e,
+                path: fragment_shader_source.clone(),
+            })?;
 
-        let fragment_shader = Shader::new(
-            ShaderType::Fragment,
-            read_to_string(fragment_shader_path)
-                .map_err(|e| GLMeshShaderProgramError::AssetReadError(e))?
-                .as_str(),
-        )
-        .map_err(|e| GLMeshShaderProgramError::ShaderCreationError(e))?;
+        let vertex_shader = Shader::new(ShaderType::Vertex, &vertex_shader_source)
+            .map_err(|e| GLMeshShaderProgramError::ShaderCreationError(e))?;
+
+        let fragment_shader = Shader::new(ShaderType::Fragment, &fragment_shader_source)
+            .map_err(|e| GLMeshShaderProgramError::ShaderCreationError(e))?;
 
         let mut shader_program = ShaderProgram::new();
         shader_program.attach_shader(vertex_shader);
