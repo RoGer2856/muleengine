@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use vek::Mat4;
 
-use crate::muleengine::mesh::Mesh;
+use crate::muleengine::{drawable_object::DrawableObject, mesh::Mesh};
 
 use super::{
     gl_mesh_shader_program::GLMeshShaderProgram,
@@ -24,6 +24,17 @@ pub struct GLDrawableMesh {
     gl_mesh: Arc<GLMesh>,
     vertex_array_object: VertexArrayObject,
     gl_mesh_shader_program: Arc<GLMeshShaderProgram>,
+}
+
+impl DrawableObject for GLDrawableMesh {
+    fn render(
+        &mut self,
+        projection_matrix: &Mat4<f32>,
+        view_matrix: &Mat4<f32>,
+        object_matrix: &Mat4<f32>,
+    ) {
+        GLDrawableMesh::render(&self, projection_matrix, view_matrix, object_matrix);
+    }
 }
 
 impl GLMesh {
