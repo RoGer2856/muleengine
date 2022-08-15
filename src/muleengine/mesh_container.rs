@@ -11,12 +11,12 @@ pub struct MeshContainer {
 
 impl MeshContainer {
     pub fn new() -> Self {
-        MeshContainer {
+        Self {
             scenes: HashMap::new(),
         }
     }
 
-    pub async fn get_scene(
+    pub fn get_scene(
         &mut self,
         scene_path: &str,
         assets_reader: &AssetsReader,

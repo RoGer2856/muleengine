@@ -37,7 +37,7 @@ pub enum GLMeshShaderProgramError {
 impl GLMeshShaderProgram {
     pub fn new(
         shader_base_path: String,
-        assets_reader: &mut AssetsReader,
+        assets_reader: &AssetsReader,
     ) -> Result<Self, GLMeshShaderProgramError> {
         let vertex_shader_path = shader_base_path.clone() + ".vert";
         let fragment_shader_path = shader_base_path + ".frag";
