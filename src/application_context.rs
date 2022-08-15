@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use game_2::{
-    muleengine::{camera::Camera, mesh_creator},
+    muleengine::{assets_reader::AssetsReader, camera::Camera, mesh_creator},
     sdl2_opengl_engine::{
         gl_mesh::{GLDrawableMesh, GLMesh},
         gl_mesh_shader_program::GLMeshShaderProgram,
@@ -10,6 +10,7 @@ use game_2::{
 use vek::{Mat4, Transform, Vec3};
 
 pub struct ApplicationContext {
+    _assets_reader: AssetsReader,
     drawable_mesh: GLDrawableMesh,
     camera: Camera,
     moving_direction: Vec3<f32>,
@@ -24,8 +25,11 @@ pub struct ApplicationContext {
 
 impl ApplicationContext {
     pub fn new(initial_window_dimensions: (usize, usize)) -> Self {
-        let gl_mesh_shader_program =
-            Arc::new(GLMeshShaderProgram::new("src/shaders/unlit".to_string()).unwrap());
+        let mut assets_reader = AssetsReader::new();
+
+        let gl_mesh_shader_program = Arc::new(
+            GLMeshShaderProgram::new("src/shaders/unlit".to_string(), &mut assets_reader).unwrap(),
+        );
         let mesh = Arc::new(mesh_creator::capsule::create(0.5, 2.0, 16));
         let gl_mesh = Arc::new(GLMesh::new(mesh));
         let gl_drawable_mesh = GLDrawableMesh::new(gl_mesh, gl_mesh_shader_program);
@@ -46,6 +50,8 @@ impl ApplicationContext {
         );
 
         Self {
+            _assets_reader: assets_reader,
+
             drawable_mesh: gl_drawable_mesh,
             camera,
             moving_direction: Vec3::zero(),
