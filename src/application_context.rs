@@ -1,7 +1,11 @@
 use std::sync::Arc;
 
 use game_2::{
-    muleengine::{assets_reader::AssetsReader, camera::Camera, mesh_creator},
+    muleengine::{
+        assets_reader::AssetsReader, camera::Camera,
+        drawable_object_storage::DrawableObjectStorage, image_container::ImageContainer,
+        mesh_container::MeshContainer, mesh_creator,
+    },
     sdl2_opengl_engine::{
         gl_mesh::{GLDrawableMesh, GLMesh},
         gl_mesh_shader_program::GLMeshShaderProgram,
@@ -10,8 +14,12 @@ use game_2::{
 use vek::{Mat4, Transform, Vec3};
 
 pub struct ApplicationContext {
-    _assets_reader: AssetsReader,
-    drawable_mesh: GLDrawableMesh,
+    assets_reader: AssetsReader,
+    mesh_container: MeshContainer,
+    image_container: ImageContainer,
+
+    drawable_object_storage: DrawableObjectStorage,
+
     camera: Camera,
     moving_direction: Vec3<f32>,
 
@@ -25,18 +33,6 @@ pub struct ApplicationContext {
 
 impl ApplicationContext {
     pub fn new(initial_window_dimensions: (usize, usize)) -> Self {
-        let mut assets_reader = AssetsReader::new();
-
-        let gl_mesh_shader_program = Arc::new(
-            GLMeshShaderProgram::new("src/shaders/unlit".to_string(), &mut assets_reader).unwrap(),
-        );
-        let mesh = Arc::new(mesh_creator::capsule::create(0.5, 2.0, 16));
-        let gl_mesh = Arc::new(GLMesh::new(mesh));
-        let gl_drawable_mesh = GLDrawableMesh::new(gl_mesh, gl_mesh_shader_program);
-
-        // camera
-        let camera = Camera::new();
-
         // projection
         let fov_y_degrees = 45.0f32;
         let near_plane = 0.01;
@@ -49,11 +45,14 @@ impl ApplicationContext {
             far_plane,
         );
 
-        Self {
-            _assets_reader: assets_reader,
+        let mut ret = Self {
+            assets_reader: AssetsReader::new(),
+            mesh_container: MeshContainer::new(),
+            image_container: ImageContainer::new(),
 
-            drawable_mesh: gl_drawable_mesh,
-            camera,
+            drawable_object_storage: DrawableObjectStorage::new(),
+
+            camera: Camera::new(),
             moving_direction: Vec3::zero(),
 
             // projection
@@ -62,7 +61,22 @@ impl ApplicationContext {
             fov_y_degrees,
             near_plane,
             far_plane,
-        }
+        };
+
+        let gl_mesh_shader_program = Arc::new(
+            GLMeshShaderProgram::new("src/shaders/unlit".to_string(), &mut ret.assets_reader)
+                .unwrap(),
+        );
+        let mesh = Arc::new(mesh_creator::capsule::create(0.5, 2.0, 16));
+        let gl_mesh = Arc::new(GLMesh::new(mesh));
+        let gl_drawable_mesh = GLDrawableMesh::new(gl_mesh, gl_mesh_shader_program);
+
+        let mut transform = Transform::<f32, f32, f32>::default();
+        transform.position.z = -5.0;
+        ret.drawable_object_storage
+            .add_drawable_object(Box::new(gl_drawable_mesh), transform);
+
+        ret
     }
 
     pub fn tick(&mut self, delta_time: f32) {
@@ -96,14 +110,9 @@ impl ApplicationContext {
         );
     }
 
-    pub fn render(&self) {
-        let mut transform = Transform::<f32, f32, f32>::default();
-        transform.position.z = -5.0;
-        let object_matrix = Into::<Mat4<f32>>::into(transform);
-
+    pub fn render(&mut self) {
         let view_matrix = self.camera.compute_view_matrix();
-
-        self.drawable_mesh
-            .render(&self.projection_matrix, &view_matrix, &object_matrix);
+        self.drawable_object_storage
+            .render_all(&self.projection_matrix, &view_matrix);
     }
 }
