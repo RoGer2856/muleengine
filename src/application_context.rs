@@ -4,14 +4,21 @@ use game_2::{
     muleengine::{
         assets_reader::AssetsReader, camera::Camera,
         drawable_object_storage::DrawableObjectStorage, image_container::ImageContainer,
-        mesh_container::MeshContainer, mesh_creator,
+        mesh::SceneLoadError, mesh_container::MeshContainer, mesh_creator,
     },
     sdl2_opengl_engine::{
         gl_mesh::{GLDrawableMesh, GLMesh},
+        gl_mesh_shader_program::GLMeshShaderProgramError,
         gl_shader_program_container::GLShaderProgramContainer,
     },
 };
 use vek::{Mat4, Transform, Vec3};
+
+#[derive(Debug)]
+pub enum ApplicationMeshLoadError {
+    GLMeshShaderProgramError(GLMeshShaderProgramError),
+    SceneLoadError(SceneLoadError),
+}
 
 pub struct ApplicationContext {
     assets_reader: AssetsReader,
@@ -79,6 +86,45 @@ impl ApplicationContext {
             .add_drawable_object(Box::new(gl_drawable_mesh), transform);
 
         ret
+    }
+
+    pub fn add_scene_from_asset(
+        &mut self,
+        shader_basepath: &str,
+        scene_path: &str,
+        transform: Transform<f32, f32, f32>,
+    ) -> Result<(), ApplicationMeshLoadError> {
+        let gl_mesh_shader_program = self
+            .shader_program_container
+            .get_mesh_shader_program(shader_basepath, &mut self.assets_reader)
+            .map_err(|e| ApplicationMeshLoadError::GLMeshShaderProgramError(e))?;
+
+        let scene = self
+            .mesh_container
+            .get_scene(scene_path, &mut self.assets_reader)
+            .map_err(|e| ApplicationMeshLoadError::SceneLoadError(e))?;
+
+        for mesh in scene.meshes_ref().iter() {
+            match mesh {
+                Ok(mesh) => {
+                    let gl_mesh = Arc::new(GLMesh::new(mesh.clone()));
+                    let gl_drawable_mesh =
+                        GLDrawableMesh::new(gl_mesh, gl_mesh_shader_program.clone());
+
+                    self.drawable_object_storage
+                        .add_drawable_object(Box::new(gl_drawable_mesh), transform);
+                }
+                Err(e) => {
+                    log::warn!(
+                        "Could not load mesh, asset = \"{}\", error = \"{:?}\"",
+                        scene_path,
+                        e
+                    );
+                }
+            }
+        }
+
+        Ok(())
     }
 
     pub fn tick(&mut self, delta_time: f32) {

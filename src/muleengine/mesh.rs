@@ -8,6 +8,7 @@ use vek::{Mat4, Vec2, Vec3, Vec4};
 use super::aabb::AxisAlignedBoundingBox;
 use super::assets_reader::{canonicalize_path, parent_path, AssetsReader};
 
+#[derive(Debug)]
 pub enum SceneLoadError {
     CannotCreateTempFile(std::io::Error),
     TempFileCopyError(std::io::Error),
@@ -16,6 +17,7 @@ pub enum SceneLoadError {
     Unexpected,
 }
 
+#[derive(Debug)]
 pub enum MeshConvertError {
     FaceIndexError {
         face_id: u32,
