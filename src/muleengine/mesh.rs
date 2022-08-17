@@ -17,7 +17,7 @@ pub enum SceneLoadError {
     Unexpected,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum MeshConvertError {
     FaceIndexError {
         face_id: u32,
