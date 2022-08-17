@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use game_2::sdl2_opengl_engine::{self, GLProfile};
 use sdl2::event::{Event, WindowEvent};
-use vek::Vec3;
+use vek::{Transform, Vec3};
 
 use crate::application_context::ApplicationContext;
 
@@ -71,6 +71,7 @@ fn main() {
     .unwrap();
 
     let mut application_context = ApplicationContext::new(initial_window_dimensions);
+    populate_with_objects(&mut application_context);
 
     const DESIRED_FPS: f32 = 30.0;
 
@@ -131,4 +132,16 @@ fn main() {
 
         application_context.render();
     }
+}
+
+fn populate_with_objects(application_context: &mut ApplicationContext) {
+    let mut transform = Transform::<f32, f32, f32>::default();
+    transform.position.z = -5.0;
+    application_context
+        .add_scene_from_asset(
+            "src/shaders/unlit",
+            "Assets/objects/skybox/Skybox.obj",
+            transform,
+        )
+        .unwrap();
 }
