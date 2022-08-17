@@ -4,7 +4,6 @@ use std::sync::Arc;
 use super::assets_reader::AssetsReader;
 use super::image::Image;
 
-#[derive(Clone)]
 pub struct ImageContainer {
     images: HashMap<String, Arc<Image>>,
 }

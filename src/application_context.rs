@@ -4,11 +4,12 @@ use game_2::{
     muleengine::{
         assets_reader::AssetsReader, camera::Camera,
         drawable_object_storage::DrawableObjectStorage, image_container::ImageContainer,
-        mesh::SceneLoadError, mesh_container::MeshContainer, mesh_creator,
+        mesh::SceneLoadError, mesh_creator, scene_container::SceneContainer,
     },
     sdl2_opengl_engine::{
         gl_mesh::{GLDrawableMesh, GLMesh},
         gl_mesh_shader_program::GLMeshShaderProgramError,
+        gl_scene_container::GLSceneContainer,
         gl_shader_program_container::GLShaderProgramContainer,
     },
 };
@@ -22,7 +23,7 @@ pub enum ApplicationMeshLoadError {
 
 pub struct ApplicationContext {
     assets_reader: AssetsReader,
-    mesh_container: MeshContainer,
+    gl_scene_container: GLSceneContainer,
     image_container: ImageContainer,
     shader_program_container: GLShaderProgramContainer,
 
@@ -55,7 +56,7 @@ impl ApplicationContext {
 
         let mut ret = Self {
             assets_reader: AssetsReader::new(),
-            mesh_container: MeshContainer::new(),
+            gl_scene_container: GLSceneContainer::new(SceneContainer::new()),
             image_container: ImageContainer::new(),
             shader_program_container: GLShaderProgramContainer::new(),
 
@@ -81,6 +82,7 @@ impl ApplicationContext {
         let gl_drawable_mesh = GLDrawableMesh::new(gl_mesh, gl_mesh_shader_program);
 
         let mut transform = Transform::<f32, f32, f32>::default();
+        transform.position.x = -2.0;
         transform.position.z = -5.0;
         ret.drawable_object_storage
             .add_drawable_object(Box::new(gl_drawable_mesh), transform);
@@ -100,16 +102,15 @@ impl ApplicationContext {
             .map_err(|e| ApplicationMeshLoadError::GLMeshShaderProgramError(e))?;
 
         let scene = self
-            .mesh_container
+            .gl_scene_container
             .get_scene(scene_path, &mut self.assets_reader)
             .map_err(|e| ApplicationMeshLoadError::SceneLoadError(e))?;
 
-        for mesh in scene.meshes_ref().iter() {
-            match mesh {
-                Ok(mesh) => {
-                    let gl_mesh = Arc::new(GLMesh::new(mesh.clone()));
+        for gl_mesh in scene.meshes_ref().iter() {
+            match gl_mesh {
+                Ok(gl_mesh) => {
                     let gl_drawable_mesh =
-                        GLDrawableMesh::new(gl_mesh, gl_mesh_shader_program.clone());
+                        GLDrawableMesh::new(gl_mesh.clone(), gl_mesh_shader_program.clone());
 
                     self.drawable_object_storage
                         .add_drawable_object(Box::new(gl_drawable_mesh), transform);

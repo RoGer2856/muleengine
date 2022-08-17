@@ -4,12 +4,11 @@ use std::sync::Arc;
 use super::assets_reader::AssetsReader;
 use super::mesh::{Scene, SceneLoadError};
 
-#[derive(Clone)]
-pub struct MeshContainer {
+pub struct SceneContainer {
     scenes: HashMap<String, Arc<Scene>>,
 }
 
-impl MeshContainer {
+impl SceneContainer {
     pub fn new() -> Self {
         Self {
             scenes: HashMap::new(),
