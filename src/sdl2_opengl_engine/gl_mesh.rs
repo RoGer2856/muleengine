@@ -28,7 +28,7 @@ pub struct GLDrawableMesh {
 
 impl DrawableObject for GLDrawableMesh {
     fn render(
-        &mut self,
+        &self,
         projection_matrix: &Mat4<f32>,
         view_matrix: &Mat4<f32>,
         object_matrix: &Mat4<f32>,
