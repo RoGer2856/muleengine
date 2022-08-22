@@ -8,8 +8,8 @@ use game_2::{
     },
     sdl2_opengl_engine::{
         gl_mesh::{GLDrawableMesh, GLMesh},
+        gl_mesh_container::GLMeshContainer,
         gl_mesh_shader_program::GLMeshShaderProgramError,
-        gl_scene_container::GLSceneContainer,
         gl_shader_program_container::GLShaderProgramContainer,
     },
 };
@@ -23,9 +23,10 @@ pub enum ApplicationMeshLoadError {
 
 pub struct ApplicationContext {
     assets_reader: AssetsReader,
-    gl_scene_container: GLSceneContainer,
+    scene_container: SceneContainer,
+    gl_mesh_container: GLMeshContainer,
+    gl_shader_program_container: GLShaderProgramContainer,
     image_container: ImageContainer,
-    shader_program_container: GLShaderProgramContainer,
 
     drawable_object_storage: DrawableObjectStorage,
 
@@ -56,9 +57,10 @@ impl ApplicationContext {
 
         let mut ret = Self {
             assets_reader: AssetsReader::new(),
-            gl_scene_container: GLSceneContainer::new(SceneContainer::new()),
+            scene_container: SceneContainer::new(),
+            gl_mesh_container: GLMeshContainer::new(),
             image_container: ImageContainer::new(),
-            shader_program_container: GLShaderProgramContainer::new(),
+            gl_shader_program_container: GLShaderProgramContainer::new(),
 
             drawable_object_storage: DrawableObjectStorage::new(),
 
@@ -74,7 +76,7 @@ impl ApplicationContext {
         };
 
         let gl_mesh_shader_program = ret
-            .shader_program_container
+            .gl_shader_program_container
             .get_mesh_shader_program("src/shaders/unlit", &ret.assets_reader)
             .unwrap();
         let mesh = Arc::new(mesh_creator::capsule::create(0.5, 2.0, 16));
@@ -85,7 +87,7 @@ impl ApplicationContext {
         transform.position.x = -2.0;
         transform.position.z = -5.0;
         ret.drawable_object_storage
-            .add_drawable_object(Box::new(gl_drawable_mesh), transform);
+            .add_drawable_object(Arc::new(gl_drawable_mesh), transform);
 
         ret
     }
@@ -97,23 +99,23 @@ impl ApplicationContext {
         transform: Transform<f32, f32, f32>,
     ) -> Result<(), ApplicationMeshLoadError> {
         let gl_mesh_shader_program = self
-            .shader_program_container
+            .gl_shader_program_container
             .get_mesh_shader_program(shader_basepath, &mut self.assets_reader)
             .map_err(|e| ApplicationMeshLoadError::GLMeshShaderProgramError(e))?;
 
         let scene = self
-            .gl_scene_container
+            .scene_container
             .get_scene(scene_path, &mut self.assets_reader)
             .map_err(|e| ApplicationMeshLoadError::SceneLoadError(e))?;
 
-        for gl_mesh in scene.meshes_ref().iter() {
-            match gl_mesh {
-                Ok(gl_mesh) => {
-                    let gl_drawable_mesh =
-                        GLDrawableMesh::new(gl_mesh.clone(), gl_mesh_shader_program.clone());
-
+        for mesh in scene.meshes_ref().iter() {
+            match mesh {
+                Ok(mesh) => {
+                    let gl_drawable_mesh = self
+                        .gl_mesh_container
+                        .get_drawable_mesh(gl_mesh_shader_program.clone(), mesh.clone());
                     self.drawable_object_storage
-                        .add_drawable_object(Box::new(gl_drawable_mesh), transform);
+                        .add_drawable_object(gl_drawable_mesh, transform);
                 }
                 Err(e) => {
                     log::warn!(

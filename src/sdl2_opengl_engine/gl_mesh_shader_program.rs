@@ -19,6 +19,7 @@ pub(super) struct Uniforms {
 }
 
 pub struct GLMeshShaderProgram {
+    shader_base_path: String,
     pub(super) shader_program: ShaderProgram,
     pub(super) uniforms: Uniforms,
     pub(super) attributes: Attributes,
@@ -40,7 +41,7 @@ impl GLMeshShaderProgram {
         assets_reader: &AssetsReader,
     ) -> Result<Self, GLMeshShaderProgramError> {
         let vertex_shader_path = shader_base_path.clone() + ".vert";
-        let fragment_shader_path = shader_base_path + ".frag";
+        let fragment_shader_path = shader_base_path.clone() + ".frag";
 
         let mut vertex_shader_source = String::new();
         assets_reader
@@ -105,9 +106,14 @@ impl GLMeshShaderProgram {
         };
 
         Ok(Self {
+            shader_base_path,
             shader_program,
             uniforms,
             attributes,
         })
+    }
+
+    pub fn get_shader_base_path(&self) -> &String {
+        &self.shader_base_path
     }
 }
