@@ -2,6 +2,7 @@ pub mod index_buffer_object;
 pub mod shader;
 pub mod shader_input;
 pub mod shader_program;
+pub mod texture_2d;
 pub mod vertex_array_object;
 pub mod vertex_buffer_object;
 

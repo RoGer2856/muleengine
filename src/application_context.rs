@@ -2,14 +2,15 @@ use std::sync::Arc;
 
 use game_2::{
     muleengine::{
-        assets_reader::AssetsReader, camera::Camera,
-        drawable_object_storage::DrawableObjectStorage, image_container::ImageContainer,
-        mesh::SceneLoadError, mesh_creator, scene_container::SceneContainer,
+        assets_reader::AssetsReader,
+        camera::Camera,
+        drawable_object_storage::DrawableObjectStorage,
+        image_container::ImageContainer,
+        mesh::{Mesh, SceneLoadError},
+        scene_container::SceneContainer,
     },
     sdl2_opengl_engine::{
-        gl_mesh::{GLDrawableMesh, GLMesh},
-        gl_mesh_container::GLMeshContainer,
-        gl_mesh_shader_program::GLMeshShaderProgramError,
+        gl_mesh_container::GLMeshContainer, gl_mesh_shader_program::GLMeshShaderProgramError,
         gl_shader_program_container::GLShaderProgramContainer,
     },
 };
@@ -55,7 +56,7 @@ impl ApplicationContext {
             far_plane,
         );
 
-        let mut ret = Self {
+        Self {
             assets_reader: AssetsReader::new(),
             scene_container: SceneContainer::new(),
             gl_mesh_container: GLMeshContainer::new(),
@@ -73,23 +74,26 @@ impl ApplicationContext {
             fov_y_degrees,
             near_plane,
             far_plane,
-        };
+        }
+    }
 
-        let gl_mesh_shader_program = ret
+    pub fn add_mesh(
+        &mut self,
+        shader_basepath: &str,
+        mesh: Arc<Mesh>,
+        transform: Transform<f32, f32, f32>,
+    ) -> Result<(), GLMeshShaderProgramError> {
+        let gl_mesh_shader_program = self
             .gl_shader_program_container
-            .get_mesh_shader_program("src/shaders/unlit", &ret.assets_reader)
-            .unwrap();
-        let mesh = Arc::new(mesh_creator::capsule::create(0.5, 2.0, 16));
-        let gl_mesh = Arc::new(GLMesh::new(mesh));
-        let gl_drawable_mesh = GLDrawableMesh::new(gl_mesh, gl_mesh_shader_program);
+            .get_mesh_shader_program(shader_basepath, &mut self.assets_reader)?;
 
-        let mut transform = Transform::<f32, f32, f32>::default();
-        transform.position.x = -2.0;
-        transform.position.z = -5.0;
-        ret.drawable_object_storage
-            .add_drawable_object(Arc::new(gl_drawable_mesh), transform);
+        let gl_drawable_mesh = self
+            .gl_mesh_container
+            .get_drawable_mesh(gl_mesh_shader_program.clone(), mesh.clone());
+        self.drawable_object_storage
+            .add_drawable_object(gl_drawable_mesh, transform);
 
-        ret
+        Ok(())
     }
 
     pub fn add_scene_from_asset(

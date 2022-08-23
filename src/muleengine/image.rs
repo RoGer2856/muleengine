@@ -22,8 +22,8 @@ pub enum ColorType {
     La16,
     Rgb16,
     Rgba16,
-    Rgb32,
-    Rgba32,
+    RgbF32,
+    RgbaF32,
 }
 
 impl TryFrom<image::ColorType> for ColorType {
@@ -39,8 +39,8 @@ impl TryFrom<image::ColorType> for ColorType {
             image::ColorType::La16 => Ok(ColorType::La16),
             image::ColorType::Rgb16 => Ok(ColorType::Rgb16),
             image::ColorType::Rgba16 => Ok(ColorType::Rgba16),
-            image::ColorType::Rgb32F => Ok(ColorType::Rgb32),
-            image::ColorType::Rgba32F => Ok(ColorType::Rgba32),
+            image::ColorType::Rgb32F => Ok(ColorType::RgbF32),
+            image::ColorType::Rgba32F => Ok(ColorType::RgbaF32),
             _ => Err(()),
         }
     }
@@ -78,8 +78,8 @@ impl Image {
             ColorType::Rgba8 => image::DynamicImage::new_rgba8(width as u32, height as u32),
             ColorType::Rgb16 => image::DynamicImage::new_rgb16(width as u32, height as u32),
             ColorType::Rgba16 => image::DynamicImage::new_rgba16(width as u32, height as u32),
-            ColorType::Rgb32 => image::DynamicImage::new_rgb32f(width as u32, height as u32),
-            ColorType::Rgba32 => image::DynamicImage::new_rgba32f(width as u32, height as u32),
+            ColorType::RgbF32 => image::DynamicImage::new_rgb32f(width as u32, height as u32),
+            ColorType::RgbaF32 => image::DynamicImage::new_rgba32f(width as u32, height as u32),
         };
 
         Self {
@@ -104,7 +104,7 @@ impl Image {
             color_type
         } else {
             image = image::DynamicImage::ImageRgba32F(image.into_rgba32f());
-            ColorType::Rgba32
+            ColorType::RgbaF32
         };
 
         let (width, height) = get_dimensions(&image);
