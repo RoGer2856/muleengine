@@ -1,8 +1,14 @@
 mod application_context;
 
-use std::time::{Duration, Instant};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
-use game_2::sdl2_opengl_engine::{self, GLProfile};
+use game_2::{
+    muleengine::mesh_creator,
+    sdl2_opengl_engine::{self, GLProfile},
+};
 use sdl2::event::{Event, WindowEvent};
 use vek::{Transform, Vec3};
 
@@ -135,13 +141,27 @@ fn main() {
 }
 
 fn populate_with_objects(application_context: &mut ApplicationContext) {
-    let mut transform = Transform::<f32, f32, f32>::default();
-    transform.position.z = -5.0;
-    application_context
-        .add_scene_from_asset(
-            "src/shaders/unlit",
-            "Assets/objects/skybox/Skybox.obj",
-            transform,
-        )
-        .unwrap();
+    {
+        let mut transform = Transform::<f32, f32, f32>::default();
+        transform.position.z = -5.0;
+
+        application_context
+            .add_scene_from_asset(
+                "src/shaders/unlit",
+                "Assets/objects/skybox/Skybox.obj",
+                transform,
+            )
+            .unwrap();
+    }
+
+    {
+        let mut transform = Transform::<f32, f32, f32>::default();
+        transform.position.x = -2.0;
+        transform.position.z = -5.0;
+
+        let mesh = Arc::new(mesh_creator::capsule::create(0.5, 2.0, 16));
+        application_context
+            .add_mesh("src/shaders/unlit", mesh, transform)
+            .unwrap();
+    }
 }
