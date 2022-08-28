@@ -11,7 +11,7 @@ use game_2::{
     },
     sdl2_opengl_engine::{
         gl_mesh_container::GLMeshContainer, gl_mesh_shader_program::GLMeshShaderProgramError,
-        gl_shader_program_container::GLShaderProgramContainer,
+        gl_shader_program_container::GLShaderProgramContainer, gl_texture_container::GLTextureContainer,
     },
 };
 use vek::{Mat4, Transform, Vec3};
@@ -25,9 +25,11 @@ pub enum ApplicationMeshLoadError {
 pub struct ApplicationContext {
     assets_reader: AssetsReader,
     scene_container: SceneContainer,
+    image_container: ImageContainer,
+
     gl_mesh_container: GLMeshContainer,
     gl_shader_program_container: GLShaderProgramContainer,
-    image_container: ImageContainer,
+    gl_texture_container: GLTextureContainer,
 
     drawable_object_storage: DrawableObjectStorage,
 
@@ -59,9 +61,11 @@ impl ApplicationContext {
         Self {
             assets_reader: AssetsReader::new(),
             scene_container: SceneContainer::new(),
-            gl_mesh_container: GLMeshContainer::new(),
             image_container: ImageContainer::new(),
+
+            gl_mesh_container: GLMeshContainer::new(),
             gl_shader_program_container: GLShaderProgramContainer::new(),
+            gl_texture_container: GLTextureContainer::new(),
 
             drawable_object_storage: DrawableObjectStorage::new(),
 
