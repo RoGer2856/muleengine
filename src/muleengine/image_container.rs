@@ -8,6 +8,7 @@ pub struct ImageContainer {
     images: HashMap<String, Arc<Image>>,
 }
 
+#[derive(Debug, Clone)]
 pub enum ImageContainerError {
     CannotOpenAsset { path: String },
     CannotDecodeAssetAsImage { path: String },

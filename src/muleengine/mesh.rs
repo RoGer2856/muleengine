@@ -7,6 +7,8 @@ use vek::{Mat4, Vec2, Vec3, Vec4};
 
 use super::aabb::AxisAlignedBoundingBox;
 use super::assets_reader::{canonicalize_path, parent_path, AssetsReader};
+use super::image::Image;
+use super::image_container::{ImageContainer, ImageContainerError};
 
 #[derive(Debug)]
 pub enum SceneLoadError {
@@ -76,7 +78,7 @@ pub enum TextureMapMode {
 
 #[derive(Clone)]
 pub struct MaterialTexture {
-    pub path: String,
+    pub image: Result<Arc<Image>, ImageContainerError>,
     pub texture_type: MaterialTextureType,
     pub texture_map_mode: TextureMapMode,
     pub blend: f32,
@@ -159,14 +161,14 @@ impl std::convert::From<assimp_sys::AiTextureMapMode> for TextureMapMode {
 
 impl MaterialTexture {
     pub fn new(
-        path: String,
+        image: Arc<Image>,
         texture_type: MaterialTextureType,
         texture_map_mode: TextureMapMode,
         blend: f32,
         uv_channel_id: usize,
     ) -> Self {
         Self {
-            path,
+            image: Ok(image),
             texture_type,
             texture_map_mode,
             blend,
@@ -180,6 +182,7 @@ impl MaterialTexture {
         ai_material: &assimp_sys::AiMaterial,
         texture_type: assimp_sys::AiTextureType,
         index: usize,
+        image_container: &mut ImageContainer,
     ) -> Result<Self, Utf8Error> {
         let mut path = assimp_sys::AiString {
             length: 0,
@@ -209,14 +212,16 @@ impl MaterialTexture {
         let path = canonicalize_path(ai_string_to_str(&path)?.to_string());
 
         let tmp_path = scene_parent_dir + "/" + &path;
-        let path = if assets_reader.get_reader(&tmp_path).is_some() {
+        let image_path = if assets_reader.get_reader(&tmp_path).is_some() {
             tmp_path
         } else {
             path
         };
 
+        let image = image_container.get_image(&image_path, assets_reader);
+
         Ok(Self {
-            path,
+            image,
             texture_type: MaterialTextureType::from(texture_type),
             texture_map_mode: TextureMapMode::from(map_mode),
             blend: blend,
@@ -271,6 +276,7 @@ impl Mesh {
         scene_path: &str,
         ai_mesh: assimp::Mesh,
         materials: &[*mut assimp_sys::AiMaterial],
+        image_container: &mut ImageContainer,
     ) -> Result<Self, MeshConvertError> {
         let mut mesh = Self::new();
 
@@ -442,6 +448,7 @@ impl Mesh {
                 &ai_material,
                 assimp_sys::AiTextureType::Diffuse,
                 0,
+                image_container,
             )
             .map_err(|e| MeshConvertError::Utf8Error(e))?;
 
@@ -458,6 +465,7 @@ impl Mesh {
                 &ai_material,
                 assimp_sys::AiTextureType::Normals,
                 0,
+                image_container,
             )
             .map_err(|e| MeshConvertError::Utf8Error(e))?;
 
@@ -477,6 +485,7 @@ impl Mesh {
                 &ai_material,
                 assimp_sys::AiTextureType::Displacement,
                 0,
+                image_container,
             )
             .map_err(|e| MeshConvertError::Utf8Error(e))?;
 
@@ -493,6 +502,7 @@ impl Mesh {
                 &ai_material,
                 assimp_sys::AiTextureType::Height,
                 0,
+                image_container,
             )
             .map_err(|e| MeshConvertError::Utf8Error(e))?;
 
@@ -509,6 +519,7 @@ impl Mesh {
                 &ai_material,
                 assimp_sys::AiTextureType::Specular,
                 0,
+                image_container,
             )
             .map_err(|e| MeshConvertError::Utf8Error(e))?;
 
@@ -749,6 +760,7 @@ impl Scene {
         assets_reader: &AssetsReader,
         scene_path: &str,
         scene: assimp::Scene,
+        image_container: &mut ImageContainer,
     ) -> Scene {
         let mut meshes = Vec::new();
 
@@ -758,8 +770,14 @@ impl Scene {
                     std::slice::from_raw_parts(scene.materials, scene.num_materials as usize)
                 };
                 meshes.push(
-                    Mesh::from_assimp_mesh(assets_reader, scene_path, mesh, materials)
-                        .map(|mesh| Arc::new(mesh)),
+                    Mesh::from_assimp_mesh(
+                        assets_reader,
+                        scene_path,
+                        mesh,
+                        materials,
+                        image_container,
+                    )
+                    .map(|mesh| Arc::new(mesh)),
                 );
             }
         }
@@ -767,7 +785,11 @@ impl Scene {
         Scene { meshes }
     }
 
-    pub fn load(assets_reader: &AssetsReader, scene_path: &str) -> Result<Scene, SceneLoadError> {
+    pub fn load(
+        assets_reader: &AssetsReader,
+        scene_path: &str,
+        image_container: &mut ImageContainer,
+    ) -> Result<Scene, SceneLoadError> {
         let mut reader =
             assets_reader
                 .get_reader(scene_path)
@@ -810,7 +832,12 @@ impl Scene {
             .read_file(&tmp_file.path().to_str().ok_or(SceneLoadError::Unexpected)?)
             .map_err(|e| SceneLoadError::AssimpReadError(e.to_string()))?;
 
-        Ok(Self::from_assimp_scene(assets_reader, scene_path, scene))
+        Ok(Self::from_assimp_scene(
+            assets_reader,
+            scene_path,
+            scene,
+            image_container,
+        ))
     }
 
     pub fn meshes_ref(&self) -> &Vec<Result<Arc<Mesh>, MeshConvertError>> {

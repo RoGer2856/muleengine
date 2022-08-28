@@ -62,7 +62,7 @@ impl AssetsReader {
     }
 
     pub fn get_reader(&self, path: &str) -> Option<impl std::io::Read> {
-        std::fs::File::open(path).ok()
+        std::fs::File::open(canonicalize_path(path.to_string())).ok()
     }
 }
 

@@ -11,7 +11,8 @@ use game_2::{
     },
     sdl2_opengl_engine::{
         gl_mesh_container::GLMeshContainer, gl_mesh_shader_program::GLMeshShaderProgramError,
-        gl_shader_program_container::GLShaderProgramContainer, gl_texture_container::GLTextureContainer,
+        gl_shader_program_container::GLShaderProgramContainer,
+        gl_texture_container::GLTextureContainer,
     },
 };
 use vek::{Mat4, Transform, Vec3};
@@ -91,9 +92,11 @@ impl ApplicationContext {
             .gl_shader_program_container
             .get_mesh_shader_program(shader_basepath, &mut self.assets_reader)?;
 
-        let gl_drawable_mesh = self
-            .gl_mesh_container
-            .get_drawable_mesh(gl_mesh_shader_program.clone(), mesh.clone());
+        let gl_drawable_mesh = self.gl_mesh_container.get_drawable_mesh(
+            gl_mesh_shader_program.clone(),
+            mesh.clone(),
+            &mut self.gl_texture_container,
+        );
         self.drawable_object_storage
             .add_drawable_object(gl_drawable_mesh, transform);
 
@@ -113,15 +116,21 @@ impl ApplicationContext {
 
         let scene = self
             .scene_container
-            .get_scene(scene_path, &mut self.assets_reader)
+            .get_scene(
+                scene_path,
+                &mut self.assets_reader,
+                &mut self.image_container,
+            )
             .map_err(|e| ApplicationMeshLoadError::SceneLoadError(e))?;
 
         for mesh in scene.meshes_ref().iter() {
             match mesh {
                 Ok(mesh) => {
-                    let gl_drawable_mesh = self
-                        .gl_mesh_container
-                        .get_drawable_mesh(gl_mesh_shader_program.clone(), mesh.clone());
+                    let gl_drawable_mesh = self.gl_mesh_container.get_drawable_mesh(
+                        gl_mesh_shader_program.clone(),
+                        mesh.clone(),
+                        &mut self.gl_texture_container,
+                    );
                     self.drawable_object_storage
                         .add_drawable_object(gl_drawable_mesh, transform);
                 }

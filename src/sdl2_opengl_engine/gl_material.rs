@@ -1,0 +1,64 @@
+use std::sync::Arc;
+
+use vek::Vec3;
+
+use crate::muleengine::{
+    image_container::ImageContainerError,
+    mesh::{Material, MaterialTexture, MaterialTextureType},
+    result_option_inspect::ResultInspector,
+};
+
+use super::{gl_texture_container::GLTextureContainer, opengl_utils::texture_2d::Texture2D};
+
+pub struct GLMaterialTexture {
+    pub texture: Arc<Texture2D>,
+    pub texture_type: MaterialTextureType,
+    pub uv_channel_id: usize,
+    pub blend: f32,
+}
+
+pub struct GLMaterial {
+    pub opacity: f32,
+    pub albedo_color: Vec3<f32>,
+    pub emissive_color: Vec3<f32>,
+    pub shininess_color: Vec3<f32>,
+    pub textures: Vec<GLMaterialTexture>,
+}
+
+impl GLMaterial {
+    pub fn new(material: &Material, gl_texture_container: &mut GLTextureContainer) -> Self {
+        let mut textures = Vec::new();
+
+        for texture in material.textures.iter() {
+            let material_texture = GLMaterialTexture::new(texture, gl_texture_container);
+            let material_texture = material_texture.inspect_err(|e| {
+                log::error!("Could not load texture for material, error = '{:?}'", e)
+            });
+            if let Ok(material_texture) = material_texture {
+                textures.push(material_texture);
+            }
+        }
+
+        Self {
+            opacity: material.opacity,
+            albedo_color: material.albedo_color,
+            emissive_color: material.emissive_color,
+            shininess_color: material.shininess_color,
+            textures,
+        }
+    }
+}
+
+impl GLMaterialTexture {
+    pub fn new(
+        texture: &MaterialTexture,
+        gl_texture_container: &mut GLTextureContainer,
+    ) -> Result<Self, ImageContainerError> {
+        Ok(Self {
+            texture: gl_texture_container.get_texture(texture.image.clone()?),
+            texture_type: texture.texture_type,
+            blend: texture.blend,
+            uv_channel_id: texture.uv_channel_id,
+        })
+    }
+}

@@ -10,4 +10,5 @@ pub mod mesh;
 pub mod mesh_creator;
 pub mod object_map_pool;
 pub mod object_pool;
+pub mod result_option_inspect;
 pub mod scene_container;

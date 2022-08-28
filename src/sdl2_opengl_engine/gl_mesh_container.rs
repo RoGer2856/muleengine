@@ -5,6 +5,7 @@ use crate::muleengine::mesh::Mesh;
 
 use super::gl_mesh::{GLDrawableMesh, GLMesh};
 use super::gl_mesh_shader_program::GLMeshShaderProgram;
+use super::gl_texture_container::GLTextureContainer;
 
 pub struct GLMeshContainer {
     drawable_meshes: HashMap<
@@ -27,11 +28,14 @@ impl GLMeshContainer {
         &mut self,
         gl_mesh_shader_program: Arc<GLMeshShaderProgram>,
         mesh: Arc<Mesh>,
+        gl_texture_container: &mut GLTextureContainer,
     ) -> Arc<GLDrawableMesh> {
-        let inner_container = self
-            .drawable_meshes
-            .entry(&*mesh)
-            .or_insert_with(|| (Arc::new(GLMesh::new(mesh)), HashMap::new()));
+        let inner_container = self.drawable_meshes.entry(&*mesh).or_insert_with(|| {
+            (
+                Arc::new(GLMesh::new(mesh, gl_texture_container)),
+                HashMap::new(),
+            )
+        });
 
         let gl_mesh = inner_container.0.clone();
 
