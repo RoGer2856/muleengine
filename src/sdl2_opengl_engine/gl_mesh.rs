@@ -5,7 +5,9 @@ use vek::Mat4;
 use crate::muleengine::{drawable_object::DrawableObject, mesh::Mesh};
 
 use super::{
+    gl_material::GLMaterial,
     gl_mesh_shader_program::GLMeshShaderProgram,
+    gl_texture_container::GLTextureContainer,
     opengl_utils::{
         index_buffer_object::{IndexBufferObject, PrimitiveMode},
         vertex_array_object::VertexArrayObject,
@@ -16,12 +18,15 @@ use super::{
 pub struct GLMesh {
     _mesh: Arc<Mesh>,
 
+    material: Arc<GLMaterial>,
+
     index_buffer_object: IndexBufferObject,
     positions_vbo: VertexBufferObject,
 }
 
 pub struct GLDrawableMesh {
     gl_mesh: Arc<GLMesh>,
+    material: Option<GLMaterial>,
     vertex_array_object: VertexArrayObject,
     gl_mesh_shader_program: Arc<GLMeshShaderProgram>,
 }
@@ -38,7 +43,7 @@ impl DrawableObject for GLDrawableMesh {
 }
 
 impl GLMesh {
-    pub fn new(mesh: Arc<Mesh>) -> Self {
+    pub fn new(mesh: Arc<Mesh>, gl_texture_container: &mut GLTextureContainer) -> Self {
         let index_buffer_object = IndexBufferObject::new(
             mesh.get_faces().as_ptr(),
             mesh.get_faces().len(),
@@ -51,8 +56,11 @@ impl GLMesh {
             DataCount::Coords3,
         );
 
+        let material = GLMaterial::new(mesh.get_material(), gl_texture_container);
+
         Self {
             _mesh: mesh,
+            material: Arc::new(material),
 
             index_buffer_object,
             positions_vbo,
@@ -73,6 +81,7 @@ impl GLDrawableMesh {
 
         Self {
             gl_mesh,
+            material: None,
             vertex_array_object,
             gl_mesh_shader_program,
         }
