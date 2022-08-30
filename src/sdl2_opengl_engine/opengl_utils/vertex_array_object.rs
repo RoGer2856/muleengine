@@ -12,7 +12,16 @@ pub struct VertexArrayObjectInterface {
 }
 
 impl VertexArrayObjectInterface {
-    pub fn use_vertex_buffer_object(&self, vbo: &VertexBufferObject, attrib: &ShaderAttribute) {
+    pub fn bind_vbo_to_shader_attrib(&self, vbo: &VertexBufferObject, attrib: &ShaderAttribute) {
+        self.bind_vbo_to_shader_attrib_array(vbo, attrib, 0);
+    }
+
+    pub fn bind_vbo_to_shader_attrib_array(
+        &self,
+        vbo: &VertexBufferObject,
+        attrib: &ShaderAttribute,
+        attrib_array_index: usize,
+    ) {
         unsafe {
             gl::BindBuffer(gl::ARRAY_BUFFER, vbo.buffer_id);
             gl::EnableVertexAttribArray(0);
@@ -40,7 +49,7 @@ impl VertexArrayObjectInterface {
             };
 
             gl::VertexAttribPointer(
-                attrib.0.location as u32,
+                attrib.0.location as u32 + attrib_array_index as u32,
                 data_count,
                 data_type,
                 gl::FALSE,

@@ -9,13 +9,18 @@ use super::opengl_utils::{
 };
 
 pub(super) struct Attributes {
-    pub(super) position: ShaderAttribute,
+    pub(super) position: Option<ShaderAttribute>,
+    pub(super) normal: Option<ShaderAttribute>,
+    pub(super) tangent: Option<ShaderAttribute>,
+    pub(super) uv_channels: Option<ShaderAttribute>,
+    pub(super) bone_ids: Option<ShaderAttribute>,
+    pub(super) bone_weights: Option<ShaderAttribute>,
 }
 
 pub(super) struct Uniforms {
-    pub(super) projection_matrix: ShaderUniform,
-    pub(super) object_matrix: ShaderUniform,
-    pub(super) view_matrix: ShaderUniform,
+    pub(super) projection_matrix: Option<ShaderUniform>,
+    pub(super) object_matrix: Option<ShaderUniform>,
+    pub(super) view_matrix: Option<ShaderUniform>,
 }
 
 pub struct GLMeshShaderProgram {
@@ -31,7 +36,6 @@ pub enum GLMeshShaderProgramError {
     AssetReadError { error: std::io::Error, path: String },
     ShaderCreationError(ShaderCreationError),
     ShaderProgramError(ShaderProgramError),
-    AttributeNotFound { attribute_name: String },
     UniformNotFound { uniform_name: String },
 }
 
@@ -80,29 +84,18 @@ impl GLMeshShaderProgram {
             .map_err(|e| GLMeshShaderProgramError::ShaderProgramError(e))?;
 
         let attributes = Attributes {
-            position: shader_program.get_attribute_by_name("position").ok_or(
-                GLMeshShaderProgramError::AttributeNotFound {
-                    attribute_name: "position".to_string(),
-                },
-            )?,
+            position: shader_program.get_attribute_by_name("position"),
+            normal: shader_program.get_attribute_by_name("normal"),
+            tangent: shader_program.get_attribute_by_name("tangent"),
+            uv_channels: shader_program.get_attribute_by_name("uvChannels"),
+            bone_ids: shader_program.get_attribute_by_name("boneIds"),
+            bone_weights: shader_program.get_attribute_by_name("boneWeights"),
         };
 
         let uniforms = Uniforms {
-            projection_matrix: shader_program
-                .get_uniform_by_name("projectionMatrix")
-                .ok_or(GLMeshShaderProgramError::UniformNotFound {
-                    uniform_name: "projectionMatrix".to_string(),
-                })?,
-            object_matrix: shader_program.get_uniform_by_name("objectMatrix").ok_or(
-                GLMeshShaderProgramError::UniformNotFound {
-                    uniform_name: "objectMatrix".to_string(),
-                },
-            )?,
-            view_matrix: shader_program.get_uniform_by_name("viewMatrix").ok_or(
-                GLMeshShaderProgramError::UniformNotFound {
-                    uniform_name: "viewMatrix".to_string(),
-                },
-            )?,
+            projection_matrix: shader_program.get_uniform_by_name("projectionMatrix"),
+            object_matrix: shader_program.get_uniform_by_name("objectMatrix"),
+            view_matrix: shader_program.get_uniform_by_name("viewMatrix"),
         };
 
         Ok(Self {
