@@ -4,20 +4,23 @@ use gl::types::GLuint;
 
 use crate::muleengine::image::{ColorType, Image};
 
-enum GLTextureAnisotropyMode {
+#[derive(Clone, Copy)]
+pub enum GLTextureAnisotropyMode {
     Anisotropy1,
     Anisotropy2,
     Anisotropy4,
     Anisotropy8,
 }
 
-enum GLTextureMapMode {
+#[derive(Clone, Copy)]
+pub enum GLTextureMapMode {
     Repeat,
     Clamp,
     Mirror,
 }
 
-enum GLTextureSamplingMode {
+#[derive(Clone, Copy)]
+pub enum GLTextureSamplingMode {
     Nearest,
     Linear,
     NearestMipmapNearest,
@@ -176,5 +179,40 @@ impl Texture2D {
         set_texture_sampling_mode(GLTextureSamplingMode::LinearMipmapLinear);
 
         Self { texture_id }
+    }
+
+    pub fn use_texture(&self, layer: usize) {
+        unsafe {
+            gl::ActiveTexture(gl::TEXTURE0 + layer as u32);
+
+            gl::BindTexture(gl::TEXTURE_2D, self.texture_id);
+        }
+    }
+
+    pub fn set_texture_map_mode(&self, mode: GLTextureMapMode) {
+        unsafe {
+            match mode {
+                GLTextureMapMode::Clamp => {
+                    gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE as i32);
+                    gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as i32);
+                }
+                GLTextureMapMode::Repeat => {
+                    gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as i32);
+                    gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as i32);
+                }
+                GLTextureMapMode::Mirror => {
+                    gl::TexParameteri(
+                        gl::TEXTURE_2D,
+                        gl::TEXTURE_WRAP_S,
+                        gl::MIRRORED_REPEAT as i32,
+                    );
+                    gl::TexParameteri(
+                        gl::TEXTURE_2D,
+                        gl::TEXTURE_WRAP_T,
+                        gl::MIRRORED_REPEAT as i32,
+                    );
+                }
+            }
+        }
     }
 }

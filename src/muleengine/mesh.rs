@@ -60,7 +60,7 @@ pub struct Bone {
     pub transform_matrix: Mat4<f32>,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum MaterialTextureType {
     Albedo,
     Shininess,
@@ -69,7 +69,7 @@ pub enum MaterialTextureType {
     Emission,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum TextureMapMode {
     Repeat,
     Clamp,
@@ -235,7 +235,7 @@ impl Material {
         Self {
             textures: Vec::new(),
             opacity: 1.0,
-            albedo_color: Vec3::broadcast(0.0),
+            albedo_color: Vec3::broadcast(1.0),
             shininess_color: Vec3::broadcast(0.0),
             emissive_color: Vec3::broadcast(0.0),
         }

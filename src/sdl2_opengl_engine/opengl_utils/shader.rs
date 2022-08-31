@@ -2,6 +2,7 @@ use std::string::FromUtf8Error;
 
 use gl::types::GLuint;
 
+#[derive(Debug, Clone, Copy)]
 pub enum ShaderType {
     Vertex,
     Geometry,

@@ -1,3 +1,32 @@
+#version 400
+
+const int maxUvChannelCount = 10;
+const int maxBoneCount = 50;
+
+uniform vec3 eyePosition;
+uniform mat4 objectMatrix;
+uniform mat4 viewMatrix;
+uniform mat4 projectionMatrix;
+uniform mat3 normalMatrix;
+uniform mat4 bones[maxBoneCount];
+
+uniform int useAlbedoTexture;
+uniform sampler2D albedoTexture;
+uniform uint albedoTextureUvChannelId;
+
+uniform int useNormalTexture;
+uniform sampler2D normalTexture;
+uniform uint normalTextureUvChannelId;
+
+uniform int useDisplacementTexture;
+uniform sampler2D displacementTexture;
+uniform uint displacementTextureUvChannelId;
+
+uniform float opacity;
+uniform vec3 albedoColor;
+uniform vec3 emissiveColor;
+uniform vec3 shininessColor;
+
 in vec4 vWorldPos;
 in vec3 vNormal;
 in vec2 vUvChannels[maxUvChannelCount];
@@ -8,7 +37,7 @@ out vec4 fragColor;
 
 vec4 getAlbedoColor(vec2 texCoordsOffset) {
 	if (useAlbedoTexture == 1) {
-		return me_texture_2d(
+		return texture(
 			albedoTexture,
 			vUvChannels[albedoTextureUvChannelId] + texCoordsOffset
 		);
@@ -47,8 +76,4 @@ void main() {
 
 	vec3 resultColor = (albedo * lightIntensity + ambient) * albedoColor;
 	fragColor = max(vec4(resultColor, alpha), vec4(emissiveColor, alpha));
-
-	if (fragColor.a < 0.1f) {
-		me_discard();
-	}
 }

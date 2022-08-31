@@ -24,7 +24,7 @@ impl VertexArrayObjectInterface {
     ) {
         unsafe {
             gl::BindBuffer(gl::ARRAY_BUFFER, vbo.buffer_id);
-            gl::EnableVertexAttribArray(0);
+            gl::EnableVertexAttribArray(attrib.0.location as u32);
 
             let data_count = match vbo.data_count {
                 DataCount::Coords2 => 2,
