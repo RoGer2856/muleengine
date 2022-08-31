@@ -133,6 +133,8 @@ fn main() {
         // rendering
         unsafe {
             gl::ClearColor(0.2, 0.2, 0.2, 1.0);
+            gl::Enable(gl::DEPTH_TEST);
+
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
         }
 
@@ -141,14 +143,16 @@ fn main() {
 }
 
 fn populate_with_objects(application_context: &mut ApplicationContext) {
+    // add_skybox(application_context);
+
     {
         let mut transform = Transform::<f32, f32, f32>::default();
         transform.position.z = -5.0;
 
         application_context
             .add_scene_from_asset(
-                "src/shaders/unlit",
-                "Assets/objects/skybox/Skybox.obj",
+                "Assets/shaders/lit_normal",
+                "Assets/objects/MonkeySmooth.obj",
                 transform,
             )
             .unwrap();
@@ -161,7 +165,63 @@ fn populate_with_objects(application_context: &mut ApplicationContext) {
 
         let mesh = Arc::new(mesh_creator::capsule::create(0.5, 2.0, 16));
         application_context
-            .add_mesh("src/shaders/unlit", mesh, transform)
+            .add_mesh("Assets/shaders/lit_normal", mesh, transform)
             .unwrap();
     }
+}
+
+fn add_skybox(application_context: &mut ApplicationContext) {
+    let transform = Transform::<f32, f32, f32>::default();
+
+    application_context
+        .add_scene_from_asset(
+            "Assets/shaders/unlit",
+            "Assets/objects/skybox/Skybox.obj",
+            transform,
+        )
+        .unwrap();
+
+    // if scene.meshes_ref().len() == 6 {
+    //     let textures = [
+    //         "Assets/objects/skybox/skyboxRight.png",
+    //         "Assets/objects/skybox/skyboxLeft.png",
+    //         "Assets/objects/skybox/skyboxTop.png",
+    //         "Assets/objects/skybox/skyboxBottom.png",
+    //         "Assets/objects/skybox/skyboxFront.png",
+    //         "Assets/objects/skybox/skyboxBack.png",
+    //     ];
+    //     for index in 0..6 {
+    //         let mut material = Material::new();
+
+    //         material.albedo_color.x = 1.0;
+    //         material.albedo_color.y = 1.0;
+    //         material.albedo_color.z = 1.0;
+    //         material.add_texture(MaterialTexture::new(
+    //             textures[index].to_string(),
+    //             MaterialTextureType::Albedo,
+    //             TextureMapMode::Clamp,
+    //             0.0,
+    //             0,
+    //         ));
+
+    //         entity_container
+    //             .lock()
+    //             .entity_builder()
+    //             .with_component(app_context.drawable_component_creator_mut().new_drawable(
+    //                 Shape::Mesh {
+    //                     scene_path: scene_path.to_string(),
+    //                     mesh_index: index,
+    //                 },
+    //                 material,
+    //                 "Assets/shaders/unlit".to_string(),
+    //                 crate::RenderLayerIds::SkyLayer.value(),
+    //             ))
+    //             .with_component(Transform {
+    //                 position: vek::Vec3::broadcast(0.0),
+    //                 orientation: vek::Quaternion::identity(),
+    //                 scale: vek::Vec3::broadcast(1.0),
+    //             })
+    //             .build();
+    //     }
+    // }
 }

@@ -1,6 +1,6 @@
 use std::{mem::swap, sync::Arc};
 
-use vek::{Mat4, Transform};
+use vek::{Mat4, Transform, Vec3};
 
 use crate::muleengine::object_pool::ObjectPool;
 
@@ -49,11 +49,19 @@ impl DrawableObjectStorage {
         }
     }
 
-    pub fn render_all(&mut self, projection_matrix: &Mat4<f32>, view_matrix: &Mat4<f32>) {
+    pub fn render_all(
+        &mut self,
+        eye_position: &Vec3<f32>,
+        projection_matrix: &Mat4<f32>,
+        view_matrix: &Mat4<f32>,
+    ) {
         for object in self.objects.iter_mut() {
-            object
-                .drawable
-                .render(projection_matrix, view_matrix, &object.transform);
+            object.drawable.render(
+                eye_position,
+                projection_matrix,
+                view_matrix,
+                &object.transform,
+            );
         }
     }
 }

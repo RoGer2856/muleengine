@@ -4,15 +4,19 @@ use vek::Vec3;
 
 use crate::muleengine::{
     image_container::ImageContainerError,
-    mesh::{Material, MaterialTexture, MaterialTextureType},
+    mesh::{Material, MaterialTexture, MaterialTextureType, TextureMapMode},
     result_option_inspect::ResultInspector,
 };
 
-use super::{gl_texture_container::GLTextureContainer, opengl_utils::texture_2d::Texture2D};
+use super::{
+    gl_texture_container::GLTextureContainer,
+    opengl_utils::texture_2d::{GLTextureMapMode, Texture2D},
+};
 
 pub struct GLMaterialTexture {
     pub texture: Arc<Texture2D>,
     pub texture_type: MaterialTextureType,
+    pub texture_map_mode: GLTextureMapMode,
     pub uv_channel_id: usize,
     pub blend: f32,
 }
@@ -54,9 +58,16 @@ impl GLMaterialTexture {
         texture: &MaterialTexture,
         gl_texture_container: &mut GLTextureContainer,
     ) -> Result<Self, ImageContainerError> {
+        let texture_map_mode = match texture.texture_map_mode {
+            TextureMapMode::Clamp => GLTextureMapMode::Clamp,
+            TextureMapMode::Repeat => GLTextureMapMode::Repeat,
+            TextureMapMode::Mirror => GLTextureMapMode::Mirror,
+        };
+
         Ok(Self {
             texture: gl_texture_container.get_texture(texture.image.clone()?),
             texture_type: texture.texture_type,
+            texture_map_mode,
             blend: texture.blend,
             uv_channel_id: texture.uv_channel_id,
         })

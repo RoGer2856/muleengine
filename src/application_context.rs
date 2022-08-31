@@ -180,7 +180,10 @@ impl ApplicationContext {
 
     pub fn render(&mut self) {
         let view_matrix = self.camera.compute_view_matrix();
-        self.drawable_object_storage
-            .render_all(&self.projection_matrix, &view_matrix);
+        self.drawable_object_storage.render_all(
+            &self.camera.transform.position,
+            &self.projection_matrix,
+            &view_matrix,
+        );
     }
 }
