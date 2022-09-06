@@ -6,8 +6,13 @@ use std::{
 };
 
 use game_2::{
-    muleengine::mesh_creator,
-    sdl2_opengl_engine::{self, GLProfile},
+    muleengine::{mesh::MaterialTextureType, mesh_creator},
+    sdl2_opengl_engine::{
+        self,
+        gl_material::{GLMaterial, GLMaterialTexture},
+        opengl_utils::texture_2d::GLTextureMapMode,
+        GLProfile,
+    },
 };
 use sdl2::event::{Event, WindowEvent};
 use vek::{Transform, Vec3};
@@ -143,20 +148,22 @@ fn main() {
 }
 
 fn populate_with_objects(application_context: &mut ApplicationContext) {
-    // add_skybox(application_context);
+    add_skybox(application_context);
 
-    {
-        let mut transform = Transform::<f32, f32, f32>::default();
-        transform.position.z = -5.0;
+    // {
+    //     let mut transform = Transform::<f32, f32, f32>::default();
+    //     transform.position.z = -5.0;
 
-        application_context
-            .add_scene_from_asset(
-                "Assets/shaders/lit_normal",
-                "Assets/objects/MonkeySmooth.obj",
-                transform,
-            )
-            .unwrap();
-    }
+    //     application_context
+    //         .add_scene_from_asset(
+    //             "Assets/shaders/lit_normal",
+    //             // "Assets/objects/MonkeySmooth.obj",
+    //             "Assets/demo/wall/wallTextured.fbx",
+    //             // "Assets/sponza/sponza.fbx",
+    //             transform,
+    //         )
+    //         .unwrap();
+    // }
 
     {
         let mut transform = Transform::<f32, f32, f32>::default();
@@ -173,7 +180,7 @@ fn populate_with_objects(application_context: &mut ApplicationContext) {
 fn add_skybox(application_context: &mut ApplicationContext) {
     let transform = Transform::<f32, f32, f32>::default();
 
-    application_context
+    let drawable_objects = application_context
         .add_scene_from_asset(
             "Assets/shaders/unlit",
             "Assets/objects/skybox/Skybox.obj",
@@ -181,47 +188,32 @@ fn add_skybox(application_context: &mut ApplicationContext) {
         )
         .unwrap();
 
-    // if scene.meshes_ref().len() == 6 {
-    //     let textures = [
-    //         "Assets/objects/skybox/skyboxRight.png",
-    //         "Assets/objects/skybox/skyboxLeft.png",
-    //         "Assets/objects/skybox/skyboxTop.png",
-    //         "Assets/objects/skybox/skyboxBottom.png",
-    //         "Assets/objects/skybox/skyboxFront.png",
-    //         "Assets/objects/skybox/skyboxBack.png",
-    //     ];
-    //     for index in 0..6 {
-    //         let mut material = Material::new();
+    if drawable_objects.len() == 6 {
+        let textures = [
+            "Assets/objects/skybox/skyboxRight.png",
+            "Assets/objects/skybox/skyboxLeft.png",
+            "Assets/objects/skybox/skyboxTop.png",
+            "Assets/objects/skybox/skyboxBottom.png",
+            "Assets/objects/skybox/skyboxFront.png",
+            "Assets/objects/skybox/skyboxBack.png",
+        ];
 
-    //         material.albedo_color.x = 1.0;
-    //         material.albedo_color.y = 1.0;
-    //         material.albedo_color.z = 1.0;
-    //         material.add_texture(MaterialTexture::new(
-    //             textures[index].to_string(),
-    //             MaterialTextureType::Albedo,
-    //             TextureMapMode::Clamp,
-    //             0.0,
-    //             0,
-    //         ));
+        for index in 0..6 {
+            let mut drawable_object = drawable_objects[index].write();
 
-    //         entity_container
-    //             .lock()
-    //             .entity_builder()
-    //             .with_component(app_context.drawable_component_creator_mut().new_drawable(
-    //                 Shape::Mesh {
-    //                     scene_path: scene_path.to_string(),
-    //                     mesh_index: index,
-    //                 },
-    //                 material,
-    //                 "Assets/shaders/unlit".to_string(),
-    //                 crate::RenderLayerIds::SkyLayer.value(),
-    //             ))
-    //             .with_component(Transform {
-    //                 position: vek::Vec3::broadcast(0.0),
-    //                 orientation: vek::Quaternion::identity(),
-    //                 scale: vek::Vec3::broadcast(1.0),
-    //             })
-    //             .build();
-    //     }
-    // }
+            drawable_object.material = Some(GLMaterial {
+                opacity: 1.0,
+                albedo_color: Vec3::broadcast(1.0),
+                emissive_color: Vec3::broadcast(0.0),
+                shininess_color: Vec3::broadcast(0.0),
+                textures: vec![GLMaterialTexture {
+                    texture: application_context.get_texture(textures[index]).unwrap(),
+                    texture_type: MaterialTextureType::Albedo,
+                    texture_map_mode: GLTextureMapMode::Clamp,
+                    uv_channel_id: 0,
+                    blend: 0.0,
+                }],
+            });
+        }
+    }
 }

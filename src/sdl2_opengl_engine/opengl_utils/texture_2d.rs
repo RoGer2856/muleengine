@@ -128,6 +128,7 @@ impl Texture2D {
 
         unsafe {
             gl::GenTextures(1, &mut texture_id);
+            gl::BindTexture(gl::TEXTURE_2D, texture_id);
         }
 
         let (format, data_type) = match image.color_type() {

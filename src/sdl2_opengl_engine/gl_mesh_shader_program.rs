@@ -130,7 +130,7 @@ impl GLMeshShaderProgram {
             position: shader_program.get_attribute_by_name("position"),
             normal: shader_program.get_attribute_by_name("normal"),
             tangent: shader_program.get_attribute_by_name("tangent"),
-            uv_channels: shader_program.get_attribute_by_name("uvChannels[0]"),
+            uv_channels: shader_program.get_attribute_by_name("uvChannels"),
             bone_ids: shader_program.get_attribute_by_name("boneIds"),
             bone_weights: shader_program.get_attribute_by_name("boneWeights"),
         };
