@@ -15,9 +15,9 @@ use game_2::{
     },
 };
 use sdl2::event::{Event, WindowEvent};
-use vek::{Transform, Vec3};
+use vek::{num_traits::Zero, Transform, Vec2, Vec3};
 
-use crate::application_context::ApplicationContext;
+use crate::application_context::{ApplicationContext, CameraTurnDirection};
 
 pub struct MainLoop {
     desired_fps: f32,
@@ -81,6 +81,14 @@ fn main() {
     )
     .unwrap();
 
+    engine.mouse_util().show_cursor(false);
+
+    engine.mouse_util().warp_mouse_in_window(
+        engine.window(),
+        engine.window().size().0 as i32 / 2,
+        engine.window().size().1 as i32 / 2,
+    );
+
     let mut application_context = ApplicationContext::new(initial_window_dimensions);
     populate_with_objects(&mut application_context);
 
@@ -90,39 +98,72 @@ fn main() {
     'running: for delta_time_in_secs in main_loop.iter() {
         engine.gl_swap_window();
 
-        // controlling the camera
         let keyboard_state = engine.keyboard_state();
 
-        let mut moving_direction = Vec3::zero();
-        if keyboard_state.is_scancode_pressed(sdl2::keyboard::Scancode::W) {
-            moving_direction.z -= 1.0;
-        }
-        if keyboard_state.is_scancode_pressed(sdl2::keyboard::Scancode::S) {
-            moving_direction.z += 1.0;
-        }
-        if keyboard_state.is_scancode_pressed(sdl2::keyboard::Scancode::A) {
-            moving_direction.x -= 1.0;
-        }
-        if keyboard_state.is_scancode_pressed(sdl2::keyboard::Scancode::D) {
-            moving_direction.x += 1.0;
-        }
-        if keyboard_state.is_scancode_pressed(sdl2::keyboard::Scancode::Space) {
-            moving_direction.y += 1.0;
-        }
-        if keyboard_state.is_scancode_pressed(sdl2::keyboard::Scancode::C)
-            || keyboard_state.is_scancode_pressed(sdl2::keyboard::Scancode::LCtrl)
-            || keyboard_state.is_scancode_pressed(sdl2::keyboard::Scancode::RCtrl)
+        // turning the camera with the keyboard
+        let camera_turn_with_keyboard = {
+            let mut camera_turn = Vec2::<i32>::zero();
+
+            if keyboard_state.is_scancode_pressed(sdl2::keyboard::Scancode::Left) {
+                camera_turn.x -= 1;
+            }
+            if keyboard_state.is_scancode_pressed(sdl2::keyboard::Scancode::Right) {
+                camera_turn.x += 1;
+            }
+            if keyboard_state.is_scancode_pressed(sdl2::keyboard::Scancode::Up) {
+                camera_turn.y -= 1;
+            }
+            if keyboard_state.is_scancode_pressed(sdl2::keyboard::Scancode::Down) {
+                camera_turn.y += 1;
+            }
+
+            if camera_turn.is_zero() {
+                None
+            } else {
+                Some(camera_turn)
+            }
+        };
+
+        // moving the camera with the keyboard
         {
-            moving_direction.y -= 1.0;
+            let mut moving_direction = Vec3::zero();
+            if keyboard_state.is_scancode_pressed(sdl2::keyboard::Scancode::W) {
+                moving_direction.z -= 1.0;
+            }
+            if keyboard_state.is_scancode_pressed(sdl2::keyboard::Scancode::S) {
+                moving_direction.z += 1.0;
+            }
+            if keyboard_state.is_scancode_pressed(sdl2::keyboard::Scancode::A) {
+                moving_direction.x -= 1.0;
+            }
+            if keyboard_state.is_scancode_pressed(sdl2::keyboard::Scancode::D) {
+                moving_direction.x += 1.0;
+            }
+            if keyboard_state.is_scancode_pressed(sdl2::keyboard::Scancode::Space) {
+                moving_direction.y += 1.0;
+            }
+            if keyboard_state.is_scancode_pressed(sdl2::keyboard::Scancode::C)
+                || keyboard_state.is_scancode_pressed(sdl2::keyboard::Scancode::LCtrl)
+                || keyboard_state.is_scancode_pressed(sdl2::keyboard::Scancode::RCtrl)
+            {
+                moving_direction.y -= 1.0;
+            }
+
+            application_context.set_moving_direction(moving_direction);
         }
 
-        application_context.set_moving_direction(moving_direction);
+        application_context.set_camera_horizontal_turn(CameraTurnDirection::Zero);
+        application_context.set_camera_vertical_turn(CameraTurnDirection::Zero);
 
-        application_context.tick(delta_time_in_secs);
+        let mut mouse_motion_relative_to_center = Vec2::<i32>::zero();
+        let window_center = Vec2::new(
+            engine.window().size().0 as i32 / 2,
+            engine.window().size().1 as i32 / 2,
+        );
 
         // handling events
         while let Some(event) = engine.poll_event() {
-            log::info!("{:?}", event);
+            log::debug!("{:?}", event);
             match event {
                 Event::Window { win_event, .. } => match win_event {
                     WindowEvent::Resized(width, height) => {
@@ -130,10 +171,50 @@ fn main() {
                     }
                     _ => {}
                 },
+                Event::MouseMotion { x, y, .. } => {
+                    mouse_motion_relative_to_center.x += x - window_center.x;
+                    mouse_motion_relative_to_center.y += y - window_center.y;
+                }
                 Event::Quit { .. } => break 'running,
                 _ => {}
             }
         }
+
+        // turning the camera
+        let camera_turn = camera_turn_with_keyboard.unwrap_or(mouse_motion_relative_to_center);
+
+        if camera_turn.x < 0 {
+            // left
+            application_context.set_camera_horizontal_turn(CameraTurnDirection::PositiveAngle);
+        } else if camera_turn.x > 0 {
+            // right
+            application_context.set_camera_horizontal_turn(CameraTurnDirection::NegativeAngle);
+        } else {
+            application_context.set_camera_horizontal_turn(CameraTurnDirection::Zero);
+        }
+
+        if camera_turn.y < 0 {
+            // down
+            application_context.set_camera_vertical_turn(CameraTurnDirection::PositiveAngle);
+        } else if camera_turn.y > 0 {
+            // up
+            application_context.set_camera_vertical_turn(CameraTurnDirection::NegativeAngle);
+        } else {
+            application_context.set_camera_vertical_turn(CameraTurnDirection::Zero);
+        }
+
+        // putting the cursor back to the center of the window
+        if engine.mouse_state().x() != window_center.x
+            || engine.mouse_state().y() != window_center.y
+        {
+            engine.mouse_util().warp_mouse_in_window(
+                engine.window(),
+                window_center.x,
+                window_center.y,
+            );
+        }
+
+        application_context.tick(delta_time_in_secs);
 
         // rendering
         unsafe {

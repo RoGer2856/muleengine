@@ -9,12 +9,12 @@ pub mod opengl_utils;
 
 use sdl2::event::Event;
 use sdl2::keyboard::KeyboardState;
-use sdl2::mouse::MouseState;
+use sdl2::mouse::{MouseState, MouseUtil};
 use sdl2::video::{GLContext, Window, WindowBuildError};
 use sdl2::{video, EventPump, Sdl, VideoSubsystem};
 
 pub struct Engine {
-    _sdl_context: Sdl,
+    sdl_context: Sdl,
     _sdl_video: VideoSubsystem,
     _gl_context: GLContext,
     sdl_window: Window,
@@ -94,7 +94,7 @@ pub fn init(
             .map_err(|e| ContextCreationError::CouldNotCreateEventPump(e))?;
 
         Ok(Engine {
-            _sdl_context: sdl_context,
+            sdl_context,
             sdl_window,
             _sdl_video: sdl_video,
             _gl_context: gl_context,
@@ -114,6 +114,14 @@ impl Engine {
 
     pub fn mouse_state(&self) -> MouseState {
         self.event_pump.mouse_state()
+    }
+
+    pub fn mouse_util(&self) -> MouseUtil {
+        self.sdl_context.mouse()
+    }
+
+    pub fn window(&self) -> &Window {
+        &self.sdl_window
     }
 
     pub fn gl_swap_window(&mut self) {
