@@ -1,6 +1,6 @@
 use vek::{Mat4, Vec3};
 
-pub trait DrawableObject {
+pub trait DrawableObject: 'static {
     fn render(
         &self,
         eye_position: &Vec3<f32>,

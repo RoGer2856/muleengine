@@ -39,7 +39,7 @@ pub struct GLMesh {
 
 pub struct GLDrawableMesh {
     gl_mesh: Arc<GLMesh>,
-    material: Option<GLMaterial>,
+    pub material: Option<GLMaterial>,
     bone_transforms: Option<Vec<Mat4<f32>>>,
     vertex_array_object: VertexArrayObject,
     gl_mesh_shader_program: Arc<GLMeshShaderProgram>,
@@ -206,6 +206,10 @@ impl GLDrawableMesh {
             vertex_array_object,
             gl_mesh_shader_program,
         }
+    }
+
+    pub fn parent_material_ref(&self) -> &GLMaterial {
+        &self.gl_mesh.material
     }
 
     pub fn render(

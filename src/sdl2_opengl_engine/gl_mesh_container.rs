@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use parking_lot::RwLock;
+
 use crate::muleengine::mesh::Mesh;
 
 use super::gl_mesh::{GLDrawableMesh, GLMesh};
@@ -12,7 +14,7 @@ pub struct GLMeshContainer {
         *const Mesh,
         (
             Arc<GLMesh>,
-            HashMap<*const GLMeshShaderProgram, Arc<GLDrawableMesh>>,
+            HashMap<*const GLMeshShaderProgram, Arc<RwLock<GLDrawableMesh>>>,
         ),
     >,
 }
@@ -29,7 +31,7 @@ impl GLMeshContainer {
         gl_mesh_shader_program: Arc<GLMeshShaderProgram>,
         mesh: Arc<Mesh>,
         gl_texture_container: &mut GLTextureContainer,
-    ) -> Arc<GLDrawableMesh> {
+    ) -> Arc<RwLock<GLDrawableMesh>> {
         let inner_container = self.drawable_meshes.entry(&*mesh).or_insert_with(|| {
             (
                 Arc::new(GLMesh::new(mesh, gl_texture_container)),
@@ -43,10 +45,10 @@ impl GLMeshContainer {
             .1
             .entry(&*gl_mesh_shader_program)
             .or_insert_with(|| {
-                Arc::new(GLDrawableMesh::new(
+                Arc::new(RwLock::new(GLDrawableMesh::new(
                     gl_mesh.clone(),
                     gl_mesh_shader_program.clone(),
-                ))
+                )))
             })
             .clone()
     }
