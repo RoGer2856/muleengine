@@ -7,24 +7,18 @@ use crate::muleengine::object_pool::ObjectPool;
 
 use super::{drawable_object::DrawableObject, object_pool::ObjectPoolIndex};
 
-struct Object<DrawableObjectType: DrawableObject> {
-    drawable: Arc<RwLock<DrawableObjectType>>,
+struct Object {
+    drawable: Arc<RwLock<dyn DrawableObject>>,
     transform: Mat4<f32>,
 }
 
 pub struct DrawableObjectStorageIndex(ObjectPoolIndex);
 
-pub struct DrawableObjectStorage<DrawableObjectType>
-where
-    DrawableObjectType: DrawableObject,
-{
-    objects: ObjectPool<Object<DrawableObjectType>>,
+pub struct DrawableObjectStorage {
+    objects: ObjectPool<Object>,
 }
 
-impl<DrawableObjectType> DrawableObjectStorage<DrawableObjectType>
-where
-    DrawableObjectType: DrawableObject,
-{
+impl DrawableObjectStorage {
     pub fn new() -> Self {
         Self {
             objects: ObjectPool::new(),
@@ -33,7 +27,7 @@ where
 
     pub fn add_drawable_object(
         &mut self,
-        drawable_object: Arc<RwLock<DrawableObjectType>>,
+        drawable_object: Arc<RwLock<dyn DrawableObject>>,
         transform: Transform<f32, f32, f32>,
     ) -> DrawableObjectStorageIndex {
         DrawableObjectStorageIndex(self.objects.create_object(Object {
