@@ -34,7 +34,7 @@ pub struct ApplicationContext {
     gl_shader_program_container: GLShaderProgramContainer,
     gl_texture_container: GLTextureContainer,
 
-    drawable_object_storage: DrawableObjectStorage<GLDrawableMesh>,
+    drawable_object_storage: DrawableObjectStorage,
 
     // projection
     window_dimensions: (usize, usize),
