@@ -17,18 +17,12 @@ use game_2::{
     },
 };
 use parking_lot::RwLock;
-use vek::{Mat4, Transform, Vec2, Vec3};
+use vek::{Mat4, Transform};
 
 #[derive(Debug)]
 pub enum ApplicationMeshLoadError {
     GLMeshShaderProgramError(GLMeshShaderProgramError),
     SceneLoadError(SceneLoadError),
-}
-
-pub enum CameraTurnDirection {
-    PositiveAngle,
-    NegativeAngle,
-    Zero,
 }
 
 pub struct ApplicationContext {
@@ -41,10 +35,6 @@ pub struct ApplicationContext {
     gl_texture_container: GLTextureContainer,
 
     drawable_object_storage: DrawableObjectStorage<GLDrawableMesh>,
-
-    camera: Camera,
-    camera_moving_direction: Vec3<f32>,
-    camera_turn: Vec2<f32>, // x: vertical turn, y: horizontal turn
 
     // projection
     window_dimensions: (usize, usize),
@@ -78,10 +68,6 @@ impl ApplicationContext {
             gl_texture_container: GLTextureContainer::new(),
 
             drawable_object_storage: DrawableObjectStorage::new(),
-
-            camera: Camera::new(),
-            camera_moving_direction: Vec3::zero(),
-            camera_turn: Vec2::zero(),
 
             // projection
             window_dimensions: initial_window_dimensions,
@@ -120,11 +106,19 @@ impl ApplicationContext {
         Ok(())
     }
 
-    pub fn add_scene_from_asset(
+    pub fn add_drawable_object(
+        &mut self,
+        drawable_object: Arc<RwLock<GLDrawableMesh>>,
+        transform: Transform<f32, f32, f32>,
+    ) {
+        self.drawable_object_storage
+            .add_drawable_object(drawable_object, transform);
+    }
+
+    pub fn get_drawable_objects_from_scene(
         &mut self,
         shader_basepath: &str,
         scene_path: &str,
-        transform: Transform<f32, f32, f32>,
     ) -> Result<Vec<Arc<RwLock<GLDrawableMesh>>>, ApplicationMeshLoadError> {
         let mut ret = Vec::new();
 
@@ -150,8 +144,6 @@ impl ApplicationContext {
                         mesh.clone(),
                         &mut self.gl_texture_container,
                     );
-                    self.drawable_object_storage
-                        .add_drawable_object(gl_drawable_mesh.clone(), transform);
                     ret.push(gl_drawable_mesh.clone());
                 }
                 Err(e) => {
@@ -165,50 +157,6 @@ impl ApplicationContext {
         }
 
         Ok(ret)
-    }
-
-    pub fn tick(&mut self, delta_time: f32) {
-        let velocity = 0.5;
-
-        let mut axis_z = self.camera.axis_z();
-        axis_z.y = 0.0;
-        let axis_z = axis_z.try_normalized().unwrap_or(Vec3::zero());
-        let corrected_moving_direction = self.camera.axis_x() * self.camera_moving_direction.x
-            + Vec3::unit_y() * self.camera_moving_direction.y
-            + axis_z * self.camera_moving_direction.z;
-
-        self.camera
-            .move_by(corrected_moving_direction * velocity * delta_time);
-
-        let turning_velocity_rad = std::f32::consts::FRAC_PI_2;
-        self.camera
-            .pitch(self.camera_turn.x * turning_velocity_rad * delta_time);
-        self.camera
-            .rotate_around_unit_y(self.camera_turn.y * turning_velocity_rad * delta_time);
-    }
-
-    pub fn set_camera_vertical_turn(&mut self, direction: CameraTurnDirection) {
-        match direction {
-            CameraTurnDirection::NegativeAngle => self.camera_turn.x = -1.0,
-            CameraTurnDirection::PositiveAngle => self.camera_turn.x = 1.0,
-            CameraTurnDirection::Zero => self.camera_turn.x = 0.0,
-        }
-    }
-
-    pub fn set_camera_horizontal_turn(&mut self, direction: CameraTurnDirection) {
-        match direction {
-            CameraTurnDirection::NegativeAngle => self.camera_turn.y = -1.0,
-            CameraTurnDirection::PositiveAngle => self.camera_turn.y = 1.0,
-            CameraTurnDirection::Zero => self.camera_turn.y = 0.0,
-        }
-    }
-
-    pub fn set_moving_direction(&mut self, mut direction: Vec3<f32>) {
-        if direction != Vec3::zero() {
-            direction.normalize();
-        }
-
-        self.camera_moving_direction = direction
     }
 
     pub fn window_resized(&mut self, width: usize, height: usize) {
@@ -227,10 +175,10 @@ impl ApplicationContext {
         );
     }
 
-    pub fn render(&mut self) {
-        let view_matrix = self.camera.compute_view_matrix();
+    pub fn render(&mut self, camera: &Camera) {
+        let view_matrix = camera.compute_view_matrix();
         self.drawable_object_storage.render_all(
-            &self.camera.transform.position,
+            &camera.transform.position,
             &self.projection_matrix,
             &view_matrix,
         );
