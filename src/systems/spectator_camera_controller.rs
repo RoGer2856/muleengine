@@ -3,13 +3,27 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 use vek::{num_traits::Zero, Vec2, Vec3};
 
-use crate::{muleengine::camera::Camera, sdl2_opengl_engine::Engine};
+use crate::{
+    muleengine::{camera::Camera, system_container::System},
+    sdl2_opengl_engine::Engine,
+};
 
-pub fn create(camera: Arc<RwLock<Camera>>, engine: Arc<RwLock<Engine>>) -> impl FnMut(f32) {
-    return move |delta_time_in_secs: f32| {
+pub struct SpectatorCameraControllerSystem {
+    camera: Arc<RwLock<Camera>>,
+    engine: Arc<RwLock<Engine>>,
+}
+
+impl SpectatorCameraControllerSystem {
+    pub fn new(camera: Arc<RwLock<Camera>>, engine: Arc<RwLock<Engine>>) -> Self {
+        Self { camera, engine }
+    }
+}
+
+impl System for SpectatorCameraControllerSystem {
+    fn tick(&mut self, delta_time_in_secs: f32) {
         let mut camera_turn = Vec2::<f32>::zero(); // x: vertical turn, y: horizontal turn
 
-        let engine = engine.read();
+        let engine = self.engine.read();
 
         let keyboard_state = engine.keyboard_state();
         let mouse_state = engine.mouse_state();
@@ -114,7 +128,7 @@ pub fn create(camera: Arc<RwLock<Camera>>, engine: Arc<RwLock<Engine>>) -> impl 
         // transform the camera
         let velocity = 0.5;
 
-        let mut camera = camera.write();
+        let mut camera = self.camera.write();
 
         let mut axis_z = camera.axis_z();
         axis_z.y = 0.0;
@@ -128,5 +142,5 @@ pub fn create(camera: Arc<RwLock<Camera>>, engine: Arc<RwLock<Engine>>) -> impl 
         let turning_velocity_rad = std::f32::consts::FRAC_PI_2;
         camera.pitch(camera_turn.x * turning_velocity_rad * delta_time_in_secs);
         camera.rotate_around_unit_y(camera_turn.y * turning_velocity_rad * delta_time_in_secs);
-    };
+    }
 }
