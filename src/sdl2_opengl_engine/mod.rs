@@ -6,6 +6,7 @@ pub mod gl_scene;
 pub mod gl_shader_program_container;
 pub mod gl_texture_container;
 pub mod opengl_utils;
+pub mod systems;
 
 use sdl2::event::Event;
 use sdl2::keyboard::KeyboardState;

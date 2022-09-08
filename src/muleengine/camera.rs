@@ -1,5 +1,6 @@
 use vek::{Mat4, Quaternion, Transform, Vec3};
 
+#[derive(Clone)]
 pub struct Camera {
     pub transform: Transform<f32, f32, f32>,
 }

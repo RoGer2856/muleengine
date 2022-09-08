@@ -1,3 +1,5 @@
+#![allow(unstable_name_collisions)]
+
 mod application_context;
 
 use std::sync::Arc;
@@ -5,12 +7,14 @@ use std::sync::Arc;
 use game_2::{
     main_loop::MainLoop,
     muleengine::{
-        camera::Camera, mesh::MaterialTextureType, mesh_creator, system_container::SystemContainer,
+        mesh::MaterialTextureType, mesh_creator, result_option_inspect::ResultInspector,
+        system_container::SystemContainer,
     },
     sdl2_opengl_engine::{
         self,
         gl_material::{GLMaterial, GLMaterialTexture},
         opengl_utils::texture_2d::GLTextureMapMode,
+        systems::renderer,
         GLProfile,
     },
     systems::spectator_camera_controller::SpectatorCameraControllerSystem,
@@ -26,13 +30,13 @@ fn main() {
         .filter_level(log::LevelFilter::Debug)
         .init();
 
-    let initial_window_dimensions = (800usize, 600usize);
+    let initial_window_dimensions = Vec2::new(800usize, 600usize);
 
     let engine = Arc::new(RwLock::new(
         sdl2_opengl_engine::init(
             "game_2",
-            initial_window_dimensions.0 as u32,
-            initial_window_dimensions.1 as u32,
+            initial_window_dimensions.x as u32,
+            initial_window_dimensions.y as u32,
             GLProfile::Core,
             4,
             0,
@@ -50,20 +54,27 @@ fn main() {
         engine.read().window().size().1 as i32 / 2,
     );
 
-    let mut application_context = ApplicationContext::new(initial_window_dimensions);
-    populate_with_objects(&mut application_context);
-
-    let camera = Arc::new(RwLock::new(Camera::new()));
+    let renderer_command_sender;
 
     let mut system_container = SystemContainer::new();
 
     // add systems to system_container
     {
+        // creating renderer system
+        let renderer_system = renderer::System::new(initial_window_dimensions, engine.clone());
+        renderer_command_sender = renderer_system.get_sender();
+
         system_container.add_system(SpectatorCameraControllerSystem::new(
-            camera.clone(),
+            renderer_command_sender.clone(),
             engine.clone(),
         ));
+
+        // adding renderer system as the last system
+        system_container.add_system(renderer_system);
     }
+
+    let mut application_context = ApplicationContext::new();
+    populate_with_objects(&mut application_context, &renderer_command_sender);
 
     const DESIRED_FPS: f32 = 30.0;
 
@@ -75,7 +86,13 @@ fn main() {
             match event {
                 Event::Window { win_event, .. } => match win_event {
                     WindowEvent::Resized(width, height) => {
-                        application_context.window_resized(width as usize, height as usize);
+                        let _ = renderer_command_sender
+                            .send(renderer::Command::SetWindowDimensions {
+                                dimensions: Vec2::new(width as usize, height as usize),
+                            })
+                            .inspect_err(|e| {
+                                log::error!("Setting window dimensions of renderer, error = {e}")
+                            });
                     }
                     _ => {}
                 },
@@ -86,14 +103,13 @@ fn main() {
 
         system_container.tick(delta_time_in_secs);
 
-        let mouse_state = engine.read().mouse_state();
-
+        // putting the cursor back to the center of the window
         let window_center = Vec2::new(
             engine.read().window().size().0 as i32 / 2,
             engine.read().window().size().1 as i32 / 2,
         );
 
-        // putting the cursor back to the center of the window
+        let mouse_state = engine.read().mouse_state();
         if mouse_state.x() != window_center.x || mouse_state.y() != window_center.y {
             mouse_util.warp_mouse_in_window(
                 engine.read().window(),
@@ -101,23 +117,14 @@ fn main() {
                 window_center.y,
             );
         }
-
-        // rendering
-        unsafe {
-            gl::ClearColor(0.2, 0.2, 0.2, 1.0);
-            gl::Enable(gl::DEPTH_TEST);
-
-            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
-        }
-
-        application_context.render(&*camera.read());
-
-        engine.write().gl_swap_window();
     }
 }
 
-fn populate_with_objects(application_context: &mut ApplicationContext) {
-    add_skybox(application_context);
+fn populate_with_objects(
+    application_context: &mut ApplicationContext,
+    renderer_command_sender: &renderer::CommandSender,
+) {
+    add_skybox(application_context, renderer_command_sender);
 
     {
         let mut transform = Transform::<f32, f32, f32>::default();
@@ -133,7 +140,12 @@ fn populate_with_objects(application_context: &mut ApplicationContext) {
             .unwrap();
 
         for drawable_object in drawable_objects {
-            application_context.add_drawable_object(drawable_object, transform);
+            let _ = renderer_command_sender
+                .send(renderer::Command::AddDrawableObject {
+                    drawable_object,
+                    transform,
+                })
+                .inspect_err(|e| log::error!("Adding drawable object to renderer, error = {e}"));
         }
     }
 
@@ -143,13 +155,23 @@ fn populate_with_objects(application_context: &mut ApplicationContext) {
         transform.position.z = -5.0;
 
         let mesh = Arc::new(mesh_creator::capsule::create(0.5, 2.0, 16));
-        application_context
-            .add_mesh("Assets/shaders/lit_normal", mesh, transform)
+        let drawable_object = application_context
+            .get_drawable_object_from_mesh("Assets/shaders/lit_normal", mesh)
             .unwrap();
+
+        let _ = renderer_command_sender
+            .send(renderer::Command::AddDrawableObject {
+                drawable_object,
+                transform,
+            })
+            .inspect_err(|e| log::error!("Adding drawable object to renderer, error = {e}"));
     }
 }
 
-fn add_skybox(application_context: &mut ApplicationContext) {
+fn add_skybox(
+    application_context: &mut ApplicationContext,
+    renderer_command_sender: &renderer::CommandSender,
+) {
     let transform = Transform::<f32, f32, f32>::default();
 
     let drawable_objects = application_context
@@ -183,7 +205,12 @@ fn add_skybox(application_context: &mut ApplicationContext) {
                 }],
             });
 
-            application_context.add_drawable_object(drawable_objects[index].clone(), transform);
+            let _ = renderer_command_sender
+                .send(renderer::Command::AddDrawableObject {
+                    drawable_object: drawable_objects[index].clone(),
+                    transform,
+                })
+                .inspect_err(|e| log::error!("Adding drawable object to renderer, error = {e}"));
         }
     }
 }

@@ -4,18 +4,28 @@ use parking_lot::RwLock;
 use vek::{num_traits::Zero, Vec2, Vec3};
 
 use crate::{
-    muleengine::{camera::Camera, system_container::System},
-    sdl2_opengl_engine::Engine,
+    muleengine::{
+        camera::Camera, result_option_inspect::ResultInspector, system_container::System,
+    },
+    sdl2_opengl_engine::{systems::renderer, Engine},
 };
 
 pub struct SpectatorCameraControllerSystem {
-    camera: Arc<RwLock<Camera>>,
+    camera: Camera,
     engine: Arc<RwLock<Engine>>,
+    renderer_command_sender: renderer::CommandSender,
 }
 
 impl SpectatorCameraControllerSystem {
-    pub fn new(camera: Arc<RwLock<Camera>>, engine: Arc<RwLock<Engine>>) -> Self {
-        Self { camera, engine }
+    pub fn new(
+        renderer_command_sender: renderer::CommandSender,
+        engine: Arc<RwLock<Engine>>,
+    ) -> Self {
+        Self {
+            camera: Camera::new(),
+            engine,
+            renderer_command_sender,
+        }
     }
 }
 
@@ -128,19 +138,27 @@ impl System for SpectatorCameraControllerSystem {
         // transform the camera
         let velocity = 0.5;
 
-        let mut camera = self.camera.write();
-
-        let mut axis_z = camera.axis_z();
+        let mut axis_z = self.camera.axis_z();
         axis_z.y = 0.0;
         let axis_z = axis_z.try_normalized().unwrap_or(Vec3::zero());
-        let corrected_moving_direction = camera.axis_x() * moving_direction.x
+        let corrected_moving_direction = self.camera.axis_x() * moving_direction.x
             + Vec3::unit_y() * moving_direction.y
             + axis_z * moving_direction.z;
 
-        camera.move_by(corrected_moving_direction * velocity * delta_time_in_secs);
+        self.camera
+            .move_by(corrected_moving_direction * velocity * delta_time_in_secs);
 
         let turning_velocity_rad = std::f32::consts::FRAC_PI_2;
-        camera.pitch(camera_turn.x * turning_velocity_rad * delta_time_in_secs);
-        camera.rotate_around_unit_y(camera_turn.y * turning_velocity_rad * delta_time_in_secs);
+        self.camera
+            .pitch(camera_turn.x * turning_velocity_rad * delta_time_in_secs);
+        self.camera
+            .rotate_around_unit_y(camera_turn.y * turning_velocity_rad * delta_time_in_secs);
+
+        let _ = self
+            .renderer_command_sender
+            .send(renderer::Command::SetCamera {
+                camera: self.camera.clone(),
+            })
+            .inspect_err(|e| log::error!("Setting camera of renderer, error = {e}"));
     }
 }
