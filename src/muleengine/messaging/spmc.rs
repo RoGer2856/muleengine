@@ -20,14 +20,14 @@ where
 }
 
 #[derive(Clone)]
-pub struct SpmcProducer<T>
+pub struct Sender<T>
 where
     T: Clone,
 {
     receiver_queues: ReceiverQueueList<T>,
 }
 
-pub struct SpmcConsumer<T>
+pub struct Receiver<T>
 where
     T: Clone,
 {
@@ -69,7 +69,7 @@ where
     }
 }
 
-impl<T> SpmcProducer<T>
+impl<T> Sender<T>
 where
     T: Clone,
 {
@@ -89,21 +89,21 @@ where
         }
     }
 
-    pub fn send_directly(&self, object: T, receiver: &SpmcConsumer<T>) {
+    pub fn send_directly(&self, object: T, receiver: &Receiver<T>) {
         let mut queue = receiver.queue.lock();
         if !queue.is_stopped {
             queue.queue.push_back(object);
         }
     }
 
-    pub fn create_receiver(&self) -> SpmcConsumer<T> {
+    pub fn create_receiver(&self) -> Receiver<T> {
         let queue = Arc::new(Mutex::new(ReceiverQueue::<T>::new()));
         let queue_id = self
             .receiver_queues
             .receiver_queues
             .lock()
             .create_object(queue.clone());
-        SpmcConsumer {
+        Receiver {
             receiver_queues: self.receiver_queues.clone(),
             queue_id,
             queue,
@@ -111,7 +111,7 @@ where
     }
 }
 
-impl<T> SpmcConsumer<T>
+impl<T> Receiver<T>
 where
     T: Clone,
 {
@@ -127,14 +127,14 @@ where
         self.queue.lock().queue.pop_front()
     }
 
-    pub fn create_receiver(&self) -> SpmcConsumer<T> {
+    pub fn create_receiver(&self) -> Receiver<T> {
         let queue = Arc::new(Mutex::new(ReceiverQueue::<T>::new()));
         let queue_id = self
             .receiver_queues
             .receiver_queues
             .lock()
             .create_object(queue.clone());
-        SpmcConsumer {
+        Receiver {
             receiver_queues: self.receiver_queues.clone(),
             queue_id,
             queue,
@@ -142,7 +142,7 @@ where
     }
 }
 
-impl<T> Drop for SpmcConsumer<T>
+impl<T> Drop for Receiver<T>
 where
     T: Clone,
 {
@@ -160,7 +160,7 @@ mod tests {
 
     #[test]
     fn send() {
-        let sender = SpmcProducer::<String>::new();
+        let sender = Sender::<String>::new();
 
         let receiver0 = sender.create_receiver();
         let receiver1 = sender.create_receiver();
@@ -186,7 +186,7 @@ mod tests {
 
     #[test]
     fn send_directly() {
-        let sender = SpmcProducer::<String>::new();
+        let sender = Sender::<String>::new();
 
         let receiver0 = sender.create_receiver();
         let receiver1 = sender.create_receiver();
@@ -208,7 +208,7 @@ mod tests {
 
     #[test]
     fn send_stop_send_resume_send() {
-        let sender = SpmcProducer::<String>::new();
+        let sender = Sender::<String>::new();
 
         let mut receiver = sender.create_receiver();
 
@@ -231,7 +231,7 @@ mod tests {
 
     #[test]
     fn drop_receiver() {
-        let sender = SpmcProducer::<String>::new();
+        let sender = Sender::<String>::new();
 
         {
             let _receiver = sender.create_receiver();
