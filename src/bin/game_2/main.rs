@@ -73,13 +73,17 @@ fn main() {
     let mut application_context = ApplicationContext::new(initial_window_dimensions);
     populate_with_objects(&mut application_context);
 
+    let camera = Arc::new(RwLock::new(Camera::new()));
+
     let mut system_container = SystemContainer::new();
 
-    let camera = Arc::new(RwLock::new(Camera::new()));
-    system_container.add_system(spectator_camera_controller::create(
-        camera.clone(),
-        engine.clone(),
-    ));
+    // add systems to system_container
+    {
+        system_container.add_system(spectator_camera_controller::create(
+            camera.clone(),
+            engine.clone(),
+        ));
+    }
 
     const DESIRED_FPS: f32 = 30.0;
 
