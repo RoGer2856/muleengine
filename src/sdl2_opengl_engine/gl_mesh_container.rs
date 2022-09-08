@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 
-use crate::muleengine::mesh::Mesh;
+use crate::muleengine::mesh::{Mesh, MeshConvertError, Scene};
 
 use super::gl_mesh::{GLDrawableMesh, GLMesh};
 use super::gl_mesh_shader_program::GLMeshShaderProgram;
@@ -24,6 +24,33 @@ impl GLMeshContainer {
         Self {
             drawable_meshes: HashMap::new(),
         }
+    }
+
+    pub fn get_drawable_meshes_from_scene(
+        &mut self,
+        gl_mesh_shader_program: Arc<GLMeshShaderProgram>,
+        scene: Arc<Scene>,
+        gl_texture_container: &mut GLTextureContainer,
+    ) -> Vec<Result<Arc<RwLock<GLDrawableMesh>>, MeshConvertError>> {
+        let mut ret = Vec::new();
+
+        for mesh in scene.meshes_ref().iter() {
+            match mesh {
+                Ok(mesh) => {
+                    let drawable_object = self.get_drawable_mesh(
+                        gl_mesh_shader_program.clone(),
+                        mesh.clone(),
+                        gl_texture_container,
+                    );
+                    ret.push(Ok(drawable_object));
+                }
+                Err(e) => {
+                    ret.push(Err(e.clone()));
+                }
+            }
+        }
+
+        ret
     }
 
     pub fn get_drawable_mesh(

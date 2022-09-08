@@ -6,7 +6,7 @@ use game_2::{
         camera::Camera,
         drawable_object_storage::DrawableObjectStorage,
         image_container::{ImageContainer, ImageContainerError},
-        mesh::{Mesh, SceneLoadError},
+        mesh::{Mesh, Scene, SceneLoadError},
         scene_container::SceneContainer,
     },
     sdl2_opengl_engine::{
@@ -115,6 +115,14 @@ impl ApplicationContext {
             .add_drawable_object(drawable_object, transform);
     }
 
+    pub fn load_scene(&mut self, scene_path: &str) -> Result<Arc<Scene>, SceneLoadError> {
+        self.scene_container.get_scene(
+            scene_path,
+            &mut self.assets_reader,
+            &mut self.image_container,
+        )
+    }
+
     pub fn get_drawable_objects_from_scene(
         &mut self,
         shader_basepath: &str,
@@ -128,23 +136,19 @@ impl ApplicationContext {
             .map_err(|e| ApplicationMeshLoadError::GLMeshShaderProgramError(e))?;
 
         let scene = self
-            .scene_container
-            .get_scene(
-                scene_path,
-                &mut self.assets_reader,
-                &mut self.image_container,
-            )
+            .load_scene(scene_path)
             .map_err(|e| ApplicationMeshLoadError::SceneLoadError(e))?;
 
-        for mesh in scene.meshes_ref().iter() {
-            match mesh {
-                Ok(mesh) => {
-                    let gl_drawable_mesh = self.gl_mesh_container.get_drawable_mesh(
-                        gl_mesh_shader_program.clone(),
-                        mesh.clone(),
-                        &mut self.gl_texture_container,
-                    );
-                    ret.push(gl_drawable_mesh.clone());
+        let drawable_objects = self.gl_mesh_container.get_drawable_meshes_from_scene(
+            gl_mesh_shader_program,
+            scene,
+            &mut self.gl_texture_container,
+        );
+
+        for drawable_object in drawable_objects {
+            match drawable_object {
+                Ok(drawable_object) => {
+                    ret.push(drawable_object);
                 }
                 Err(e) => {
                     log::warn!(
