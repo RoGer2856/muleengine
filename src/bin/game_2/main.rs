@@ -4,42 +4,22 @@ use std::sync::Arc;
 
 use game_2::{
     main_loop::MainLoop,
-    muleengine::{camera::Camera, mesh::MaterialTextureType, mesh_creator},
+    muleengine::{
+        camera::Camera, mesh::MaterialTextureType, mesh_creator, system_container::SystemContainer,
+    },
     sdl2_opengl_engine::{
         self,
         gl_material::{GLMaterial, GLMaterialTexture},
         opengl_utils::texture_2d::GLTextureMapMode,
         GLProfile,
     },
-    systems::spectator_camera_controller,
+    systems::spectator_camera_controller::SpectatorCameraControllerSystem,
 };
 use parking_lot::RwLock;
 use sdl2::event::{Event, WindowEvent};
 use vek::{Transform, Vec2, Vec3};
 
 use crate::application_context::ApplicationContext;
-
-pub struct SystemContainer {
-    systems: Vec<Box<dyn FnMut(f32)>>,
-}
-
-impl SystemContainer {
-    pub fn new() -> Self {
-        Self {
-            systems: Vec::new(),
-        }
-    }
-
-    pub fn tick(&mut self, delta_time_in_secs: f32) {
-        for system in self.systems.iter_mut() {
-            system(delta_time_in_secs);
-        }
-    }
-
-    pub fn add_system(&mut self, system_executor: impl FnMut(f32) + 'static) {
-        self.systems.push(Box::new(system_executor));
-    }
-}
 
 fn main() {
     env_logger::builder()
@@ -79,7 +59,7 @@ fn main() {
 
     // add systems to system_container
     {
-        system_container.add_system(spectator_camera_controller::create(
+        system_container.add_system(SpectatorCameraControllerSystem::new(
             camera.clone(),
             engine.clone(),
         ));
