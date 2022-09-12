@@ -83,6 +83,7 @@ fn main() {
         // handling events
         while let Some(event) = engine.write().poll_event() {
             log::debug!("{:?}", event);
+
             match event {
                 Event::Window { win_event, .. } => match win_event {
                     WindowEvent::Resized(width, height) => {

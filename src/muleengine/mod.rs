@@ -1,6 +1,7 @@
 pub mod aabb;
 pub mod assets_reader;
 pub mod camera;
+pub mod containers;
 pub mod drawable_object;
 pub mod drawable_object_storage;
 pub mod heightmap;
