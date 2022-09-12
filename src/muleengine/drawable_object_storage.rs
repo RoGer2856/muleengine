@@ -3,9 +3,10 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 use vek::{Mat4, Transform, Vec3};
 
-use crate::muleengine::object_pool::ObjectPool;
-
-use super::{drawable_object::DrawableObject, object_pool::ObjectPoolIndex};
+use super::{
+    containers::object_pool::{ObjectPool, ObjectPoolIndex},
+    drawable_object::DrawableObject,
+};
 
 struct Object {
     drawable: Arc<RwLock<dyn DrawableObject>>,
