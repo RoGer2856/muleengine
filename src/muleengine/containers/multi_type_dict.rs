@@ -5,7 +5,7 @@ use std::{
 };
 
 pub struct MultiTypeDict {
-    storage: BTreeMap<TypeId, Arc<dyn Any + Send + Sync>>,
+    storage: BTreeMap<TypeId, Arc<dyn Any>>,
 }
 
 impl MultiTypeDict {
@@ -17,7 +17,7 @@ impl MultiTypeDict {
 
     pub fn insert<ItemType>(&mut self, item: ItemType) -> Option<Arc<ItemType>>
     where
-        ItemType: Any + Send + Sync,
+        ItemType: Any,
     {
         let type_id = TypeId::of::<ItemType>();
         let item = Arc::new(item);
@@ -27,46 +27,52 @@ impl MultiTypeDict {
 
     pub fn insert_any<ItemType>(
         &mut self,
-        item: impl Any + Send + Sync,
+        item: impl Any,
         type_id: TypeId,
-    ) -> Option<Arc<dyn Any + Send + Sync>> {
+    ) -> Option<Arc<dyn Any>> {
         self.storage.insert(type_id, Arc::new(item))
     }
 
     pub fn get_item_ref<ItemType>(&self) -> Option<Arc<ItemType>>
     where
-        ItemType: Any + Send + Sync,
+        ItemType: Any,
     {
         let type_id = TypeId::of::<ItemType>();
 
         Self::downcast_optional_item(self.get_item_ref_any(type_id))
     }
 
-    pub fn get_item_ref_any(&self, type_id: TypeId) -> Option<Arc<dyn Any + Send + Sync>> {
+    pub fn get_item_ref_any(&self, type_id: TypeId) -> Option<Arc<dyn Any>> {
         self.storage.get(&type_id).map(|item| item.clone())
     }
 
     pub fn remove<ItemType>(&mut self) -> Option<Arc<ItemType>>
     where
-        ItemType: Any + Send + Sync,
+        ItemType: Any,
     {
         let type_id = TypeId::of::<ItemType>();
 
         Self::downcast_optional_item(self.remove_by_type_id(type_id))
     }
 
-    pub fn remove_by_type_id(&mut self, type_id: TypeId) -> Option<Arc<dyn Any + Send + Sync>> {
+    pub fn remove_by_type_id(&mut self, type_id: TypeId) -> Option<Arc<dyn Any>> {
         self.storage.remove(&type_id)
     }
 
-    fn downcast_optional_item<ItemType>(
-        item: Option<Arc<dyn Any + Send + Sync>>,
-    ) -> Option<Arc<ItemType>>
+    fn downcast_optional_item<ItemType>(item: Option<Arc<dyn Any>>) -> Option<Arc<ItemType>>
     where
-        ItemType: Any + Send + Sync,
+        ItemType: Any,
     {
-        item.map(|item| Some(item.downcast::<ItemType>().ok()?.clone()))
-            .flatten()
+        item.map(|item| {
+            if (*item).is::<ItemType>() {
+                let ptr = Arc::into_raw(item).cast::<ItemType>();
+
+                Some(unsafe { Arc::from_raw(ptr) })
+            } else {
+                None
+            }
+        })
+        .flatten()
     }
 }
 
