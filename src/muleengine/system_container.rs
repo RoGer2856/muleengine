@@ -1,25 +1,38 @@
-pub trait System {
+use std::sync::Arc;
+
+use parking_lot::RwLock;
+
+use super::containers::multi_type_dict::{MultiTypeDict, MultiTypeDictItem};
+
+pub trait System: 'static {
     fn tick(&mut self, delta_time_in_secs: f32);
 }
 
 pub struct SystemContainer {
-    systems: Vec<Box<dyn System>>,
+    systems_by_type_id: MultiTypeDict,
+    systems: Vec<Arc<RwLock<dyn System>>>,
 }
 
 impl SystemContainer {
     pub fn new() -> Self {
         Self {
+            systems_by_type_id: MultiTypeDict::new(),
             systems: Vec::new(),
         }
     }
 
     pub fn tick(&mut self, delta_time_in_secs: f32) {
-        for system in self.systems.iter_mut() {
-            system.tick(delta_time_in_secs);
+        for system in self.systems.iter() {
+            system.write().tick(delta_time_in_secs);
         }
     }
 
-    pub fn add_system(&mut self, system: impl System + 'static) {
-        self.systems.push(Box::new(system));
+    pub fn add_system(&mut self, system: impl System) {
+        let result = self.systems_by_type_id.insert(RwLock::new(system));
+        self.systems.push(result.new_item.as_arc_ref().clone());
+    }
+
+    pub fn get_system<SystemType: 'static>(&self) -> Option<MultiTypeDictItem<RwLock<SystemType>>> {
+        self.systems_by_type_id.get_item_ref()
     }
 }
