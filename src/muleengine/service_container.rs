@@ -49,4 +49,15 @@ impl ServiceContainer {
             .map(|service| service.as_arc_ref().clone())
             .ok_or_else(|| ServiceMissingError::new::<ServiceType>())
     }
+
+    pub fn get_or_insert_service<ServiceType: 'static>(
+        &self,
+        service_constructor: impl FnOnce() -> ServiceType,
+    ) -> Arc<RwLock<ServiceType>> {
+        self.service_dict
+            .write()
+            .get_or_insert_item_ref::<RwLock<ServiceType>>(|| RwLock::new(service_constructor()))
+            .as_arc_ref()
+            .clone()
+    }
 }

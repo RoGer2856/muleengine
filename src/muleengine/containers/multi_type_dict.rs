@@ -100,6 +100,32 @@ impl MultiTypeDict {
             .flatten()
     }
 
+    pub fn get_or_insert_item_ref<ItemType>(
+        &mut self,
+        item_creator: impl FnOnce() -> ItemType,
+    ) -> MultiTypeDictItem<ItemType>
+    where
+        ItemType: Any,
+    {
+        let type_id = TypeId::of::<ItemType>();
+
+        let result = self
+            .storage
+            .entry(type_id)
+            .or_insert_with(|| MultiTypeDictItem {
+                type_id,
+                item: Arc::new(item_creator()),
+            })
+            .clone()
+            .downcast::<ItemType>();
+
+        if let Some(item) = result {
+            item
+        } else {
+            unreachable!()
+        }
+    }
+
     pub fn get_item_ref_any(&self, type_id: TypeId) -> Option<MultiTypeDictItem<dyn Any>> {
         self.storage.get(&type_id).map(|item| item.clone())
     }
