@@ -12,4 +12,5 @@ pub mod mesh_creator;
 pub mod messaging;
 pub mod result_option_inspect;
 pub mod scene_container;
+pub mod service_container;
 pub mod system_container;
