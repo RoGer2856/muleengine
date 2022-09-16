@@ -35,4 +35,12 @@ impl SystemContainer {
     pub fn get_system<SystemType: 'static>(&self) -> Option<MultiTypeDictItem<RwLock<SystemType>>> {
         self.systems_by_type_id.get_item_ref()
     }
+
+    pub fn get_or_insert_system<SystemType: 'static>(
+        &mut self,
+        system_constructor: impl FnOnce() -> SystemType,
+    ) -> MultiTypeDictItem<RwLock<SystemType>> {
+        self.systems_by_type_id
+            .get_or_insert_item_ref(|| RwLock::new(system_constructor()))
+    }
 }
