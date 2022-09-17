@@ -1,11 +1,12 @@
 use std::sync::Arc;
 
-use game_2::{
+use crate::{
     muleengine::{
         assets_reader::AssetsReader,
         image_container::{ImageContainer, ImageContainerError},
         mesh::{Mesh, Scene, SceneLoadError},
         scene_container::SceneContainer,
+        service_container::ServiceContainer,
     },
     sdl2_opengl_engine::{
         gl_mesh::GLDrawableMesh, gl_mesh_container::GLMeshContainer,
@@ -17,27 +18,27 @@ use game_2::{
 use parking_lot::RwLock;
 
 #[derive(Debug)]
-pub enum ApplicationMeshLoadError {
+pub enum DrawableMeshCreationError {
     GLMeshShaderProgramError(GLMeshShaderProgramError),
     SceneLoadError(SceneLoadError),
 }
 
-pub struct ApplicationContext {
-    assets_reader: AssetsReader,
-    scene_container: SceneContainer,
-    image_container: ImageContainer,
+pub struct DrawableObjectCreator {
+    assets_reader: Arc<RwLock<AssetsReader>>,
+    scene_container: Arc<RwLock<SceneContainer>>,
+    image_container: Arc<RwLock<ImageContainer>>,
 
     gl_mesh_container: GLMeshContainer,
     gl_shader_program_container: GLShaderProgramContainer,
     gl_texture_container: GLTextureContainer,
 }
 
-impl ApplicationContext {
-    pub fn new() -> Self {
+impl DrawableObjectCreator {
+    pub fn new(service_container: &ServiceContainer) -> Self {
         Self {
-            assets_reader: AssetsReader::new(),
-            scene_container: SceneContainer::new(),
-            image_container: ImageContainer::new(),
+            assets_reader: service_container.get_service::<AssetsReader>().unwrap(),
+            scene_container: service_container.get_service::<SceneContainer>().unwrap(),
+            image_container: service_container.get_service::<ImageContainer>().unwrap(),
 
             gl_mesh_container: GLMeshContainer::new(),
             gl_shader_program_container: GLShaderProgramContainer::new(),
@@ -48,7 +49,8 @@ impl ApplicationContext {
     pub fn get_texture(&mut self, image_path: &str) -> Result<Arc<Texture2D>, ImageContainerError> {
         let image = self
             .image_container
-            .get_image(image_path, &self.assets_reader)?;
+            .write()
+            .get_image(image_path, &self.assets_reader.write())?;
         Ok(self.gl_texture_container.get_texture(image))
     }
 
@@ -59,7 +61,7 @@ impl ApplicationContext {
     ) -> Result<Arc<RwLock<GLDrawableMesh>>, GLMeshShaderProgramError> {
         let gl_mesh_shader_program = self
             .gl_shader_program_container
-            .get_mesh_shader_program(shader_basepath, &mut self.assets_reader)?;
+            .get_mesh_shader_program(shader_basepath, &mut self.assets_reader.write())?;
 
         let gl_drawable_mesh = self.gl_mesh_container.get_drawable_mesh(
             gl_mesh_shader_program.clone(),
@@ -71,10 +73,10 @@ impl ApplicationContext {
     }
 
     pub fn load_scene(&mut self, scene_path: &str) -> Result<Arc<Scene>, SceneLoadError> {
-        self.scene_container.get_scene(
+        self.scene_container.write().get_scene(
             scene_path,
-            &mut self.assets_reader,
-            &mut self.image_container,
+            &mut self.assets_reader.write(),
+            &mut self.image_container.write(),
         )
     }
 
@@ -82,17 +84,17 @@ impl ApplicationContext {
         &mut self,
         shader_basepath: &str,
         scene_path: &str,
-    ) -> Result<Vec<Arc<RwLock<GLDrawableMesh>>>, ApplicationMeshLoadError> {
+    ) -> Result<Vec<Arc<RwLock<GLDrawableMesh>>>, DrawableMeshCreationError> {
         let mut ret = Vec::new();
 
         let gl_mesh_shader_program = self
             .gl_shader_program_container
-            .get_mesh_shader_program(shader_basepath, &mut self.assets_reader)
-            .map_err(|e| ApplicationMeshLoadError::GLMeshShaderProgramError(e))?;
+            .get_mesh_shader_program(shader_basepath, &mut self.assets_reader.write())
+            .map_err(|e| DrawableMeshCreationError::GLMeshShaderProgramError(e))?;
 
         let scene = self
             .load_scene(scene_path)
-            .map_err(|e| ApplicationMeshLoadError::SceneLoadError(e))?;
+            .map_err(|e| DrawableMeshCreationError::SceneLoadError(e))?;
 
         let drawable_objects = self.gl_mesh_container.get_drawable_meshes_from_scene(
             gl_mesh_shader_program,

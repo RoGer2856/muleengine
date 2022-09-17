@@ -1,17 +1,17 @@
 #![allow(unstable_name_collisions)]
 
-mod application_context;
-
 use std::sync::Arc;
 
 use game_2::{
     main_loop::MainLoop,
     muleengine::{
-        mesh::MaterialTextureType, mesh_creator, result_option_inspect::ResultInspector,
-        system_container::SystemContainer,
+        assets_reader::AssetsReader, image_container::ImageContainer, mesh::MaterialTextureType,
+        mesh_creator, result_option_inspect::ResultInspector, scene_container::SceneContainer,
+        service_container::ServiceContainer, system_container::SystemContainer,
     },
     sdl2_opengl_engine::{
         self,
+        drawable_object_creator::DrawableObjectCreator,
         gl_material::{GLMaterial, GLMaterialTexture},
         opengl_utils::texture_2d::GLTextureMapMode,
         systems::renderer,
@@ -22,8 +22,6 @@ use game_2::{
 use parking_lot::RwLock;
 use sdl2::event::{Event, WindowEvent};
 use vek::{Transform, Vec2, Vec3};
-
-use crate::application_context::ApplicationContext;
 
 fn main() {
     env_logger::builder()
@@ -54,12 +52,22 @@ fn main() {
         engine.read().window().size().1 as i32 / 2,
     );
 
+    let service_container = {
+        let mut service_container = ServiceContainer::new();
+
+        service_container.insert(AssetsReader::new());
+        service_container.insert(ImageContainer::new());
+        service_container.insert(SceneContainer::new());
+        service_container.insert(DrawableObjectCreator::new(&service_container));
+
+        service_container
+    };
+
     let renderer_command_sender;
 
-    let mut system_container = SystemContainer::new();
+    let mut system_container = {
+        let mut system_container = SystemContainer::new();
 
-    // add systems to system_container
-    {
         // creating renderer system
         let renderer_system = renderer::System::new(initial_window_dimensions, engine.clone());
         renderer_command_sender = renderer_system.get_sender();
@@ -71,10 +79,11 @@ fn main() {
 
         // adding renderer system as the last system
         system_container.add_system(renderer_system);
-    }
 
-    let mut application_context = ApplicationContext::new();
-    populate_with_objects(&mut application_context, &renderer_command_sender);
+        system_container
+    };
+
+    populate_with_objects(&service_container, &renderer_command_sender);
 
     const DESIRED_FPS: f32 = 30.0;
 
@@ -122,16 +131,22 @@ fn main() {
 }
 
 fn populate_with_objects(
-    application_context: &mut ApplicationContext,
+    service_container: &ServiceContainer,
     renderer_command_sender: &renderer::CommandSender,
 ) {
-    add_skybox(application_context, renderer_command_sender);
+    let drawable_object_creator = service_container
+        .get_service::<DrawableObjectCreator>()
+        .unwrap();
+
+    let drawable_object_creator_mut = &mut *drawable_object_creator.write();
+
+    add_skybox(drawable_object_creator_mut, renderer_command_sender);
 
     {
         let mut transform = Transform::<f32, f32, f32>::default();
         transform.position.z = -5.0;
 
-        let drawable_objects = application_context
+        let drawable_objects = drawable_object_creator_mut
             .get_drawable_objects_from_scene(
                 "Assets/shaders/lit_normal",
                 // "Assets/objects/MonkeySmooth.obj",
@@ -156,7 +171,7 @@ fn populate_with_objects(
         transform.position.z = -5.0;
 
         let mesh = Arc::new(mesh_creator::capsule::create(0.5, 2.0, 16));
-        let drawable_object = application_context
+        let drawable_object = drawable_object_creator_mut
             .get_drawable_object_from_mesh("Assets/shaders/lit_normal", mesh)
             .unwrap();
 
@@ -170,12 +185,12 @@ fn populate_with_objects(
 }
 
 fn add_skybox(
-    application_context: &mut ApplicationContext,
+    drawable_object_creator: &mut DrawableObjectCreator,
     renderer_command_sender: &renderer::CommandSender,
 ) {
     let transform = Transform::<f32, f32, f32>::default();
 
-    let drawable_objects = application_context
+    let drawable_objects = drawable_object_creator
         .get_drawable_objects_from_scene("Assets/shaders/unlit", "Assets/objects/skybox/Skybox.obj")
         .unwrap();
 
@@ -198,7 +213,9 @@ fn add_skybox(
                 emissive_color: Vec3::broadcast(0.0),
                 shininess_color: Vec3::broadcast(0.0),
                 textures: vec![GLMaterialTexture {
-                    texture: application_context.get_texture(textures[index]).unwrap(),
+                    texture: drawable_object_creator
+                        .get_texture(textures[index])
+                        .unwrap(),
                     texture_type: MaterialTextureType::Albedo,
                     texture_map_mode: GLTextureMapMode::Clamp,
                     uv_channel_id: 0,

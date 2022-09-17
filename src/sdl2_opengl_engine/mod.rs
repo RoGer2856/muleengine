@@ -1,3 +1,4 @@
+pub mod drawable_object_creator;
 pub mod gl_material;
 pub mod gl_mesh;
 pub mod gl_mesh_container;
