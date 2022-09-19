@@ -10,12 +10,11 @@ use game_2::{
         service_container::ServiceContainer, system_container::SystemContainer,
     },
     sdl2_opengl_engine::{
-        self,
         drawable_object_creator::DrawableObjectCreator,
         gl_material::{GLMaterial, GLMaterialTexture},
         opengl_utils::texture_2d::GLTextureMapMode,
         systems::renderer,
-        GLProfile,
+        GLProfile, Sdl2GLContext,
     },
     systems::spectator_camera_controller::SpectatorCameraControllerSystem,
 };
@@ -30,8 +29,8 @@ fn main() {
 
     let initial_window_dimensions = Vec2::new(800usize, 600usize);
 
-    let engine = Arc::new(RwLock::new(
-        sdl2_opengl_engine::init(
+    let sdl2_gl_context = Arc::new(RwLock::new(
+        Sdl2GLContext::new(
             "game_2",
             initial_window_dimensions.x as u32,
             initial_window_dimensions.y as u32,
@@ -42,14 +41,14 @@ fn main() {
         .unwrap(),
     ));
 
-    let mouse_util = engine.read().mouse_util();
+    let mouse_util = sdl2_gl_context.read().mouse_util();
 
     mouse_util.show_cursor(false);
 
     mouse_util.warp_mouse_in_window(
-        engine.read().window(),
-        engine.read().window().size().0 as i32 / 2,
-        engine.read().window().size().1 as i32 / 2,
+        sdl2_gl_context.read().window(),
+        sdl2_gl_context.read().window().size().0 as i32 / 2,
+        sdl2_gl_context.read().window().size().1 as i32 / 2,
     );
 
     let service_container = {
@@ -63,24 +62,23 @@ fn main() {
         service_container
     };
 
-    let renderer_command_sender;
-
-    let mut system_container = {
+    let (mut system_container, renderer_command_sender) = {
         let mut system_container = SystemContainer::new();
 
         // creating renderer system
-        let renderer_system = renderer::System::new(initial_window_dimensions, engine.clone());
-        renderer_command_sender = renderer_system.get_sender();
+        let renderer_system =
+            renderer::System::new(initial_window_dimensions, sdl2_gl_context.clone());
+        let renderer_command_sender = renderer_system.get_sender();
 
         system_container.add_system(SpectatorCameraControllerSystem::new(
             renderer_command_sender.clone(),
-            engine.clone(),
+            sdl2_gl_context.clone(),
         ));
 
         // adding renderer system as the last system
         system_container.add_system(renderer_system);
 
-        system_container
+        (system_container, renderer_command_sender)
     };
 
     populate_with_objects(&service_container, &renderer_command_sender);
@@ -90,7 +88,7 @@ fn main() {
     let main_loop = MainLoop::new(DESIRED_FPS);
     'running: for delta_time_in_secs in main_loop.iter() {
         // handling events
-        while let Some(event) = engine.write().poll_event() {
+        while let Some(event) = sdl2_gl_context.write().poll_event() {
             log::debug!("{:?}", event);
 
             match event {
@@ -115,14 +113,14 @@ fn main() {
 
         // putting the cursor back to the center of the window
         let window_center = Vec2::new(
-            engine.read().window().size().0 as i32 / 2,
-            engine.read().window().size().1 as i32 / 2,
+            sdl2_gl_context.read().window().size().0 as i32 / 2,
+            sdl2_gl_context.read().window().size().1 as i32 / 2,
         );
 
-        let mouse_state = engine.read().mouse_state();
+        let mouse_state = sdl2_gl_context.read().mouse_state();
         if mouse_state.x() != window_center.x || mouse_state.y() != window_center.y {
             mouse_util.warp_mouse_in_window(
-                engine.read().window(),
+                sdl2_gl_context.read().window(),
                 window_center.x,
                 window_center.y,
             );

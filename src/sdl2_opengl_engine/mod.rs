@@ -15,7 +15,7 @@ use sdl2::mouse::{MouseState, MouseUtil};
 use sdl2::video::{GLContext, Window, WindowBuildError};
 use sdl2::{video, EventPump, Sdl, VideoSubsystem};
 
-pub struct Engine {
+pub struct Sdl2GLContext {
     sdl_context: Sdl,
     _sdl_video: VideoSubsystem,
     _gl_context: GLContext,
@@ -54,58 +54,58 @@ impl From<GLProfile> for video::GLProfile {
     }
 }
 
-pub fn init(
-    window_name: &str,
-    window_width: u32,
-    window_height: u32,
-    gl_profile: GLProfile,
-    gl_major_version: u8,
-    gl_minor_version: u8,
-) -> Result<Engine, ContextCreationError> {
-    let sdl2_gl_profile = gl_profile.into();
-    let sdl_context =
-        sdl2::init().map_err(|e| ContextCreationError::CouldNotCreateSdlContext(e))?;
-    let sdl_video = sdl_context
-        .video()
-        .map_err(|e| ContextCreationError::CouldNotCreateVideoSystem(e))?;
+impl Sdl2GLContext {
+    pub fn new(
+        window_name: &str,
+        window_width: u32,
+        window_height: u32,
+        gl_profile: GLProfile,
+        gl_major_version: u8,
+        gl_minor_version: u8,
+    ) -> Result<Self, ContextCreationError> {
+        let sdl2_gl_profile = gl_profile.into();
+        let sdl_context =
+            sdl2::init().map_err(|e| ContextCreationError::CouldNotCreateSdlContext(e))?;
+        let sdl_video = sdl_context
+            .video()
+            .map_err(|e| ContextCreationError::CouldNotCreateVideoSystem(e))?;
 
-    let gl_attr = sdl_video.gl_attr();
-    gl_attr.set_context_profile(sdl2_gl_profile);
-    gl_attr.set_context_version(gl_major_version, gl_minor_version);
+        let gl_attr = sdl_video.gl_attr();
+        gl_attr.set_context_profile(sdl2_gl_profile);
+        gl_attr.set_context_version(gl_major_version, gl_minor_version);
 
-    let sdl_window = sdl_video
-        .window(window_name, window_width, window_height)
-        .opengl()
-        .build()
-        .map_err(|e| ContextCreationError::CouldNotBuildWindow(e))?;
+        let sdl_window = sdl_video
+            .window(window_name, window_width, window_height)
+            .opengl()
+            .build()
+            .map_err(|e| ContextCreationError::CouldNotBuildWindow(e))?;
 
-    let gl_context = sdl_window
-        .gl_create_context()
-        .map_err(|e| ContextCreationError::CouldNotCreateGLContext(e))?;
-    gl::load_with(|name| sdl_video.gl_get_proc_address(name) as *const _);
+        let gl_context = sdl_window
+            .gl_create_context()
+            .map_err(|e| ContextCreationError::CouldNotCreateGLContext(e))?;
+        gl::load_with(|name| sdl_video.gl_get_proc_address(name) as *const _);
 
-    if gl_attr.context_profile() != sdl2_gl_profile {
-        Err(ContextCreationError::CouldNotCreateContextWithGLVersion {
-            gl_profile,
-            gl_major_version,
-            gl_minor_version,
-        })
-    } else {
-        let event_pump = sdl_context
-            .event_pump()
-            .map_err(|e| ContextCreationError::CouldNotCreateEventPump(e))?;
+        if gl_attr.context_profile() != sdl2_gl_profile {
+            Err(ContextCreationError::CouldNotCreateContextWithGLVersion {
+                gl_profile,
+                gl_major_version,
+                gl_minor_version,
+            })
+        } else {
+            let event_pump = sdl_context
+                .event_pump()
+                .map_err(|e| ContextCreationError::CouldNotCreateEventPump(e))?;
 
-        Ok(Engine {
-            sdl_context,
-            sdl_window,
-            _sdl_video: sdl_video,
-            _gl_context: gl_context,
-            event_pump,
-        })
+            Ok(Self {
+                sdl_context,
+                sdl_window,
+                _sdl_video: sdl_video,
+                _gl_context: gl_context,
+                event_pump,
+            })
+        }
     }
-}
 
-impl Engine {
     pub fn poll_event(&mut self) -> Option<Event> {
         self.event_pump.poll_event()
     }
