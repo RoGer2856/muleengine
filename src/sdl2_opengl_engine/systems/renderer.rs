@@ -8,7 +8,7 @@ use crate::{
         camera::Camera, drawable_object::DrawableObject,
         drawable_object_storage::DrawableObjectStorage, system_container,
     },
-    sdl2_opengl_engine::Engine,
+    sdl2_opengl_engine::Sdl2GLContext,
 };
 
 pub enum Command {
@@ -33,11 +33,14 @@ pub struct System {
     camera: Camera,
     projection_matrix: Mat4<f32>,
     window_dimensions: Vec2<usize>,
-    engine: Arc<RwLock<Engine>>,
+    sdl2_gl_context: Arc<RwLock<Sdl2GLContext>>,
 }
 
 impl System {
-    pub fn new(initial_window_dimensions: Vec2<usize>, engine: Arc<RwLock<Engine>>) -> Self {
+    pub fn new(
+        initial_window_dimensions: Vec2<usize>,
+        sdl2_gl_context: Arc<RwLock<Sdl2GLContext>>,
+    ) -> Self {
         let (sender, receiver) = mpsc::channel();
 
         let mut ret = Self {
@@ -47,7 +50,7 @@ impl System {
             camera: Camera::new(),
             projection_matrix: Mat4::identity(),
             window_dimensions: Vec2::zero(),
-            engine,
+            sdl2_gl_context,
         };
 
         ret.set_window_dimensions(initial_window_dimensions);
@@ -117,6 +120,6 @@ impl system_container::System for System {
             &view_matrix,
         );
 
-        self.engine.write().gl_swap_window();
+        self.sdl2_gl_context.write().gl_swap_window();
     }
 }

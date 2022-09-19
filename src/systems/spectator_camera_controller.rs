@@ -7,23 +7,23 @@ use crate::{
     muleengine::{
         camera::Camera, result_option_inspect::ResultInspector, system_container::System,
     },
-    sdl2_opengl_engine::{systems::renderer, Engine},
+    sdl2_opengl_engine::{systems::renderer, Sdl2GLContext},
 };
 
 pub struct SpectatorCameraControllerSystem {
     camera: Camera,
-    engine: Arc<RwLock<Engine>>,
+    sdl2_gl_context: Arc<RwLock<Sdl2GLContext>>,
     renderer_command_sender: renderer::CommandSender,
 }
 
 impl SpectatorCameraControllerSystem {
     pub fn new(
         renderer_command_sender: renderer::CommandSender,
-        engine: Arc<RwLock<Engine>>,
+        sdl2_gl_context: Arc<RwLock<Sdl2GLContext>>,
     ) -> Self {
         Self {
             camera: Camera::new(),
-            engine,
+            sdl2_gl_context,
             renderer_command_sender,
         }
     }
@@ -33,7 +33,7 @@ impl System for SpectatorCameraControllerSystem {
     fn tick(&mut self, delta_time_in_secs: f32) {
         let mut camera_turn = Vec2::<f32>::zero(); // x: vertical turn, y: horizontal turn
 
-        let engine = self.engine.read();
+        let engine = self.sdl2_gl_context.read();
 
         let keyboard_state = engine.keyboard_state();
         let mouse_state = engine.mouse_state();
