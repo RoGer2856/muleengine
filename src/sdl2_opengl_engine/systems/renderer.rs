@@ -1,47 +1,29 @@
-use std::sync::{mpsc, Arc};
+use std::sync::Arc;
 
 use parking_lot::RwLock;
-use vek::{Mat4, Transform, Vec2};
+use vek::{Mat4, Vec2};
 
-use crate::{
-    muleengine::{
-        camera::Camera, drawable_object::DrawableObject,
-        drawable_object_storage::DrawableObjectStorage, system_container,
-    },
-    sdl2_opengl_engine::Sdl2GLContext,
+use crate::muleengine::{
+    camera::Camera, drawable_object_storage::DrawableObjectStorage, renderer, system_container,
+    window_context::WindowContext,
 };
-
-pub enum Command {
-    AddDrawableObject {
-        drawable_object: Arc<RwLock<dyn DrawableObject>>,
-        transform: Transform<f32, f32, f32>,
-    },
-    SetCamera {
-        camera: Camera,
-    },
-    SetWindowDimensions {
-        dimensions: Vec2<usize>,
-    },
-}
-
-pub type CommandSender = mpsc::Sender<Command>;
 
 pub struct System {
     drawable_object_storage: DrawableObjectStorage,
-    command_receiver: mpsc::Receiver<Command>,
-    command_sender: CommandSender,
+    command_receiver: renderer::CommandReceiver,
+    command_sender: renderer::CommandSender,
     camera: Camera,
     projection_matrix: Mat4<f32>,
     window_dimensions: Vec2<usize>,
-    sdl2_gl_context: Arc<RwLock<Sdl2GLContext>>,
+    window_context: Arc<RwLock<dyn WindowContext>>,
 }
 
 impl System {
     pub fn new(
         initial_window_dimensions: Vec2<usize>,
-        sdl2_gl_context: Arc<RwLock<Sdl2GLContext>>,
+        window_context: Arc<RwLock<dyn WindowContext>>,
     ) -> Self {
-        let (sender, receiver) = mpsc::channel();
+        let (sender, receiver) = renderer::command_channel();
 
         let mut ret = Self {
             drawable_object_storage: DrawableObjectStorage::new(),
@@ -50,7 +32,7 @@ impl System {
             camera: Camera::new(),
             projection_matrix: Mat4::identity(),
             window_dimensions: Vec2::zero(),
-            sdl2_gl_context,
+            window_context,
         };
 
         ret.set_window_dimensions(initial_window_dimensions);
@@ -58,7 +40,7 @@ impl System {
         ret
     }
 
-    pub fn get_sender(&self) -> CommandSender {
+    pub fn get_sender(&self) -> renderer::CommandSender {
         self.command_sender.clone()
     }
 
@@ -84,17 +66,17 @@ impl System {
     fn execute_command_queue(&mut self) {
         while let Ok(command) = self.command_receiver.try_recv() {
             match command {
-                Command::AddDrawableObject {
+                renderer::Command::AddDrawableObject {
                     drawable_object,
                     transform,
                 } => {
                     self.drawable_object_storage
                         .add_drawable_object(drawable_object, transform);
                 }
-                Command::SetCamera { camera } => {
+                renderer::Command::SetCamera { camera } => {
                     self.camera = camera;
                 }
-                Command::SetWindowDimensions { dimensions } => {
+                renderer::Command::SetWindowDimensions { dimensions } => {
                     self.set_window_dimensions(dimensions);
                 }
             }
@@ -120,6 +102,6 @@ impl system_container::System for System {
             &view_matrix,
         );
 
-        self.sdl2_gl_context.write().gl_swap_window();
+        self.window_context.read().swap_buffers();
     }
 }

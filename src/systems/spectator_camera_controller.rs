@@ -3,27 +3,28 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 use vek::{num_traits::Zero, Vec2, Vec3};
 
-use crate::{
-    muleengine::{
-        camera::Camera, result_option_inspect::ResultInspector, system_container::System,
-    },
-    sdl2_opengl_engine::{systems::renderer, Sdl2GLContext},
+use crate::muleengine::{
+    camera::Camera,
+    renderer,
+    result_option_inspect::ResultInspector,
+    system_container::System,
+    window_context::{Key, WindowContext},
 };
 
 pub struct SpectatorCameraControllerSystem {
     camera: Camera,
-    sdl2_gl_context: Arc<RwLock<Sdl2GLContext>>,
+    window_context: Arc<RwLock<dyn WindowContext>>,
     renderer_command_sender: renderer::CommandSender,
 }
 
 impl SpectatorCameraControllerSystem {
     pub fn new(
         renderer_command_sender: renderer::CommandSender,
-        sdl2_gl_context: Arc<RwLock<Sdl2GLContext>>,
+        window_context: Arc<RwLock<dyn WindowContext>>,
     ) -> Self {
         Self {
             camera: Camera::new(),
-            sdl2_gl_context,
+            window_context,
             renderer_command_sender,
         }
     }
@@ -33,33 +34,30 @@ impl System for SpectatorCameraControllerSystem {
     fn tick(&mut self, delta_time_in_secs: f32) {
         let mut camera_turn = Vec2::<f32>::zero(); // x: vertical turn, y: horizontal turn
 
-        let engine = self.sdl2_gl_context.read();
-
-        let keyboard_state = engine.keyboard_state();
-        let mouse_state = engine.mouse_state();
+        let engine = self.window_context.read();
 
         // moving the camera with the keyboard
         let moving_direction = {
             let mut direction = Vec3::<f32>::zero();
 
-            if keyboard_state.is_scancode_pressed(sdl2::keyboard::Scancode::W) {
+            if engine.is_key_pressed(Key::W) {
                 direction.z -= 1.0;
             }
-            if keyboard_state.is_scancode_pressed(sdl2::keyboard::Scancode::S) {
+            if engine.is_key_pressed(Key::S) {
                 direction.z += 1.0;
             }
-            if keyboard_state.is_scancode_pressed(sdl2::keyboard::Scancode::A) {
+            if engine.is_key_pressed(Key::A) {
                 direction.x -= 1.0;
             }
-            if keyboard_state.is_scancode_pressed(sdl2::keyboard::Scancode::D) {
+            if engine.is_key_pressed(Key::D) {
                 direction.x += 1.0;
             }
-            if keyboard_state.is_scancode_pressed(sdl2::keyboard::Scancode::Space) {
+            if engine.is_key_pressed(Key::Space) {
                 direction.y += 1.0;
             }
-            if keyboard_state.is_scancode_pressed(sdl2::keyboard::Scancode::C)
-                || keyboard_state.is_scancode_pressed(sdl2::keyboard::Scancode::LCtrl)
-                || keyboard_state.is_scancode_pressed(sdl2::keyboard::Scancode::RCtrl)
+            if engine.is_key_pressed(Key::C)
+                || engine.is_key_pressed(Key::CtrlLeft)
+                || engine.is_key_pressed(Key::CtrlRight)
             {
                 direction.y -= 1.0;
             }
@@ -75,16 +73,16 @@ impl System for SpectatorCameraControllerSystem {
         let keyboard_camera_turn = {
             let mut camera_turn = Vec2::<i32>::zero();
 
-            if keyboard_state.is_scancode_pressed(sdl2::keyboard::Scancode::Left) {
+            if engine.is_key_pressed(Key::Left) {
                 camera_turn.x -= 1;
             }
-            if keyboard_state.is_scancode_pressed(sdl2::keyboard::Scancode::Right) {
+            if engine.is_key_pressed(Key::Right) {
                 camera_turn.x += 1;
             }
-            if keyboard_state.is_scancode_pressed(sdl2::keyboard::Scancode::Up) {
+            if engine.is_key_pressed(Key::Up) {
                 camera_turn.y -= 1;
             }
-            if keyboard_state.is_scancode_pressed(sdl2::keyboard::Scancode::Down) {
+            if engine.is_key_pressed(Key::Down) {
                 camera_turn.y += 1;
             }
 
@@ -97,14 +95,12 @@ impl System for SpectatorCameraControllerSystem {
 
         // turning the camera with the mouse
         let mouse_camera_turn = {
-            let window_center = Vec2::new(
-                engine.window().size().0 as i32 / 2,
-                engine.window().size().1 as i32 / 2,
-            );
+            let window_center = engine.window_dimensions() / 2;
 
+            let mouse_pos = engine.mouse_pos();
             let mouse_motion_relative_to_center = Vec2::<i32>::new(
-                mouse_state.x() - window_center.x,
-                mouse_state.y() - window_center.y,
+                mouse_pos.x as i32 - window_center.x as i32,
+                mouse_pos.y as i32 - window_center.y as i32,
             );
 
             mouse_motion_relative_to_center

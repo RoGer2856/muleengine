@@ -5,21 +5,26 @@ use std::sync::Arc;
 use game_2::{
     main_loop::MainLoop,
     muleengine::{
-        assets_reader::AssetsReader, image_container::ImageContainer, mesh::MaterialTextureType,
-        mesh_creator, result_option_inspect::ResultInspector, scene_container::SceneContainer,
-        service_container::ServiceContainer, system_container::SystemContainer,
+        assets_reader::AssetsReader,
+        image_container::ImageContainer,
+        mesh::MaterialTextureType,
+        mesh_creator, renderer,
+        result_option_inspect::ResultInspector,
+        scene_container::SceneContainer,
+        service_container::ServiceContainer,
+        system_container::SystemContainer,
+        window_context::{Event, WindowContext},
     },
     sdl2_opengl_engine::{
         drawable_object_creator::DrawableObjectCreator,
         gl_material::{GLMaterial, GLMaterialTexture},
         opengl_utils::texture_2d::GLTextureMapMode,
-        systems::renderer,
+        systems::renderer as gl_renderer,
         GLProfile, Sdl2GLContext,
     },
     systems::spectator_camera_controller::SpectatorCameraControllerSystem,
 };
 use parking_lot::RwLock;
-use sdl2::event::{Event, WindowEvent};
 use vek::{Transform, Vec2, Vec3};
 
 fn main() {
@@ -41,15 +46,11 @@ fn main() {
         .unwrap(),
     ));
 
-    let mouse_util = sdl2_gl_context.read().mouse_util();
-
-    mouse_util.show_cursor(false);
-
-    mouse_util.warp_mouse_in_window(
-        sdl2_gl_context.read().window(),
-        sdl2_gl_context.read().window().size().0 as i32 / 2,
-        sdl2_gl_context.read().window().size().1 as i32 / 2,
-    );
+    {
+        let mut sdl2_gl_context = sdl2_gl_context.write();
+        sdl2_gl_context.show_cursor(false);
+        sdl2_gl_context.warp_mouse_normalized_screen_space(Vec2::new(0.5, 0.5));
+    }
 
     let service_container = {
         let mut service_container = ServiceContainer::new();
@@ -67,7 +68,7 @@ fn main() {
 
         // creating renderer system
         let renderer_system =
-            renderer::System::new(initial_window_dimensions, sdl2_gl_context.clone());
+            gl_renderer::System::new(initial_window_dimensions, sdl2_gl_context.clone());
         let renderer_command_sender = renderer_system.get_sender();
 
         system_container.add_system(SpectatorCameraControllerSystem::new(
@@ -85,45 +86,41 @@ fn main() {
 
     const DESIRED_FPS: f32 = 30.0;
 
+    let event_receiver = sdl2_gl_context.read().event_receiver();
+
     let main_loop = MainLoop::new(DESIRED_FPS);
     'running: for delta_time_in_secs in main_loop.iter() {
         // handling events
-        while let Some(event) = sdl2_gl_context.write().poll_event() {
-            log::debug!("{:?}", event);
+        sdl2_gl_context.write().flush_events();
+
+        while let Some(event) = event_receiver.pop() {
+            log::debug!("EVENT = {event:?}");
 
             match event {
-                Event::Window { win_event, .. } => match win_event {
-                    WindowEvent::Resized(width, height) => {
-                        let _ = renderer_command_sender
-                            .send(renderer::Command::SetWindowDimensions {
-                                dimensions: Vec2::new(width as usize, height as usize),
-                            })
-                            .inspect_err(|e| {
-                                log::error!("Setting window dimensions of renderer, error = {e}")
-                            });
-                    }
-                    _ => {}
-                },
-                Event::Quit { .. } => break 'running,
-                _ => {}
+                Event::Resized { width, height } => {
+                    let _ = renderer_command_sender
+                        .send(renderer::Command::SetWindowDimensions {
+                            dimensions: Vec2::new(width, height),
+                        })
+                        .inspect_err(|e| {
+                            log::error!("Setting window dimensions of renderer, error = {e}")
+                        });
+                }
+                Event::Closed => break 'running,
+                _ => (),
             }
         }
 
         system_container.tick(delta_time_in_secs);
 
         // putting the cursor back to the center of the window
-        let window_center = Vec2::new(
-            sdl2_gl_context.read().window().size().0 as i32 / 2,
-            sdl2_gl_context.read().window().size().1 as i32 / 2,
-        );
+        let window_center = sdl2_gl_context.read().window_dimensions() / 2;
 
-        let mouse_state = sdl2_gl_context.read().mouse_state();
-        if mouse_state.x() != window_center.x || mouse_state.y() != window_center.y {
-            mouse_util.warp_mouse_in_window(
-                sdl2_gl_context.read().window(),
-                window_center.x,
-                window_center.y,
-            );
+        let mouse_pos = sdl2_gl_context.read().mouse_pos();
+        if mouse_pos.x != window_center.x || mouse_pos.y != window_center.y {
+            sdl2_gl_context
+                .write()
+                .warp_mouse_normalized_screen_space(Vec2::new(0.5, 0.5));
         }
     }
 }
@@ -138,7 +135,7 @@ fn populate_with_objects(
 
     let drawable_object_creator_mut = &mut *drawable_object_creator.write();
 
-    add_skybox(drawable_object_creator_mut, renderer_command_sender);
+    // add_skybox(drawable_object_creator_mut, renderer_command_sender);
 
     {
         let mut transform = Transform::<f32, f32, f32>::default();
