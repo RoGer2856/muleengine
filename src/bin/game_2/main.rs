@@ -25,6 +25,7 @@ use game_2::{
     systems::spectator_camera_controller::SpectatorCameraControllerSystem,
 };
 use parking_lot::RwLock;
+use renderer::RendererClient;
 use vek::{Transform, Vec2, Vec3};
 
 fn main() {
@@ -32,103 +33,101 @@ fn main() {
         .filter_level(log::LevelFilter::Debug)
         .init();
 
-    let initial_window_dimensions = Vec2::new(800usize, 600usize);
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
 
-    let sdl2_gl_context = Arc::new(RwLock::new(
-        Sdl2GLContext::new(
-            "game_2",
-            initial_window_dimensions.x as u32,
-            initial_window_dimensions.y as u32,
-            GLProfile::Core,
-            4,
-            0,
-        )
-        .unwrap(),
-    ));
+    rt.block_on(async {
+        let initial_window_dimensions = Vec2::new(800usize, 600usize);
 
-    {
-        let mut sdl2_gl_context = sdl2_gl_context.write();
-        sdl2_gl_context.show_cursor(false);
-        sdl2_gl_context.warp_mouse_normalized_screen_space(Vec2::new(0.5, 0.5));
-    }
-
-    let service_container = {
-        let mut service_container = ServiceContainer::new();
-
-        service_container.insert(AssetsReader::new());
-        service_container.insert(ImageContainer::new());
-        service_container.insert(SceneContainer::new());
-        service_container.insert(DrawableObjectCreator::new(&service_container));
-
-        service_container
-    };
-
-    let (mut system_container, renderer_command_sender) = {
-        let mut system_container = SystemContainer::new();
-
-        // creating renderer system
-        let renderer_system =
-            gl_renderer::System::new(initial_window_dimensions, sdl2_gl_context.clone());
-        let renderer_command_sender = renderer_system.get_sender();
-
-        system_container.add_system(SpectatorCameraControllerSystem::new(
-            renderer_command_sender.clone(),
-            sdl2_gl_context.clone(),
+        let sdl2_gl_context = Arc::new(RwLock::new(
+            Sdl2GLContext::new(
+                "game_2",
+                initial_window_dimensions.x as u32,
+                initial_window_dimensions.y as u32,
+                GLProfile::Core,
+                4,
+                0,
+            )
+            .unwrap(),
         ));
 
-        // adding renderer system as the last system
-        system_container.add_system(renderer_system);
+        {
+            let mut sdl2_gl_context = sdl2_gl_context.write();
+            sdl2_gl_context.show_cursor(false);
+            sdl2_gl_context.warp_mouse_normalized_screen_space(Vec2::new(0.5, 0.5));
+        }
 
-        (system_container, renderer_command_sender)
-    };
+        let service_container = {
+            let mut service_container = ServiceContainer::new();
 
-    populate_with_objects(&service_container, &renderer_command_sender);
+            service_container.insert(AssetsReader::new());
+            service_container.insert(ImageContainer::new());
+            service_container.insert(SceneContainer::new());
+            service_container.insert(DrawableObjectCreator::new(&service_container));
 
-    const DESIRED_FPS: f32 = 30.0;
+            service_container
+        };
 
-    let event_receiver = sdl2_gl_context.read().event_receiver();
+        let (mut system_container, renderer_client) = {
+            let mut system_container = SystemContainer::new();
 
-    let main_loop = MainLoop::new(DESIRED_FPS);
-    'running: for delta_time_in_secs in main_loop.iter() {
-        // handling events
-        sdl2_gl_context.write().flush_events();
+            // creating renderer system
+            let renderer_system =
+                gl_renderer::Renderer::new(initial_window_dimensions, sdl2_gl_context.clone());
+            let renderer_command_sender = renderer_system.client();
 
-        while let Some(event) = event_receiver.pop() {
-            log::debug!("EVENT = {event:?}");
+            system_container.add_system(SpectatorCameraControllerSystem::new(
+                Box::new(renderer_system.client()),
+                sdl2_gl_context.clone(),
+            ));
 
-            match event {
-                Event::Resized { width, height } => {
-                    let _ = renderer_command_sender
-                        .send(renderer::Command::SetWindowDimensions {
-                            dimensions: Vec2::new(width, height),
-                        })
-                        .inspect_err(|e| {
-                            log::error!("Setting window dimensions of renderer, error = {e}")
-                        });
+            // adding renderer system as the last system
+            system_container.add_system(renderer_system);
+
+            (system_container, renderer_command_sender)
+        };
+
+        populate_with_objects(&service_container, &renderer_client);
+
+        const DESIRED_FPS: f32 = 30.0;
+
+        let event_receiver = sdl2_gl_context.read().event_receiver();
+
+        let main_loop = MainLoop::new(DESIRED_FPS);
+        'running: for delta_time_in_secs in main_loop.iter() {
+            // handling events
+            sdl2_gl_context.write().flush_events();
+
+            while let Some(event) = event_receiver.pop() {
+                log::debug!("EVENT = {event:?}");
+
+                match event {
+                    Event::Resized { width, height } => {
+                        renderer_client.set_window_dimensions(Vec2::new(width, height));
+                    }
+                    Event::Closed => break 'running,
+                    _ => (),
                 }
-                Event::Closed => break 'running,
-                _ => (),
+            }
+
+            system_container.tick(delta_time_in_secs);
+
+            // putting the cursor back to the center of the window
+            let window_center = sdl2_gl_context.read().window_dimensions() / 2;
+
+            let mouse_pos = sdl2_gl_context.read().mouse_pos();
+            if mouse_pos.x != window_center.x || mouse_pos.y != window_center.y {
+                sdl2_gl_context
+                    .write()
+                    .warp_mouse_normalized_screen_space(Vec2::new(0.5, 0.5));
             }
         }
-
-        system_container.tick(delta_time_in_secs);
-
-        // putting the cursor back to the center of the window
-        let window_center = sdl2_gl_context.read().window_dimensions() / 2;
-
-        let mouse_pos = sdl2_gl_context.read().mouse_pos();
-        if mouse_pos.x != window_center.x || mouse_pos.y != window_center.y {
-            sdl2_gl_context
-                .write()
-                .warp_mouse_normalized_screen_space(Vec2::new(0.5, 0.5));
-        }
-    }
+    });
 }
 
-fn populate_with_objects(
-    service_container: &ServiceContainer,
-    renderer_command_sender: &renderer::CommandSender,
-) {
+fn populate_with_objects(service_container: &ServiceContainer, renderer_client: &dyn RendererClient) {
     let drawable_object_creator = service_container
         .get_service::<DrawableObjectCreator>()
         .unwrap();
@@ -151,12 +150,7 @@ fn populate_with_objects(
             .unwrap();
 
         for drawable_object in drawable_objects {
-            let _ = renderer_command_sender
-                .send(renderer::Command::AddDrawableObject {
-                    drawable_object,
-                    transform,
-                })
-                .inspect_err(|e| log::error!("Adding drawable object to renderer, error = {e}"));
+            renderer_client.add_drawable_object(drawable_object, transform);
         }
     }
 
@@ -170,18 +164,13 @@ fn populate_with_objects(
             .get_drawable_object_from_mesh("Assets/shaders/lit_normal", mesh)
             .unwrap();
 
-        let _ = renderer_command_sender
-            .send(renderer::Command::AddDrawableObject {
-                drawable_object,
-                transform,
-            })
-            .inspect_err(|e| log::error!("Adding drawable object to renderer, error = {e}"));
+        renderer_client.add_drawable_object(drawable_object, transform);
     }
 }
 
 fn add_skybox(
     drawable_object_creator: &mut DrawableObjectCreator,
-    renderer_command_sender: &renderer::CommandSender,
+    renderer_client: &dyn RendererClient,
 ) {
     let transform = Transform::<f32, f32, f32>::default();
 
@@ -218,12 +207,7 @@ fn add_skybox(
                 }],
             });
 
-            let _ = renderer_command_sender
-                .send(renderer::Command::AddDrawableObject {
-                    drawable_object: drawable_objects[index].clone(),
-                    transform,
-                })
-                .inspect_err(|e| log::error!("Adding drawable object to renderer, error = {e}"));
+            renderer_client.add_drawable_object(drawable_objects[index].clone(), transform);
         }
     }
 }
