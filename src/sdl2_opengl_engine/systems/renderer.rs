@@ -1,29 +1,51 @@
-use std::sync::Arc;
+use std::sync::{mpsc, Arc};
 
 use parking_lot::RwLock;
-use vek::{Mat4, Vec2};
+use vek::{Mat4, Transform, Vec2};
 
 use crate::muleengine::{
-    camera::Camera, drawable_object_storage::DrawableObjectStorage, renderer, system_container,
-    window_context::WindowContext,
+    camera::Camera, drawable_object::DrawableObject,
+    drawable_object_storage::DrawableObjectStorage,
+    renderer::RendererClient as MuleEngineRendererClient, result_option_inspect::ResultInspector,
+    system_container, window_context::WindowContext,
 };
 
-pub struct System {
+enum Command {
+    AddDrawableObject {
+        drawable_object: Arc<RwLock<dyn DrawableObject>>,
+        transform: Transform<f32, f32, f32>,
+    },
+    SetCamera {
+        camera: Camera,
+    },
+    SetWindowDimensions {
+        dimensions: Vec2<usize>,
+    },
+}
+
+type CommandSender = mpsc::Sender<Command>;
+type CommandReceiver = mpsc::Receiver<Command>;
+
+pub struct Renderer {
     drawable_object_storage: DrawableObjectStorage,
-    command_receiver: renderer::CommandReceiver,
-    command_sender: renderer::CommandSender,
+    command_receiver: CommandReceiver,
+    command_sender: CommandSender,
     camera: Camera,
     projection_matrix: Mat4<f32>,
     window_dimensions: Vec2<usize>,
     window_context: Arc<RwLock<dyn WindowContext>>,
 }
 
-impl System {
+pub struct RendererClient {
+    command_sender: CommandSender,
+}
+
+impl Renderer {
     pub fn new(
         initial_window_dimensions: Vec2<usize>,
         window_context: Arc<RwLock<dyn WindowContext>>,
     ) -> Self {
-        let (sender, receiver) = renderer::command_channel();
+        let (sender, receiver) = mpsc::channel();
 
         let mut ret = Self {
             drawable_object_storage: DrawableObjectStorage::new(),
@@ -40,8 +62,10 @@ impl System {
         ret
     }
 
-    pub fn get_sender(&self) -> renderer::CommandSender {
-        self.command_sender.clone()
+    pub fn client(&self) -> RendererClient {
+        RendererClient {
+            command_sender: self.command_sender.clone(),
+        }
     }
 
     fn set_window_dimensions(&mut self, window_dimensions: Vec2<usize>) {
@@ -66,17 +90,17 @@ impl System {
     fn execute_command_queue(&mut self) {
         while let Ok(command) = self.command_receiver.try_recv() {
             match command {
-                renderer::Command::AddDrawableObject {
+                Command::AddDrawableObject {
                     drawable_object,
                     transform,
                 } => {
                     self.drawable_object_storage
                         .add_drawable_object(drawable_object, transform);
                 }
-                renderer::Command::SetCamera { camera } => {
+                Command::SetCamera { camera } => {
                     self.camera = camera;
                 }
-                renderer::Command::SetWindowDimensions { dimensions } => {
+                Command::SetWindowDimensions { dimensions } => {
                     self.set_window_dimensions(dimensions);
                 }
             }
@@ -84,7 +108,7 @@ impl System {
     }
 }
 
-impl system_container::System for System {
+impl system_container::System for Renderer {
     fn tick(&mut self, _delta_time_in_secs: f32) {
         self.execute_command_queue();
 
@@ -103,5 +127,35 @@ impl system_container::System for System {
         );
 
         self.window_context.read().swap_buffers();
+    }
+}
+
+impl MuleEngineRendererClient for RendererClient {
+    fn add_drawable_object(
+        &self,
+        drawable_object: Arc<RwLock<dyn DrawableObject>>,
+        transform: Transform<f32, f32, f32>,
+    ) {
+        let _ = self
+            .command_sender
+            .send(Command::AddDrawableObject {
+                drawable_object,
+                transform,
+            })
+            .inspect_err(|e| log::error!("Adding drawable object to renderer, error = {e}"));
+    }
+
+    fn set_camera(&self, camera: Camera) {
+        let _ = self
+            .command_sender
+            .send(Command::SetCamera { camera })
+            .inspect_err(|e| log::error!("Setting camera of renderer, error = {e}"));
+    }
+
+    fn set_window_dimensions(&self, dimensions: Vec2<usize>) {
+        let _ = self
+            .command_sender
+            .send(Command::SetWindowDimensions { dimensions })
+            .inspect_err(|e| log::error!("Setting window dimensions of renderer, error = {e}"));
     }
 }

@@ -5,8 +5,7 @@ use vek::{num_traits::Zero, Vec2, Vec3};
 
 use crate::muleengine::{
     camera::Camera,
-    renderer,
-    result_option_inspect::ResultInspector,
+    renderer::RendererClient,
     system_container::System,
     window_context::{Key, WindowContext},
 };
@@ -14,18 +13,18 @@ use crate::muleengine::{
 pub struct SpectatorCameraControllerSystem {
     camera: Camera,
     window_context: Arc<RwLock<dyn WindowContext>>,
-    renderer_command_sender: renderer::CommandSender,
+    renderer_client: Box<dyn RendererClient>,
 }
 
 impl SpectatorCameraControllerSystem {
     pub fn new(
-        renderer_command_sender: renderer::CommandSender,
+        renderer_client: Box<dyn RendererClient>,
         window_context: Arc<RwLock<dyn WindowContext>>,
     ) -> Self {
         Self {
             camera: Camera::new(),
             window_context,
-            renderer_command_sender,
+            renderer_client,
         }
     }
 }
@@ -150,11 +149,6 @@ impl System for SpectatorCameraControllerSystem {
         self.camera
             .rotate_around_unit_y(camera_turn.y * turning_velocity_rad * delta_time_in_secs);
 
-        let _ = self
-            .renderer_command_sender
-            .send(renderer::Command::SetCamera {
-                camera: self.camera.clone(),
-            })
-            .inspect_err(|e| log::error!("Setting camera of renderer, error = {e}"));
+        self.renderer_client.set_camera(self.camera.clone());
     }
 }
