@@ -9,7 +9,6 @@ use game_2::{
         image_container::ImageContainer,
         mesh::MaterialTextureType,
         mesh_creator, renderer,
-        result_option_inspect::ResultInspector,
         scene_container::SceneContainer,
         service_container::ServiceContainer,
         system_container::SystemContainer,
@@ -76,20 +75,20 @@ fn main() {
             // creating renderer system
             let renderer_system =
                 gl_renderer::Renderer::new(initial_window_dimensions, sdl2_gl_context.clone());
-            let renderer_command_sender = renderer_system.client();
+            let renderer_client = renderer_system.client();
 
             system_container.add_system(SpectatorCameraControllerSystem::new(
-                Box::new(renderer_system.client()),
+                renderer_client.clone(),
                 sdl2_gl_context.clone(),
             ));
 
             // adding renderer system as the last system
             system_container.add_system(renderer_system);
 
-            (system_container, renderer_command_sender)
+            (system_container, renderer_client)
         };
 
-        populate_with_objects(&service_container, &renderer_client);
+        populate_with_objects(service_container.clone(), renderer_client.clone());
 
         const DESIRED_FPS: f32 = 30.0;
 
@@ -127,14 +126,19 @@ fn main() {
     });
 }
 
-fn populate_with_objects(service_container: &ServiceContainer, renderer_client: &dyn RendererClient) {
+fn populate_with_objects(
+    service_container: ServiceContainer,
+    renderer_client: Box<dyn RendererClient>,
+) {
     let drawable_object_creator = service_container
         .get_service::<DrawableObjectCreator>()
         .unwrap();
 
     let drawable_object_creator_mut = &mut *drawable_object_creator.write();
 
-    // add_skybox(drawable_object_creator_mut, renderer_command_sender);
+    // add_skybox(drawable_object_creator_mut, renderer_client)
+    //     .await
+    //     .unwrap();
 
     {
         let mut transform = Transform::<f32, f32, f32>::default();
@@ -161,7 +165,7 @@ fn populate_with_objects(service_container: &ServiceContainer, renderer_client: 
 
         let mesh = Arc::new(mesh_creator::capsule::create(0.5, 2.0, 16));
         let drawable_object = drawable_object_creator_mut
-            .get_drawable_object_from_mesh("Assets/shaders/lit_normal", mesh)
+            .create_drawable_object_from_mesh("Assets/shaders/lit_normal", mesh)
             .unwrap();
 
         renderer_client.add_drawable_object(drawable_object, transform);

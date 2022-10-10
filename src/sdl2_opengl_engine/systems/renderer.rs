@@ -36,6 +36,7 @@ pub struct Renderer {
     window_context: Arc<RwLock<dyn WindowContext>>,
 }
 
+#[derive(Clone)]
 pub struct RendererClient {
     command_sender: CommandSender,
 }
@@ -62,10 +63,10 @@ impl Renderer {
         ret
     }
 
-    pub fn client(&self) -> RendererClient {
-        RendererClient {
+    pub fn client(&self) -> Box<dyn MuleEngineRendererClient> {
+        Box::new(RendererClient {
             command_sender: self.command_sender.clone(),
-        }
+        })
     }
 
     fn set_window_dimensions(&mut self, window_dimensions: Vec2<usize>) {

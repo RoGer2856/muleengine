@@ -54,7 +54,7 @@ impl DrawableObjectCreator {
         Ok(self.gl_texture_container.get_texture(image))
     }
 
-    pub fn get_drawable_object_from_mesh(
+    pub fn create_drawable_object_from_mesh(
         &mut self,
         shader_basepath: &str,
         mesh: Arc<Mesh>,
@@ -72,7 +72,7 @@ impl DrawableObjectCreator {
         Ok(gl_drawable_mesh)
     }
 
-    pub fn load_scene(&mut self, scene_path: &str) -> Result<Arc<Scene>, SceneLoadError> {
+    pub fn get_scene(&mut self, scene_path: &str) -> Result<Arc<Scene>, SceneLoadError> {
         self.scene_container.write().get_scene(
             scene_path,
             &mut self.assets_reader.write(),
@@ -93,7 +93,7 @@ impl DrawableObjectCreator {
             .map_err(|e| DrawableMeshCreationError::GLMeshShaderProgramError(e))?;
 
         let scene = self
-            .load_scene(scene_path)
+            .get_scene(scene_path)
             .map_err(|e| DrawableMeshCreationError::SceneLoadError(e))?;
 
         let drawable_objects = self.gl_mesh_container.get_drawable_meshes_from_scene(
