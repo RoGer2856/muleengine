@@ -54,9 +54,9 @@ pub fn parent_path(path: String) -> String {
 }
 
 #[derive(Clone)]
-pub struct AssetsReader {}
+pub struct AssetReader {}
 
-impl AssetsReader {
+impl AssetReader {
     pub fn new() -> Self {
         Self {}
     }

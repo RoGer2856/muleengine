@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use super::assets_reader::AssetsReader;
+use super::asset_reader::AssetReader;
 use super::image::Image;
 
 pub struct ImageContainer {
@@ -24,13 +24,13 @@ impl ImageContainer {
     pub fn get_image(
         &mut self,
         image_path: &str,
-        assets_reader: &AssetsReader,
+        asset_reader: &AssetReader,
     ) -> Result<Arc<Image>, ImageContainerError> {
         if let Some(image_mut) = self.images.get_mut(image_path) {
             Ok(image_mut.clone())
         } else {
-            if let Some(assets_reader) = assets_reader.get_reader(image_path) {
-                if let Some(image) = Image::from_reader(assets_reader) {
+            if let Some(asset_reader) = asset_reader.get_reader(image_path) {
+                if let Some(image) = Image::from_reader(asset_reader) {
                     let image = Arc::new(image);
                     self.images.insert(image_path.to_string(), image.clone());
 

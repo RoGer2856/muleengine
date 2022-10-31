@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::{
     muleengine::{
-        assets_reader::AssetsReader,
+        asset_reader::AssetReader,
         image_container::{ImageContainer, ImageContainerError},
         mesh::{Mesh, Scene, SceneLoadError},
         scene_container::SceneContainer,
@@ -24,7 +24,7 @@ pub enum DrawableMeshCreationError {
 }
 
 pub struct DrawableObjectCreator {
-    assets_reader: Arc<RwLock<AssetsReader>>,
+    asset_reader: Arc<RwLock<AssetReader>>,
     scene_container: Arc<RwLock<SceneContainer>>,
     image_container: Arc<RwLock<ImageContainer>>,
 
@@ -36,7 +36,7 @@ pub struct DrawableObjectCreator {
 impl DrawableObjectCreator {
     pub fn new(service_container: &ServiceContainer) -> Self {
         Self {
-            assets_reader: service_container.get_service::<AssetsReader>().unwrap(),
+            asset_reader: service_container.get_service::<AssetReader>().unwrap(),
             scene_container: service_container.get_service::<SceneContainer>().unwrap(),
             image_container: service_container.get_service::<ImageContainer>().unwrap(),
 
@@ -50,7 +50,7 @@ impl DrawableObjectCreator {
         let image = self
             .image_container
             .write()
-            .get_image(image_path, &self.assets_reader.write())?;
+            .get_image(image_path, &self.asset_reader.write())?;
         Ok(self.gl_texture_container.get_texture(image))
     }
 
@@ -61,7 +61,7 @@ impl DrawableObjectCreator {
     ) -> Result<Arc<RwLock<GLDrawableMesh>>, GLMeshShaderProgramError> {
         let gl_mesh_shader_program = self
             .gl_shader_program_container
-            .get_mesh_shader_program(shader_basepath, &mut self.assets_reader.write())?;
+            .get_mesh_shader_program(shader_basepath, &mut self.asset_reader.write())?;
 
         let gl_drawable_mesh = self.gl_mesh_container.get_drawable_mesh(
             gl_mesh_shader_program.clone(),
@@ -75,7 +75,7 @@ impl DrawableObjectCreator {
     pub fn get_scene(&mut self, scene_path: &str) -> Result<Arc<Scene>, SceneLoadError> {
         self.scene_container.write().get_scene(
             scene_path,
-            &mut self.assets_reader.write(),
+            &mut self.asset_reader.write(),
             &mut self.image_container.write(),
         )
     }
@@ -89,7 +89,7 @@ impl DrawableObjectCreator {
 
         let gl_mesh_shader_program = self
             .gl_shader_program_container
-            .get_mesh_shader_program(shader_basepath, &mut self.assets_reader.write())
+            .get_mesh_shader_program(shader_basepath, &mut self.asset_reader.write())
             .map_err(|e| DrawableMeshCreationError::GLMeshShaderProgramError(e))?;
 
         let scene = self
