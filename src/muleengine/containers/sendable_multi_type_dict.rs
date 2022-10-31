@@ -4,12 +4,12 @@ use std::{
     sync::Arc,
 };
 
-pub struct MultiTypeDictItem<ItemType: ?Sized> {
+pub struct SendableMultiTypeDictItem<ItemType: ?Sized> {
     type_id: TypeId,
     item: Arc<ItemType>,
 }
 
-impl<ItemType: ?Sized> Clone for MultiTypeDictItem<ItemType> {
+impl<ItemType: ?Sized> Clone for SendableMultiTypeDictItem<ItemType> {
     fn clone(&self) -> Self {
         Self {
             type_id: self.type_id,
@@ -18,37 +18,40 @@ impl<ItemType: ?Sized> Clone for MultiTypeDictItem<ItemType> {
     }
 }
 
-pub struct MultiTypeDict {
-    storage: BTreeMap<TypeId, MultiTypeDictItem<dyn Any + 'static>>,
+pub struct SendableMultiTypeDict {
+    storage: BTreeMap<TypeId, SendableMultiTypeDictItem<dyn Any + Send + Sync + 'static>>,
 }
 
-pub struct MultiTypeDictIterator<'a> {
-    inner_iterator: Iter<'a, TypeId, MultiTypeDictItem<dyn Any + 'static>>,
+pub struct SendableMultiTypeDictIterator<'a> {
+    inner_iterator: Iter<'a, TypeId, SendableMultiTypeDictItem<dyn Any + Send + Sync + 'static>>,
 }
 
-pub struct MultiTypeDictInsertResult<ItemType: ?Sized> {
-    pub new_item: MultiTypeDictItem<ItemType>,
-    pub old_item: Option<MultiTypeDictItem<ItemType>>,
+pub struct SendableMultiTypeDictInsertResult<ItemType: ?Sized> {
+    pub new_item: SendableMultiTypeDictItem<ItemType>,
+    pub old_item: Option<SendableMultiTypeDictItem<ItemType>>,
 }
 
-impl<'a> Iterator for MultiTypeDictIterator<'a> {
-    type Item = MultiTypeDictItem<dyn Any + 'static>;
+impl<'a> Iterator for SendableMultiTypeDictIterator<'a> {
+    type Item = SendableMultiTypeDictItem<dyn Any + Send + Sync + 'static>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.inner_iterator.next().map(|value| value.1.clone())
     }
 }
 
-impl MultiTypeDict {
+impl SendableMultiTypeDict {
     pub fn new() -> Self {
         Self {
             storage: BTreeMap::new(),
         }
     }
 
-    pub fn insert<ItemType>(&mut self, item: ItemType) -> MultiTypeDictInsertResult<ItemType>
+    pub fn insert<ItemType>(
+        &mut self,
+        item: ItemType,
+    ) -> SendableMultiTypeDictInsertResult<ItemType>
     where
-        ItemType: Any + 'static,
+        ItemType: Any + Send + Sync + 'static,
     {
         let type_id = TypeId::of::<ItemType>();
 
@@ -56,7 +59,7 @@ impl MultiTypeDict {
         if let Some(new_item) = result.new_item.downcast() {
             if let Some(old_item) = result.old_item {
                 if let Some(old_item) = old_item.downcast() {
-                    MultiTypeDictInsertResult {
+                    SendableMultiTypeDictInsertResult {
                         new_item,
                         old_item: Some(old_item),
                     }
@@ -64,7 +67,7 @@ impl MultiTypeDict {
                     unreachable!();
                 }
             } else {
-                MultiTypeDictInsertResult {
+                SendableMultiTypeDictInsertResult {
                     new_item,
                     old_item: None,
                 }
@@ -76,20 +79,21 @@ impl MultiTypeDict {
 
     pub fn insert_any(
         &mut self,
-        item: impl Any + 'static,
+        item: impl Any + Send + Sync + 'static,
         type_id: TypeId,
-    ) -> MultiTypeDictInsertResult<dyn Any + 'static> {
-        let new_item: MultiTypeDictItem<dyn Any + 'static> = MultiTypeDictItem {
-            type_id: type_id,
-            item: Arc::new(item),
-        };
+    ) -> SendableMultiTypeDictInsertResult<dyn Any + Send + Sync + 'static> {
+        let new_item: SendableMultiTypeDictItem<dyn Any + Send + Sync + 'static> =
+            SendableMultiTypeDictItem {
+                type_id: type_id,
+                item: Arc::new(item),
+            };
 
         let old_item = self.storage.insert(type_id, new_item.clone());
 
-        MultiTypeDictInsertResult { new_item, old_item }
+        SendableMultiTypeDictInsertResult { new_item, old_item }
     }
 
-    pub fn get_item_ref<ItemType>(&self) -> Option<MultiTypeDictItem<ItemType>>
+    pub fn get_item_ref<ItemType>(&self) -> Option<SendableMultiTypeDictItem<ItemType>>
     where
         ItemType: Any,
     {
@@ -103,16 +107,16 @@ impl MultiTypeDict {
     pub fn get_or_insert_item_ref<ItemType>(
         &mut self,
         item_creator: impl FnOnce() -> ItemType,
-    ) -> MultiTypeDictItem<ItemType>
+    ) -> SendableMultiTypeDictItem<ItemType>
     where
-        ItemType: Any + 'static,
+        ItemType: Any + Send + Sync + 'static,
     {
         let type_id = TypeId::of::<ItemType>();
 
         let result = self
             .storage
             .entry(type_id)
-            .or_insert_with(|| MultiTypeDictItem {
+            .or_insert_with(|| SendableMultiTypeDictItem {
                 type_id,
                 item: Arc::new(item_creator()),
             })
@@ -129,11 +133,11 @@ impl MultiTypeDict {
     pub fn get_item_ref_any(
         &self,
         type_id: TypeId,
-    ) -> Option<MultiTypeDictItem<dyn Any + 'static>> {
+    ) -> Option<SendableMultiTypeDictItem<dyn Any + Send + Sync + 'static>> {
         self.storage.get(&type_id).map(|item| item.clone())
     }
 
-    pub fn remove<ItemType>(&mut self) -> Option<MultiTypeDictItem<ItemType>>
+    pub fn remove<ItemType>(&mut self) -> Option<SendableMultiTypeDictItem<ItemType>>
     where
         ItemType: Any,
     {
@@ -147,23 +151,23 @@ impl MultiTypeDict {
     pub fn remove_by_type_id(
         &mut self,
         type_id: TypeId,
-    ) -> Option<MultiTypeDictItem<dyn Any + 'static>> {
+    ) -> Option<SendableMultiTypeDictItem<dyn Any + Send + Sync + 'static>> {
         self.storage.remove(&type_id)
     }
 
-    pub fn iter(&self) -> MultiTypeDictIterator {
-        MultiTypeDictIterator {
+    pub fn iter(&self) -> SendableMultiTypeDictIterator {
+        SendableMultiTypeDictIterator {
             inner_iterator: self.storage.iter(),
         }
     }
 }
 
-impl MultiTypeDictItem<dyn Any + 'static> {
-    pub fn downcast<CastType: 'static>(&self) -> Option<MultiTypeDictItem<CastType>> {
+impl SendableMultiTypeDictItem<dyn Any + Send + Sync + 'static> {
+    pub fn downcast<CastType: 'static>(&self) -> Option<SendableMultiTypeDictItem<CastType>> {
         if self.item.is::<CastType>() {
             let ptr = Arc::into_raw(self.item.clone()).cast::<CastType>();
 
-            Some(MultiTypeDictItem {
+            Some(SendableMultiTypeDictItem {
                 type_id: self.type_id,
                 item: unsafe { Arc::from_raw(ptr) },
             })
@@ -173,7 +177,7 @@ impl MultiTypeDictItem<dyn Any + 'static> {
     }
 }
 
-impl<ItemType: ?Sized> MultiTypeDictItem<ItemType> {
+impl<ItemType: ?Sized> SendableMultiTypeDictItem<ItemType> {
     pub fn as_arc_ref(&self) -> &Arc<ItemType> {
         &self.item
     }
@@ -187,9 +191,9 @@ impl<ItemType: ?Sized> MultiTypeDictItem<ItemType> {
 mod tests {
     use std::{any::Any, sync::Arc};
 
-    use crate::muleengine::containers::multi_type_dict::MultiTypeDictItem;
+    use crate::muleengine::containers::sendable_multi_type_dict::SendableMultiTypeDictItem;
 
-    use super::MultiTypeDict;
+    use super::SendableMultiTypeDict;
 
     #[derive(Debug, Eq, PartialEq)]
     struct A {
@@ -203,7 +207,7 @@ mod tests {
 
     #[test]
     fn store_and_remove() {
-        let mut dict = MultiTypeDict::new();
+        let mut dict = SendableMultiTypeDict::new();
 
         assert!(dict
             .insert(A {
@@ -246,7 +250,8 @@ mod tests {
             })
         );
 
-        let systems: Vec<MultiTypeDictItem<dyn Any + 'static>> = dict.iter().collect();
+        let systems: Vec<SendableMultiTypeDictItem<dyn Any + Send + Sync + 'static>> =
+            dict.iter().collect();
         assert_eq!(systems.len(), 2);
         if let Some(_) = systems[0].downcast::<A>() {
             assert!(systems[0].downcast::<A>().is_some());
