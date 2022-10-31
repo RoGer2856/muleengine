@@ -6,7 +6,7 @@ use std::sync::Arc;
 use vek::{Mat4, Vec2, Vec3, Vec4};
 
 use super::aabb::AxisAlignedBoundingBox;
-use super::assets_reader::{canonicalize_path, parent_path, AssetsReader};
+use super::asset_reader::{canonicalize_path, parent_path, AssetReader};
 use super::image::Image;
 use super::image_container::{ImageContainer, ImageContainerError};
 
@@ -177,7 +177,7 @@ impl MaterialTexture {
     }
 
     pub fn from_assimp_material_texture(
-        assets_reader: &AssetsReader,
+        asset_reader: &AssetReader,
         scene_parent_dir: String,
         ai_material: &assimp_sys::AiMaterial,
         texture_type: assimp_sys::AiTextureType,
@@ -212,13 +212,13 @@ impl MaterialTexture {
         let path = canonicalize_path(ai_string_to_str(&path)?.to_string());
 
         let tmp_path = scene_parent_dir + "/" + &path;
-        let image_path = if assets_reader.get_reader(&tmp_path).is_some() {
+        let image_path = if asset_reader.get_reader(&tmp_path).is_some() {
             tmp_path
         } else {
             path
         };
 
-        let image = image_container.get_image(&image_path, assets_reader);
+        let image = image_container.get_image(&image_path, asset_reader);
 
         Ok(Self {
             image,
@@ -272,7 +272,7 @@ impl Mesh {
     }
 
     fn from_assimp_mesh(
-        assets_reader: &AssetsReader,
+        asset_reader: &AssetReader,
         scene_path: &str,
         ai_mesh: assimp::Mesh,
         materials: &[*mut assimp_sys::AiMaterial],
@@ -443,7 +443,7 @@ impl Mesh {
         } != 0
         {
             let material_texture = MaterialTexture::from_assimp_material_texture(
-                assets_reader,
+                asset_reader,
                 parent_path(scene_path.clone()),
                 &ai_material,
                 assimp_sys::AiTextureType::Diffuse,
@@ -460,7 +460,7 @@ impl Mesh {
         } != 0
         {
             let material_texture = MaterialTexture::from_assimp_material_texture(
-                assets_reader,
+                asset_reader,
                 parent_path(scene_path.clone()),
                 &ai_material,
                 assimp_sys::AiTextureType::Normals,
@@ -480,7 +480,7 @@ impl Mesh {
         } != 0
         {
             let material_texture = MaterialTexture::from_assimp_material_texture(
-                assets_reader,
+                asset_reader,
                 parent_path(scene_path.clone()),
                 &ai_material,
                 assimp_sys::AiTextureType::Displacement,
@@ -497,7 +497,7 @@ impl Mesh {
         } != 0
         {
             let material_texture = MaterialTexture::from_assimp_material_texture(
-                assets_reader,
+                asset_reader,
                 parent_path(scene_path.clone()),
                 &ai_material,
                 assimp_sys::AiTextureType::Height,
@@ -514,7 +514,7 @@ impl Mesh {
         } != 0
         {
             let material_texture = MaterialTexture::from_assimp_material_texture(
-                assets_reader,
+                asset_reader,
                 parent_path(scene_path.clone()),
                 &ai_material,
                 assimp_sys::AiTextureType::Specular,
@@ -757,7 +757,7 @@ impl Mesh {
 
 impl Scene {
     fn from_assimp_scene(
-        assets_reader: &AssetsReader,
+        asset_reader: &AssetReader,
         scene_path: &str,
         scene: assimp::Scene,
         image_container: &mut ImageContainer,
@@ -771,7 +771,7 @@ impl Scene {
                 };
                 meshes.push(
                     Mesh::from_assimp_mesh(
-                        assets_reader,
+                        asset_reader,
                         scene_path,
                         mesh,
                         materials,
@@ -786,12 +786,12 @@ impl Scene {
     }
 
     pub fn load(
-        assets_reader: &AssetsReader,
+        asset_reader: &AssetReader,
         scene_path: &str,
         image_container: &mut ImageContainer,
     ) -> Result<Scene, SceneLoadError> {
         let mut reader =
-            assets_reader
+            asset_reader
                 .get_reader(scene_path)
                 .ok_or(SceneLoadError::CannotOpenAsset {
                     path: scene_path.to_string(),
@@ -833,7 +833,7 @@ impl Scene {
             .map_err(|e| SceneLoadError::AssimpReadError(e.to_string()))?;
 
         Ok(Self::from_assimp_scene(
-            assets_reader,
+            asset_reader,
             scene_path,
             scene,
             image_container,

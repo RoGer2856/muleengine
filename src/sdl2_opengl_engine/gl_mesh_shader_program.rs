@@ -1,6 +1,6 @@
 use std::io::Read;
 
-use crate::muleengine::assets_reader::AssetsReader;
+use crate::muleengine::asset_reader::AssetReader;
 
 use super::opengl_utils::{
     shader::{Shader, ShaderCreationError, ShaderType},
@@ -73,13 +73,13 @@ pub enum GLMeshShaderProgramError {
 impl GLMeshShaderProgram {
     pub fn new(
         shader_base_path: String,
-        assets_reader: &AssetsReader,
+        asset_reader: &AssetReader,
     ) -> Result<Self, GLMeshShaderProgramError> {
         let vertex_shader_path = shader_base_path.clone() + ".vert";
         let fragment_shader_path = shader_base_path.clone() + ".frag";
 
         let mut vertex_shader_source = String::new();
-        assets_reader
+        asset_reader
             .get_reader(&vertex_shader_path)
             .ok_or(GLMeshShaderProgramError::AssetNotFoundError {
                 path: vertex_shader_path.clone(),
@@ -90,7 +90,7 @@ impl GLMeshShaderProgram {
                 path: vertex_shader_source.clone(),
             })?;
         let mut fragment_shader_source = String::new();
-        assets_reader
+        asset_reader
             .get_reader(&fragment_shader_path)
             .ok_or(GLMeshShaderProgramError::AssetNotFoundError {
                 path: fragment_shader_path.clone(),

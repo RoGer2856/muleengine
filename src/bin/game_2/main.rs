@@ -5,7 +5,7 @@ use std::sync::Arc;
 use game_2::{
     main_loop::MainLoop,
     muleengine::{
-        assets_reader::AssetsReader,
+        asset_reader::AssetReader,
         image_container::ImageContainer,
         mesh::MaterialTextureType,
         mesh_creator, renderer,
@@ -61,7 +61,7 @@ fn main() {
         let service_container = {
             let mut service_container = ServiceContainer::new();
 
-            service_container.insert(AssetsReader::new());
+            service_container.insert(AssetReader::new());
             service_container.insert(ImageContainer::new());
             service_container.insert(SceneContainer::new());
             service_container.insert(DrawableObjectCreator::new(&service_container));

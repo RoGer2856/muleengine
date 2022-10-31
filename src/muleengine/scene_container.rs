@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use super::assets_reader::AssetsReader;
+use super::asset_reader::AssetReader;
 use super::image_container::ImageContainer;
 use super::mesh::{Scene, SceneLoadError};
 
@@ -19,13 +19,13 @@ impl SceneContainer {
     pub fn get_scene(
         &mut self,
         scene_path: &str,
-        assets_reader: &AssetsReader,
+        asset_reader: &AssetReader,
         image_container: &mut ImageContainer,
     ) -> Result<Arc<Scene>, SceneLoadError> {
         if let Some(scene_mut) = self.scenes.get_mut(scene_path) {
             Ok(scene_mut.clone())
         } else {
-            let scene = Arc::new(Scene::load(assets_reader, scene_path, image_container)?);
+            let scene = Arc::new(Scene::load(asset_reader, scene_path, image_container)?);
             self.scenes.insert(scene_path.to_string(), scene.clone());
 
             Ok(scene)
