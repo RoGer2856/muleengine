@@ -15,6 +15,19 @@ struct Object {
 
 pub struct DrawableObjectStorageIndex(ObjectPoolIndex);
 
+impl DrawableObjectStorageIndex {
+    pub fn invalid() -> Self {
+        Self(ObjectPoolIndex::invalid())
+    }
+
+    pub fn invalidate(&mut self) -> Self {
+        let mut id = Self::invalid();
+        std::mem::swap(&mut id, self);
+
+        id
+    }
+}
+
 pub struct DrawableObjectStorage {
     objects: ObjectPool<Object>,
 }

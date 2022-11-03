@@ -1,4 +1,5 @@
 pub mod aabb;
+pub mod asset_container;
 pub mod asset_reader;
 pub mod camera;
 pub mod containers;

@@ -3,17 +3,31 @@ use std::sync::{mpsc, Arc};
 use parking_lot::RwLock;
 use vek::{Mat4, Transform, Vec2};
 
-use crate::muleengine::{
-    camera::Camera, drawable_object::DrawableObject,
-    drawable_object_storage::DrawableObjectStorage,
-    renderer::RendererClient as MuleEngineRendererClient, result_option_inspect::ResultInspector,
-    system_container, window_context::WindowContext,
+use crate::{
+    muleengine::{
+        asset_container::AssetContainer,
+        camera::Camera,
+        drawable_object_storage::{DrawableObjectStorage, DrawableObjectStorageIndex},
+        mesh::{Material, Mesh},
+        renderer::RendererClient as MuleEngineRendererClient,
+        result_option_inspect::ResultInspector,
+        system_container,
+        window_context::WindowContext,
+    },
+    sdl2_opengl_engine::{
+        gl_material::GLMaterial, gl_mesh_container::GLMeshContainer,
+        gl_shader_program_container::GLShaderProgramContainer,
+        gl_texture_container::GLTextureContainer,
+    },
 };
 
 enum Command {
-    AddDrawableObject {
-        drawable_object: Arc<RwLock<dyn DrawableObject>>,
+    AddDrawableMesh {
+        mesh: Arc<Mesh>,
         transform: Transform<f32, f32, f32>,
+        material: Option<Material>,
+        shader_path: String,
+        result_sender: mpsc::Sender<DrawableObjectStorageIndex>,
     },
     SetCamera {
         camera: Camera,
@@ -34,6 +48,12 @@ pub struct Renderer {
     projection_matrix: Mat4<f32>,
     window_dimensions: Vec2<usize>,
     window_context: Arc<RwLock<dyn WindowContext>>,
+
+    asset_container: AssetContainer,
+
+    gl_mesh_container: GLMeshContainer,
+    gl_shader_program_container: GLShaderProgramContainer,
+    gl_texture_container: GLTextureContainer,
 }
 
 #[derive(Clone)]
@@ -45,6 +65,7 @@ impl Renderer {
     pub fn new(
         initial_window_dimensions: Vec2<usize>,
         window_context: Arc<RwLock<dyn WindowContext>>,
+        asset_container: AssetContainer,
     ) -> Self {
         let (sender, receiver) = mpsc::channel();
 
@@ -56,6 +77,12 @@ impl Renderer {
             projection_matrix: Mat4::identity(),
             window_dimensions: Vec2::zero(),
             window_context,
+
+            asset_container,
+
+            gl_mesh_container: GLMeshContainer::new(),
+            gl_shader_program_container: GLShaderProgramContainer::new(),
+            gl_texture_container: GLTextureContainer::new(),
         };
 
         ret.set_window_dimensions(initial_window_dimensions);
@@ -91,12 +118,39 @@ impl Renderer {
     fn execute_command_queue(&mut self) {
         while let Ok(command) = self.command_receiver.try_recv() {
             match command {
-                Command::AddDrawableObject {
-                    drawable_object,
+                Command::AddDrawableMesh {
+                    mesh,
                     transform,
+                    material,
+                    shader_path,
+                    result_sender,
                 } => {
-                    self.drawable_object_storage
-                        .add_drawable_object(drawable_object, transform);
+                    let gl_mesh_shader_program =
+                        match self.gl_shader_program_container.get_mesh_shader_program(
+                            &shader_path,
+                            &mut self.asset_container.asset_reader().write(),
+                        ) {
+                            Ok(shader_program) => shader_program,
+                            Err(_) => todo!(),
+                        };
+
+                    let drawable_mesh = self.gl_mesh_container.get_drawable_mesh(
+                        gl_mesh_shader_program,
+                        mesh,
+                        &mut self.gl_texture_container,
+                    );
+
+                    if let Some(material) = material {
+                        let material = GLMaterial::new(&material, &mut self.gl_texture_container);
+                        drawable_mesh.write().material = Some(material);
+                    }
+
+                    let index = self
+                        .drawable_object_storage
+                        .add_drawable_object(drawable_mesh, transform);
+                    let _ = result_sender
+                        .send(index)
+                        .inspect_err(|e| log::error!("AddDrawableObject response error = {e}"));
                 }
                 Command::SetCamera { camera } => {
                     self.camera = camera;
@@ -132,18 +186,34 @@ impl system_container::System for Renderer {
 }
 
 impl MuleEngineRendererClient for RendererClient {
-    fn add_drawable_object(
+    fn add_drawable_mesh(
         &self,
-        drawable_object: Arc<RwLock<dyn DrawableObject>>,
+        mesh: Arc<Mesh>,
         transform: Transform<f32, f32, f32>,
-    ) {
+        material: Option<Material>,
+        shader_path: String,
+    ) -> DrawableObjectStorageIndex {
+        let (result_sender, result_receiver) = mpsc::channel();
         let _ = self
             .command_sender
-            .send(Command::AddDrawableObject {
-                drawable_object,
+            .send(Command::AddDrawableMesh {
+                mesh,
                 transform,
+                material,
+                shader_path,
+                result_sender,
             })
             .inspect_err(|e| log::error!("Adding drawable object to renderer, error = {e}"));
+
+        DrawableObjectStorageIndex::invalid()
+
+        // match result_receiver
+        //     .recv()
+        //     .inspect_err(|e| log::error!("Add drawable object response error = {e}"))
+        // {
+        //     Ok(index) => index,
+        //     Err(_) => unreachable!(),
+        // }
     }
 
     fn set_camera(&self, camera: Camera) {
