@@ -5,26 +5,21 @@ use std::sync::Arc;
 use game_2::{
     main_loop::MainLoop,
     muleengine::{
+        asset_container::AssetContainer,
         asset_reader::AssetReader,
         image_container::ImageContainer,
-        mesh::MaterialTextureType,
-        mesh_creator, renderer,
+        mesh::{Material, MaterialTexture, MaterialTextureType, TextureMapMode},
+        mesh_creator,
+        renderer::RendererClient,
         scene_container::SceneContainer,
         service_container::ServiceContainer,
         system_container::SystemContainer,
         window_context::{Event, WindowContext},
     },
-    sdl2_opengl_engine::{
-        drawable_object_creator::DrawableObjectCreator,
-        gl_material::{GLMaterial, GLMaterialTexture},
-        opengl_utils::texture_2d::GLTextureMapMode,
-        systems::renderer as gl_renderer,
-        GLProfile, Sdl2GLContext,
-    },
+    sdl2_opengl_engine::{systems::renderer, GLProfile, Sdl2GLContext},
     systems::spectator_camera_controller::SpectatorCameraControllerSystem,
 };
 use parking_lot::RwLock;
-use renderer::RendererClient;
 use vek::{Transform, Vec2, Vec3};
 
 fn main() {
@@ -64,7 +59,7 @@ fn main() {
             service_container.insert(AssetReader::new());
             service_container.insert(ImageContainer::new());
             service_container.insert(SceneContainer::new());
-            service_container.insert(DrawableObjectCreator::new(&service_container));
+            service_container.insert(AssetContainer::new(&service_container));
 
             service_container
         };
@@ -73,8 +68,15 @@ fn main() {
             let mut system_container = SystemContainer::new();
 
             // creating renderer system
-            let renderer_system =
-                gl_renderer::Renderer::new(initial_window_dimensions, sdl2_gl_context.clone());
+            let renderer_system = renderer::Renderer::new(
+                initial_window_dimensions,
+                sdl2_gl_context.clone(),
+                service_container
+                    .get_service::<AssetContainer>()
+                    .unwrap()
+                    .read()
+                    .clone(),
+            );
             let renderer_client = renderer_system.client();
 
             system_container.add_system(SpectatorCameraControllerSystem::new(
@@ -130,31 +132,42 @@ fn populate_with_objects(
     service_container: ServiceContainer,
     renderer_client: Box<dyn RendererClient>,
 ) {
-    let drawable_object_creator = service_container
-        .get_service::<DrawableObjectCreator>()
-        .unwrap();
+    let asset_container_arc = service_container.get_service::<AssetContainer>().unwrap();
+    let asset_container = asset_container_arc.read();
 
-    let drawable_object_creator_mut = &mut *drawable_object_creator.write();
-
-    // add_skybox(drawable_object_creator_mut, renderer_client)
-    //     .await
-    //     .unwrap();
+    // add_skybox(&asset_container, renderer_client.clone());
 
     {
         let mut transform = Transform::<f32, f32, f32>::default();
         transform.position.z = -5.0;
 
-        let drawable_objects = drawable_object_creator_mut
-            .get_drawable_objects_from_scene(
-                "Assets/shaders/lit_normal",
-                // "Assets/objects/MonkeySmooth.obj",
-                "Assets/demo/wall/wallTextured.fbx",
-                // "Assets/sponza/sponza.fbx",
+        // let scene_path = "Assets/objects/MonkeySmooth.obj";
+        let scene_path = "Assets/demo/wall/wallTextured.fbx";
+        // let scene_path = "Assets/sponza/sponza.fbx";
+        let scene = asset_container
+            .scene_container()
+            .write()
+            .get_scene(
+                scene_path,
+                &asset_container.asset_reader().read(),
+                &mut asset_container.image_container().write(),
             )
             .unwrap();
 
-        for drawable_object in drawable_objects {
-            renderer_client.add_drawable_object(drawable_object, transform);
+        for mesh in scene.meshes_ref().iter() {
+            match &mesh {
+                Ok(mesh) => {
+                    renderer_client.add_drawable_mesh(
+                        mesh.clone(),
+                        transform,
+                        None,
+                        "Assets/shaders/lit_normal".to_string(),
+                    );
+                }
+                Err(e) => {
+                    log::warn!("Invalid mesh in scene, path = {scene_path}, error = {e:?}")
+                }
+            }
         }
     }
 
@@ -164,25 +177,31 @@ fn populate_with_objects(
         transform.position.z = -5.0;
 
         let mesh = Arc::new(mesh_creator::capsule::create(0.5, 2.0, 16));
-        let drawable_object = drawable_object_creator_mut
-            .create_drawable_object_from_mesh("Assets/shaders/lit_normal", mesh)
-            .unwrap();
 
-        renderer_client.add_drawable_object(drawable_object, transform);
+        renderer_client.add_drawable_mesh(
+            mesh.clone(),
+            transform,
+            None,
+            "Assets/shaders/lit_normal".to_string(),
+        );
     }
 }
 
-fn add_skybox(
-    drawable_object_creator: &mut DrawableObjectCreator,
-    renderer_client: &dyn RendererClient,
-) {
+fn add_skybox(asset_container: &AssetContainer, renderer_client: Box<dyn RendererClient>) {
     let transform = Transform::<f32, f32, f32>::default();
 
-    let drawable_objects = drawable_object_creator
-        .get_drawable_objects_from_scene("Assets/shaders/unlit", "Assets/objects/skybox/Skybox.obj")
+    let scene_path = "Assets/objects/skybox/Skybox.obj";
+    let scene = asset_container
+        .scene_container()
+        .write()
+        .get_scene(
+            scene_path,
+            &asset_container.asset_reader().read(),
+            &mut asset_container.image_container().write(),
+        )
         .unwrap();
 
-    if drawable_objects.len() == 6 {
+    if scene.meshes_ref().len() == 6 {
         let textures = [
             "Assets/objects/skybox/skyboxRight.png",
             "Assets/objects/skybox/skyboxLeft.png",
@@ -191,27 +210,34 @@ fn add_skybox(
             "Assets/objects/skybox/skyboxFront.png",
             "Assets/objects/skybox/skyboxBack.png",
         ];
-
         for index in 0..6 {
-            let mut drawable_object = drawable_objects[index].write();
-
-            drawable_object.material = Some(GLMaterial {
+            let material = Material {
+                textures: vec![MaterialTexture {
+                    image: asset_container
+                        .image_container()
+                        .write()
+                        .get_image(textures[index], &asset_container.asset_reader().read()),
+                    texture_type: MaterialTextureType::Albedo,
+                    texture_map_mode: TextureMapMode::Clamp,
+                    blend: 0.0,
+                    uv_channel_id: 0,
+                }],
                 opacity: 1.0,
                 albedo_color: Vec3::broadcast(1.0),
-                emissive_color: Vec3::broadcast(0.0),
                 shininess_color: Vec3::broadcast(0.0),
-                textures: vec![GLMaterialTexture {
-                    texture: drawable_object_creator
-                        .get_texture(textures[index])
-                        .unwrap(),
-                    texture_type: MaterialTextureType::Albedo,
-                    texture_map_mode: GLTextureMapMode::Clamp,
-                    uv_channel_id: 0,
-                    blend: 0.0,
-                }],
-            });
+                emissive_color: Vec3::broadcast(0.0),
+            };
 
-            renderer_client.add_drawable_object(drawable_objects[index].clone(), transform);
+            let mesh = scene.meshes_ref()[index].as_ref().unwrap().clone();
+
+            renderer_client.add_drawable_mesh(
+                mesh,
+                transform,
+                Some(material),
+                "Assets/shaders/unlit".to_string(),
+            );
         }
+    } else {
+        panic!("Skybox does not contain exactly 6 meshes");
     }
 }

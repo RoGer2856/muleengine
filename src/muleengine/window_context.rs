@@ -215,9 +215,9 @@ pub trait WindowContext {
     fn is_mouse_button_pressed(&self, button: MouseButton) -> bool;
     fn mouse_pos(&self) -> Vec2<usize>;
     fn window_dimensions(&self) -> Vec2<usize>;
-
     fn show_cursor(&mut self, show: bool);
     fn warp_mouse_normalized_screen_space(&mut self, pos: Vec2<f32>);
+
     fn event_sender(&self) -> &EventSender;
     fn poll_event(&mut self) -> Option<Event>;
 
