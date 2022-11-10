@@ -90,7 +90,10 @@ fn main() {
             (system_container, renderer_client)
         };
 
-        populate_with_objects(service_container.clone(), renderer_client.clone());
+        tokio::spawn(populate_with_objects(
+            service_container.clone(),
+            renderer_client.clone(),
+        ));
 
         const DESIRED_FPS: f32 = 30.0;
 
@@ -128,14 +131,14 @@ fn main() {
     });
 }
 
-fn populate_with_objects(
+async fn populate_with_objects(
     service_container: ServiceContainer,
     renderer_client: Box<dyn RendererClient>,
 ) {
     let asset_container_arc = service_container.get_service::<AssetContainer>().unwrap();
     let asset_container = asset_container_arc.read();
 
-    // add_skybox(&asset_container, renderer_client.clone());
+    add_skybox(&asset_container, renderer_client.clone());
 
     {
         let mut transform = Transform::<f32, f32, f32>::default();
