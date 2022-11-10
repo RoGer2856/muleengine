@@ -145,11 +145,27 @@ async fn populate_with_objects(
 
     {
         let mut transform = Transform::<f32, f32, f32>::default();
+        transform.position.x = -2.0;
+        transform.position.z = -5.0;
+
+        let mesh = Arc::new(mesh_creator::capsule::create(0.5, 2.0, 16));
+
+        renderer_client.add_drawable_mesh(
+            mesh.clone(),
+            transform,
+            None,
+            "Assets/shaders/lit_wo_normal".to_string(),
+        );
+    }
+
+    {
+        let mut transform = Transform::<f32, f32, f32>::default();
         transform.position.z = -5.0;
 
         // let scene_path = "Assets/objects/MonkeySmooth.obj";
         let scene_path = "Assets/demo/wall/wallTextured.fbx";
         // let scene_path = "Assets/sponza/sponza.fbx";
+        // let scene_path = "Assets/objects/skybox/Skybox.obj";
         let scene = asset_container
             .scene_container()
             .write()
@@ -175,21 +191,6 @@ async fn populate_with_objects(
                 }
             }
         }
-    }
-
-    {
-        let mut transform = Transform::<f32, f32, f32>::default();
-        transform.position.x = -2.0;
-        transform.position.z = -5.0;
-
-        let mesh = Arc::new(mesh_creator::capsule::create(0.5, 2.0, 16));
-
-        renderer_client.add_drawable_mesh(
-            mesh.clone(),
-            transform,
-            None,
-            "Assets/shaders/lit_normal".to_string(),
-        );
     }
 }
 

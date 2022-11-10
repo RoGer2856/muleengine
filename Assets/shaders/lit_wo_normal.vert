@@ -14,7 +14,7 @@ uniform vec3 eyePosition;
 uniform mat4 objectMatrix;
 uniform mat4 viewMatrix;
 uniform mat4 projectionMatrix;
-uniform mat3 normalMatrix;
+uniform mat4 normalMatrix;
 uniform mat4 bones[maxBoneCount];
 
 uniform int useAlbedoTexture;
@@ -48,9 +48,9 @@ void main()
 		bones[int(boneIds[2])] * boneWeights[2] +
 		bones[int(boneIds[3])] * boneWeights[3];
 
-	vNormal = normalMatrix * mat3(boneTransform) * normal;
+	vNormal = normalize(mat3(normalMatrix) * mat3(boneTransform) * normal);
 
-	vTangentMatrix[0] = normalize(normalMatrix * mat3(boneTransform) * tangent);
+	vTangentMatrix[0] = vec3(normalize(mat3(normalMatrix) * mat3(boneTransform) * tangent));
 	vTangentMatrix[2] = normalize(vNormal);
 	vTangentMatrix[1] = normalize(cross(vTangentMatrix[2], vTangentMatrix[0]));
 	vInvTangentMatrix = transpose(vTangentMatrix);
