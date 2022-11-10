@@ -12,7 +12,7 @@ pub trait RendererClientClone: 'static {
     fn clone_box(&self) -> Box<dyn RendererClient>;
 }
 
-pub trait RendererClient: RendererClientClone + Send {
+pub trait RendererClient: RendererClientClone + Send + Sync {
     fn add_drawable_mesh(
         &self,
         mesh: Arc<Mesh>,

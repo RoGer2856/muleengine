@@ -13,6 +13,7 @@ struct Object {
     transform: Mat4<f32>,
 }
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct DrawableObjectStorageIndex(ObjectPoolIndex);
 
 impl DrawableObjectStorageIndex {
