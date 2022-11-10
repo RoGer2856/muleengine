@@ -22,6 +22,94 @@ use game_2::{
 use parking_lot::RwLock;
 use vek::{Transform, Vec2, Vec3};
 
+async fn async_main() {
+    let initial_window_dimensions = Vec2::new(800usize, 600usize);
+
+    let sdl2_gl_context = Arc::new(RwLock::new(
+        Sdl2GLContext::new(
+            "game_2",
+            initial_window_dimensions.x as u32,
+            initial_window_dimensions.y as u32,
+            GLProfile::Core,
+            4,
+            0,
+        )
+        .unwrap(),
+    ));
+
+    {
+        let mut sdl2_gl_context = sdl2_gl_context.write();
+        sdl2_gl_context.show_cursor(false);
+        sdl2_gl_context.warp_mouse_normalized_screen_space(Vec2::new(0.5, 0.5));
+    }
+
+    let service_container = init_services();
+
+    let (mut system_container, renderer_client) = {
+        let mut system_container = SystemContainer::new();
+
+        // creating renderer system
+        let renderer_system = renderer::Renderer::new(
+            initial_window_dimensions,
+            sdl2_gl_context.clone(),
+            service_container
+                .get_service::<AssetContainer>()
+                .unwrap()
+                .read()
+                .clone(),
+        );
+        let renderer_client = renderer_system.client();
+
+        system_container.add_system(SpectatorCameraControllerSystem::new(
+            renderer_client.clone(),
+            sdl2_gl_context.clone(),
+        ));
+
+        // adding renderer system as the last system
+        system_container.add_system(renderer_system);
+
+        (system_container, renderer_client)
+    };
+
+    tokio::spawn(populate_with_objects(
+        service_container.clone(),
+        renderer_client.clone(),
+    ));
+
+    let event_receiver = sdl2_gl_context.read().event_receiver();
+
+    const DESIRED_FPS: f32 = 30.0;
+    let main_loop = MainLoop::new(DESIRED_FPS);
+    'running: for delta_time_in_secs in main_loop.iter() {
+        // handling events
+        sdl2_gl_context.write().flush_events();
+
+        while let Some(event) = event_receiver.pop() {
+            log::debug!("EVENT = {event:?}");
+
+            match event {
+                Event::Resized { width, height } => {
+                    renderer_client.set_window_dimensions(Vec2::new(width, height));
+                }
+                Event::Closed => break 'running,
+                _ => (),
+            }
+        }
+
+        system_container.tick(delta_time_in_secs);
+
+        // putting the cursor back to the center of the window
+        let window_center = sdl2_gl_context.read().window_dimensions() / 2;
+
+        let mouse_pos = sdl2_gl_context.read().mouse_pos();
+        if mouse_pos.x != window_center.x || mouse_pos.y != window_center.y {
+            sdl2_gl_context
+                .write()
+                .warp_mouse_normalized_screen_space(Vec2::new(0.5, 0.5));
+        }
+    }
+}
+
 fn main() {
     env_logger::builder()
         .filter_level(log::LevelFilter::Debug)
@@ -32,103 +120,18 @@ fn main() {
         .build()
         .unwrap();
 
-    rt.block_on(async {
-        let initial_window_dimensions = Vec2::new(800usize, 600usize);
+    rt.block_on(async_main());
+}
 
-        let sdl2_gl_context = Arc::new(RwLock::new(
-            Sdl2GLContext::new(
-                "game_2",
-                initial_window_dimensions.x as u32,
-                initial_window_dimensions.y as u32,
-                GLProfile::Core,
-                4,
-                0,
-            )
-            .unwrap(),
-        ));
+pub fn init_services() -> ServiceContainer {
+    let mut service_container = ServiceContainer::new();
 
-        {
-            let mut sdl2_gl_context = sdl2_gl_context.write();
-            sdl2_gl_context.show_cursor(false);
-            sdl2_gl_context.warp_mouse_normalized_screen_space(Vec2::new(0.5, 0.5));
-        }
+    service_container.insert(AssetReader::new());
+    service_container.insert(ImageContainer::new());
+    service_container.insert(SceneContainer::new());
+    service_container.insert(AssetContainer::new(&service_container));
 
-        let service_container = {
-            let mut service_container = ServiceContainer::new();
-
-            service_container.insert(AssetReader::new());
-            service_container.insert(ImageContainer::new());
-            service_container.insert(SceneContainer::new());
-            service_container.insert(AssetContainer::new(&service_container));
-
-            service_container
-        };
-
-        let (mut system_container, renderer_client) = {
-            let mut system_container = SystemContainer::new();
-
-            // creating renderer system
-            let renderer_system = renderer::Renderer::new(
-                initial_window_dimensions,
-                sdl2_gl_context.clone(),
-                service_container
-                    .get_service::<AssetContainer>()
-                    .unwrap()
-                    .read()
-                    .clone(),
-            );
-            let renderer_client = renderer_system.client();
-
-            system_container.add_system(SpectatorCameraControllerSystem::new(
-                renderer_client.clone(),
-                sdl2_gl_context.clone(),
-            ));
-
-            // adding renderer system as the last system
-            system_container.add_system(renderer_system);
-
-            (system_container, renderer_client)
-        };
-
-        tokio::spawn(populate_with_objects(
-            service_container.clone(),
-            renderer_client.clone(),
-        ));
-
-        const DESIRED_FPS: f32 = 30.0;
-
-        let event_receiver = sdl2_gl_context.read().event_receiver();
-
-        let main_loop = MainLoop::new(DESIRED_FPS);
-        'running: for delta_time_in_secs in main_loop.iter() {
-            // handling events
-            sdl2_gl_context.write().flush_events();
-
-            while let Some(event) = event_receiver.pop() {
-                log::debug!("EVENT = {event:?}");
-
-                match event {
-                    Event::Resized { width, height } => {
-                        renderer_client.set_window_dimensions(Vec2::new(width, height));
-                    }
-                    Event::Closed => break 'running,
-                    _ => (),
-                }
-            }
-
-            system_container.tick(delta_time_in_secs);
-
-            // putting the cursor back to the center of the window
-            let window_center = sdl2_gl_context.read().window_dimensions() / 2;
-
-            let mouse_pos = sdl2_gl_context.read().mouse_pos();
-            if mouse_pos.x != window_center.x || mouse_pos.y != window_center.y {
-                sdl2_gl_context
-                    .write()
-                    .warp_mouse_normalized_screen_space(Vec2::new(0.5, 0.5));
-            }
-        }
-    });
+    service_container
 }
 
 async fn populate_with_objects(

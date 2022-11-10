@@ -1,6 +1,7 @@
-use std::sync::{mpsc, Arc};
+use std::sync::{mpsc as std_mpsc, Arc};
 
 use parking_lot::RwLock;
+use tokio::sync::mpsc;
 use vek::{Mat4, Transform, Vec2};
 
 use crate::{
@@ -27,7 +28,7 @@ enum Command {
         transform: Transform<f32, f32, f32>,
         material: Option<Material>,
         shader_path: String,
-        result_sender: mpsc::Sender<DrawableObjectStorageIndex>,
+        result_sender: std_mpsc::Sender<DrawableObjectStorageIndex>,
     },
     SetCamera {
         camera: Camera,
@@ -37,8 +38,8 @@ enum Command {
     },
 }
 
-type CommandSender = mpsc::Sender<Command>;
-type CommandReceiver = mpsc::Receiver<Command>;
+type CommandSender = mpsc::UnboundedSender<Command>;
+type CommandReceiver = mpsc::UnboundedReceiver<Command>;
 
 pub struct Renderer {
     drawable_object_storage: DrawableObjectStorage,
@@ -67,7 +68,7 @@ impl Renderer {
         window_context: Arc<RwLock<dyn WindowContext>>,
         asset_container: AssetContainer,
     ) -> Self {
-        let (sender, receiver) = mpsc::channel();
+        let (sender, receiver) = mpsc::unbounded_channel();
 
         let mut ret = Self {
             drawable_object_storage: DrawableObjectStorage::new(),
@@ -150,7 +151,7 @@ impl Renderer {
                         .add_drawable_object(drawable_mesh, transform);
                     let _ = result_sender
                         .send(index)
-                        .inspect_err(|e| log::error!("AddDrawableMesh response error = {e}"));
+                        .inspect_err(|e| log::error!("AddDrawableMesh response error = {e:?}"));
                 }
                 Command::SetCamera { camera } => {
                     self.camera = camera;
@@ -193,7 +194,7 @@ impl MuleEngineRendererClient for RendererClient {
         material: Option<Material>,
         shader_path: String,
     ) -> DrawableObjectStorageIndex {
-        let (result_sender, result_receiver) = mpsc::channel();
+        let (result_sender, result_receiver) = std_mpsc::channel();
         let _ = self
             .command_sender
             .send(Command::AddDrawableMesh {
