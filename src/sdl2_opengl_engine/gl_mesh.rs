@@ -220,7 +220,6 @@ impl GLDrawableMesh {
         object_matrix: &Mat4<f32>,
     ) {
         self.gl_mesh_shader_program.shader_program.use_program();
-        self.vertex_array_object.use_vao();
 
         if let Some(uniform) = &self.gl_mesh_shader_program.uniforms.eye_position {
             uniform.send_uniform_3fv(eye_position.as_ptr(), 1);
@@ -317,7 +316,9 @@ impl GLDrawableMesh {
             uniform.send_uniform_3fv(material.shininess_color.as_ptr(), 1);
         }
 
-        self.gl_mesh.index_buffer_object.draw();
+        self.vertex_array_object.use_vao(|| {
+            self.gl_mesh.index_buffer_object.draw();
+        });
     }
 
     fn use_texture(

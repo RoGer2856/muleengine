@@ -128,7 +128,7 @@ impl Renderer {
                     let gl_mesh_shader_program =
                         match self.gl_shader_program_container.get_mesh_shader_program(
                             &shader_path,
-                            &mut self.asset_container.asset_reader().write(),
+                            &mut self.asset_container.asset_reader().read(),
                         ) {
                             Ok(shader_program) => shader_program,
                             Err(_) => todo!(),
@@ -150,7 +150,7 @@ impl Renderer {
                         .add_drawable_object(drawable_mesh, transform);
                     let _ = result_sender
                         .send(index)
-                        .inspect_err(|e| log::error!("AddDrawableObject response error = {e}"));
+                        .inspect_err(|e| log::error!("AddDrawableMesh response error = {e}"));
                 }
                 Command::SetCamera { camera } => {
                     self.camera = camera;
@@ -205,15 +205,13 @@ impl MuleEngineRendererClient for RendererClient {
             })
             .inspect_err(|e| log::error!("Adding drawable object to renderer, error = {e}"));
 
-        DrawableObjectStorageIndex::invalid()
-
-        // match result_receiver
-        //     .recv()
-        //     .inspect_err(|e| log::error!("Add drawable object response error = {e}"))
-        // {
-        //     Ok(index) => index,
-        //     Err(_) => unreachable!(),
-        // }
+        match result_receiver
+            .recv()
+            .inspect_err(|e| log::error!("Add drawable object response error = {e}"))
+        {
+            Ok(index) => index,
+            Err(_) => unreachable!(),
+        }
     }
 
     fn set_camera(&self, camera: Camera) {

@@ -2,7 +2,9 @@ use std::{any::type_name, sync::Arc};
 
 use parking_lot::RwLock;
 
-use super::containers::multi_type_dict::{MultiTypeDict, MultiTypeDictInsertResult};
+use super::containers::sendable_multi_type_dict::{
+    SendableMultiTypeDict, SendableMultiTypeDictInsertResult,
+};
 
 #[derive(Debug, Clone)]
 pub struct ServiceMissingError {
@@ -11,7 +13,7 @@ pub struct ServiceMissingError {
 
 #[derive(Clone)]
 pub struct ServiceContainer {
-    service_dict: Arc<RwLock<MultiTypeDict>>,
+    service_dict: Arc<RwLock<SendableMultiTypeDict>>,
 }
 
 impl ServiceMissingError {
@@ -29,14 +31,14 @@ impl ServiceMissingError {
 impl ServiceContainer {
     pub fn new() -> Self {
         Self {
-            service_dict: Arc::new(RwLock::new(MultiTypeDict::new())),
+            service_dict: Arc::new(RwLock::new(SendableMultiTypeDict::new())),
         }
     }
 
-    pub fn insert<ServiceType: 'static>(
+    pub fn insert<ServiceType: Send + Sync + 'static>(
         &mut self,
         item: ServiceType,
-    ) -> MultiTypeDictInsertResult<RwLock<ServiceType>> {
+    ) -> SendableMultiTypeDictInsertResult<RwLock<ServiceType>> {
         self.service_dict.write().insert(RwLock::new(item))
     }
 
@@ -50,7 +52,7 @@ impl ServiceContainer {
             .ok_or_else(|| ServiceMissingError::new::<ServiceType>())
     }
 
-    pub fn get_or_insert_service<ServiceType: 'static>(
+    pub fn get_or_insert_service<ServiceType: Send + Sync + 'static>(
         &self,
         service_constructor: impl FnOnce() -> ServiceType,
     ) -> Arc<RwLock<ServiceType>> {

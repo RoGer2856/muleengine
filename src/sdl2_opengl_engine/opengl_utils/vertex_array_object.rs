@@ -22,31 +22,31 @@ impl VertexArrayObjectInterface {
         attrib: &ShaderAttribute,
         attrib_array_index: usize,
     ) {
+        let data_count = match vbo.data_count {
+            DataCount::Coords2 => 2,
+            DataCount::Coords3 => 3,
+            DataCount::Coords4 => 4,
+            DataCount::Rgb => 3,
+            DataCount::Rgba => 4,
+            DataCount::Single => 1,
+        };
+
+        let data_type = match vbo.data_type {
+            DataType::F32 => gl::FLOAT,
+            DataType::F64 => gl::DOUBLE,
+
+            DataType::I16 => gl::SHORT,
+            DataType::I32 => gl::INT,
+            DataType::I8 => gl::BYTE,
+
+            DataType::U16 => gl::UNSIGNED_SHORT,
+            DataType::U32 => gl::UNSIGNED_INT,
+            DataType::U8 => gl::UNSIGNED_BYTE,
+        };
+
         unsafe {
             gl::BindBuffer(gl::ARRAY_BUFFER, vbo.buffer_id);
-            gl::EnableVertexAttribArray(attrib.0.location as u32);
-
-            let data_count = match vbo.data_count {
-                DataCount::Coords2 => 2,
-                DataCount::Coords3 => 3,
-                DataCount::Coords4 => 4,
-                DataCount::Rgb => 3,
-                DataCount::Rgba => 4,
-                DataCount::Single => 1,
-            };
-
-            let data_type = match vbo.data_type {
-                DataType::F32 => gl::FLOAT,
-                DataType::F64 => gl::DOUBLE,
-
-                DataType::I16 => gl::SHORT,
-                DataType::I32 => gl::INT,
-                DataType::I8 => gl::BYTE,
-
-                DataType::U16 => gl::UNSIGNED_SHORT,
-                DataType::U32 => gl::UNSIGNED_INT,
-                DataType::U8 => gl::UNSIGNED_BYTE,
-            };
+            gl::EnableVertexAttribArray(attrib.0.location as u32 + attrib_array_index as u32);
 
             gl::VertexAttribPointer(
                 attrib.0.location as u32 + attrib_array_index as u32,
@@ -89,9 +89,15 @@ impl VertexArrayObject {
         Self { vao_id }
     }
 
-    pub fn use_vao(&self) {
+    pub fn use_vao(&self, use_fn: impl FnOnce()) {
         unsafe {
             gl::BindVertexArray(self.vao_id);
+        }
+
+        use_fn();
+
+        unsafe {
+            gl::BindVertexArray(0);
         }
     }
 }
