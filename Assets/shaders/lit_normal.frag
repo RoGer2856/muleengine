@@ -7,7 +7,7 @@ uniform vec3 eyePosition;
 uniform mat4 objectMatrix;
 uniform mat4 viewMatrix;
 uniform mat4 projectionMatrix;
-uniform mat3 normalMatrix;
+uniform mat4 normalMatrix;
 uniform mat4 bones[maxBoneCount];
 
 uniform int useAlbedoTexture;

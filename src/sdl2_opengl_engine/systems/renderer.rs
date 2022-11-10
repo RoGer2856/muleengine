@@ -132,7 +132,10 @@ impl Renderer {
                             &mut self.asset_container.asset_reader().read(),
                         ) {
                             Ok(shader_program) => shader_program,
-                            Err(_) => todo!(),
+                            Err(e) => {
+                                log::error!("Error loading shader program, error = {e:?}");
+                                todo!();
+                            }
                         };
 
                     let drawable_mesh = self.gl_mesh_container.get_drawable_mesh(

@@ -240,7 +240,7 @@ impl GLDrawableMesh {
         if let Some(uniform) = &self.gl_mesh_shader_program.uniforms.normal_matrix {
             let mut normal_matrix = object_matrix.inverted_affine_transform();
             normal_matrix.transpose();
-            uniform.send_uniform_matrix_3fv(normal_matrix.as_col_ptr(), 1);
+            uniform.send_uniform_matrix_4fv(normal_matrix.as_col_ptr(), 1);
         }
 
         let bone_transforms = self
