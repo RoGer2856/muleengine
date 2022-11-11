@@ -69,11 +69,10 @@ impl Sdl2GLContext {
         gl_minor_version: u8,
     ) -> Result<Self, ContextCreationError> {
         let sdl2_gl_profile = gl_profile.into();
-        let sdl_context =
-            sdl2::init().map_err(|e| ContextCreationError::CouldNotCreateSdlContext(e))?;
+        let sdl_context = sdl2::init().map_err(ContextCreationError::CouldNotCreateSdlContext)?;
         let sdl_video = sdl_context
             .video()
-            .map_err(|e| ContextCreationError::CouldNotCreateVideoSystem(e))?;
+            .map_err(ContextCreationError::CouldNotCreateVideoSystem)?;
 
         let gl_attr = sdl_video.gl_attr();
         gl_attr.set_context_profile(sdl2_gl_profile);
@@ -83,11 +82,11 @@ impl Sdl2GLContext {
             .window(window_name, window_width, window_height)
             .opengl()
             .build()
-            .map_err(|e| ContextCreationError::CouldNotBuildWindow(e))?;
+            .map_err(ContextCreationError::CouldNotBuildWindow)?;
 
         let gl_context = sdl_window
             .gl_create_context()
-            .map_err(|e| ContextCreationError::CouldNotCreateGLContext(e))?;
+            .map_err(ContextCreationError::CouldNotCreateGLContext)?;
         gl::load_with(|name| sdl_video.gl_get_proc_address(name) as *const _);
 
         if gl_attr.context_profile() != sdl2_gl_profile {
@@ -99,7 +98,7 @@ impl Sdl2GLContext {
         } else {
             let event_pump = sdl_context
                 .event_pump()
-                .map_err(|e| ContextCreationError::CouldNotCreateEventPump(e))?;
+                .map_err(ContextCreationError::CouldNotCreateEventPump)?;
 
             let window_width_f32 = sdl_window.size().0 as f32;
             let window_height_f32 = sdl_window.size().1 as f32;

@@ -14,6 +14,12 @@ pub enum ImageContainerError {
     CannotDecodeAssetAsImage { path: String },
 }
 
+impl Default for ImageContainer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ImageContainer {
     pub fn new() -> Self {
         Self {
@@ -28,23 +34,21 @@ impl ImageContainer {
     ) -> Result<Arc<Image>, ImageContainerError> {
         if let Some(image_mut) = self.images.get_mut(image_path) {
             Ok(image_mut.clone())
-        } else {
-            if let Some(asset_reader) = asset_reader.get_reader(image_path) {
-                if let Some(image) = Image::from_reader(asset_reader) {
-                    let image = Arc::new(image);
-                    self.images.insert(image_path.to_string(), image.clone());
+        } else if let Some(asset_reader) = asset_reader.get_reader(image_path) {
+            if let Some(image) = Image::from_reader(asset_reader) {
+                let image = Arc::new(image);
+                self.images.insert(image_path.to_string(), image.clone());
 
-                    Ok(image)
-                } else {
-                    Err(ImageContainerError::CannotDecodeAssetAsImage {
-                        path: image_path.to_string(),
-                    })
-                }
+                Ok(image)
             } else {
-                Err(ImageContainerError::CannotOpenAsset {
+                Err(ImageContainerError::CannotDecodeAssetAsImage {
                     path: image_path.to_string(),
                 })
             }
+        } else {
+            Err(ImageContainerError::CannotOpenAsset {
+                path: image_path.to_string(),
+            })
         }
     }
 }

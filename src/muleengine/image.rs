@@ -1,5 +1,7 @@
 use std::convert::TryFrom;
 
+use image::ImageError;
+
 #[derive(Copy, Clone)]
 pub enum ImageFormat {
     Png,
@@ -58,6 +60,10 @@ fn get_dimensions(image: &image::DynamicImage) -> (u32, u32) {
         image::DynamicImage::ImageRgba16(image) => image.dimensions(),
         _ => unreachable!(),
     }
+}
+
+pub enum ImageSaveError {
+    ImageError(ImageError),
 }
 
 pub struct Image {
@@ -121,7 +127,7 @@ impl Image {
         &self,
         writer: &mut (impl std::io::Write + std::io::Seek),
         format: ImageFormat,
-    ) -> Result<(), ()> {
+    ) -> Result<(), ImageSaveError> {
         let format = match format {
             ImageFormat::Bmp => image::ImageFormat::Bmp,
             ImageFormat::Gif => image::ImageFormat::Gif,
@@ -131,11 +137,10 @@ impl Image {
             ImageFormat::Tga => image::ImageFormat::Tga,
             ImageFormat::Tiff => image::ImageFormat::Tiff,
         };
-        if self.image.write_to(writer, format).is_ok() {
-            Ok(())
-        } else {
-            Err(())
-        }
+
+        self.image
+            .write_to(writer, format)
+            .map_err(ImageSaveError::ImageError)
     }
 
     pub fn width(&self) -> usize {

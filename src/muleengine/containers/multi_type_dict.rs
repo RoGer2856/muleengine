@@ -80,7 +80,7 @@ impl MultiTypeDict {
         type_id: TypeId,
     ) -> MultiTypeDictInsertResult<dyn Any + 'static> {
         let new_item: MultiTypeDictItem<dyn Any + 'static> = MultiTypeDictItem {
-            type_id: type_id,
+            type_id,
             item: Arc::new(item),
         };
 
@@ -96,8 +96,7 @@ impl MultiTypeDict {
         let type_id = TypeId::of::<ItemType>();
 
         self.get_item_ref_any(type_id)
-            .map(|item| item.downcast::<ItemType>())
-            .flatten()
+            .and_then(|item| item.downcast::<ItemType>())
     }
 
     pub fn get_or_insert_item_ref<ItemType>(
@@ -130,7 +129,7 @@ impl MultiTypeDict {
         &self,
         type_id: TypeId,
     ) -> Option<MultiTypeDictItem<dyn Any + 'static>> {
-        self.storage.get(&type_id).map(|item| item.clone())
+        self.storage.get(&type_id).cloned()
     }
 
     pub fn remove<ItemType>(&mut self) -> Option<MultiTypeDictItem<ItemType>>
@@ -140,8 +139,7 @@ impl MultiTypeDict {
         let type_id = TypeId::of::<ItemType>();
 
         self.remove_by_type_id(type_id)
-            .map(|item| item.downcast::<ItemType>())
-            .flatten()
+            .and_then(|item| item.downcast::<ItemType>())
     }
 
     pub fn remove_by_type_id(
@@ -180,6 +178,12 @@ impl<ItemType: ?Sized> MultiTypeDictItem<ItemType> {
 
     pub fn type_id(&self) -> TypeId {
         self.type_id
+    }
+}
+
+impl Default for MultiTypeDict {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

@@ -8,6 +8,12 @@ pub struct GLScene {
     meshes: Vec<Result<Arc<GLMesh>, MeshConvertError>>,
 }
 
+impl Default for GLScene {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GLScene {
     pub fn new() -> Self {
         Self { meshes: Vec::new() }

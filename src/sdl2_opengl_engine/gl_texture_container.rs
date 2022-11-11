@@ -10,6 +10,12 @@ pub struct GLTextureContainer {
     textures_2d: HashMap<*const Image, (Arc<Image>, Arc<Texture2D>)>,
 }
 
+impl Default for GLTextureContainer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GLTextureContainer {
     pub fn new() -> Self {
         Self {

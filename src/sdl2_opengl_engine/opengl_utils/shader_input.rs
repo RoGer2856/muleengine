@@ -97,93 +97,93 @@ impl ShaderUniform {
         }
     }
 
-    pub fn send_uniform_1fv(&self, array: *const f32, count: usize) {
+    pub fn send_uniform_1fv(&self, array: &[f32], count: usize) {
         unsafe {
-            gl::Uniform1fv(self.0.location, count as i32, array);
+            gl::Uniform1fv(self.0.location, count as i32, array.as_ptr());
         }
     }
 
-    pub fn send_uniform_2fv(&self, array: *const f32, count: usize) {
+    pub fn send_uniform_2fv(&self, array: &[f32], count: usize) {
         unsafe {
-            gl::Uniform2fv(self.0.location, count as i32, array);
+            gl::Uniform2fv(self.0.location, count as i32, array.as_ptr());
         }
     }
 
-    pub fn send_uniform_3fv(&self, array: *const f32, count: usize) {
+    pub fn send_uniform_3fv(&self, array: &[f32], count: usize) {
         unsafe {
-            gl::Uniform3fv(self.0.location, count as i32, array);
+            gl::Uniform3fv(self.0.location, count as i32, array.as_ptr());
         }
     }
 
-    pub fn send_uniform_4fv(&self, array: *const f32, count: usize) {
+    pub fn send_uniform_4fv(&self, array: &[f32], count: usize) {
         unsafe {
-            gl::Uniform4fv(self.0.location, count as i32, array);
+            gl::Uniform4fv(self.0.location, count as i32, array.as_ptr());
         }
     }
 
-    pub fn send_uniform_1iv(&self, array: *const i32, count: usize) {
+    pub fn send_uniform_1iv(&self, array: &[i32], count: usize) {
         unsafe {
-            gl::Uniform1iv(self.0.location, count as i32, array);
+            gl::Uniform1iv(self.0.location, count as i32, array.as_ptr());
         }
     }
 
-    pub fn send_uniform_2iv(&self, array: *const i32, count: usize) {
+    pub fn send_uniform_2iv(&self, array: &[i32], count: usize) {
         unsafe {
-            gl::Uniform2iv(self.0.location, count as i32, array);
+            gl::Uniform2iv(self.0.location, count as i32, array.as_ptr());
         }
     }
 
-    pub fn send_uniform_3iv(&self, array: *const i32, count: usize) {
+    pub fn send_uniform_3iv(&self, array: &[i32], count: usize) {
         unsafe {
-            gl::Uniform3iv(self.0.location, count as i32, array);
+            gl::Uniform3iv(self.0.location, count as i32, array.as_ptr());
         }
     }
 
-    pub fn send_uniform_4iv(&self, array: *const i32, count: usize) {
+    pub fn send_uniform_4iv(&self, array: &[i32], count: usize) {
         unsafe {
-            gl::Uniform4iv(self.0.location, count as i32, array);
+            gl::Uniform4iv(self.0.location, count as i32, array.as_ptr());
         }
     }
 
-    pub fn send_uniform_1uiv(&self, array: *const u32, count: usize) {
+    pub fn send_uniform_1uiv(&self, array: &[u32], count: usize) {
         unsafe {
-            gl::Uniform1uiv(self.0.location, count as i32, array);
+            gl::Uniform1uiv(self.0.location, count as i32, array.as_ptr());
         }
     }
 
-    pub fn send_uniform_2uiv(&self, array: *const u32, count: usize) {
+    pub fn send_uniform_2uiv(&self, array: &[u32], count: usize) {
         unsafe {
-            gl::Uniform2uiv(self.0.location, count as i32, array);
+            gl::Uniform2uiv(self.0.location, count as i32, array.as_ptr());
         }
     }
 
-    pub fn send_uniform_3uiv(&self, array: *const u32, count: usize) {
+    pub fn send_uniform_3uiv(&self, array: &[u32], count: usize) {
         unsafe {
-            gl::Uniform3uiv(self.0.location, count as i32, array);
+            gl::Uniform3uiv(self.0.location, count as i32, array.as_ptr());
         }
     }
 
-    pub fn send_uniform_4uiv(&self, array: *const u32, count: usize) {
+    pub fn send_uniform_4uiv(&self, array: &[u32], count: usize) {
         unsafe {
-            gl::Uniform4uiv(self.0.location, count as i32, array);
+            gl::Uniform4uiv(self.0.location, count as i32, array.as_ptr());
         }
     }
 
-    pub fn send_uniform_matrix_2fv(&self, array: *const f32, count: usize) {
+    pub fn send_uniform_matrix_2fv(&self, array: &[f32], count: usize) {
         unsafe {
-            gl::UniformMatrix2fv(self.0.location, count as i32, gl::FALSE, array);
+            gl::UniformMatrix2fv(self.0.location, count as i32, gl::FALSE, array.as_ptr());
         }
     }
 
-    pub fn send_uniform_matrix_3fv(&self, array: *const f32, count: usize) {
+    pub fn send_uniform_matrix_3fv(&self, array: &[f32], count: usize) {
         unsafe {
-            gl::UniformMatrix3fv(self.0.location, count as i32, gl::FALSE, array);
+            gl::UniformMatrix3fv(self.0.location, count as i32, gl::FALSE, array.as_ptr());
         }
     }
 
-    pub fn send_uniform_matrix_4fv(&self, array: *const f32, count: usize) {
+    pub fn send_uniform_matrix_4fv(&self, array: &[f32], count: usize) {
         unsafe {
-            gl::UniformMatrix4fv(self.0.location, count as i32, gl::FALSE, array);
+            gl::UniformMatrix4fv(self.0.location, count as i32, gl::FALSE, array.as_ptr());
         }
     }
 }

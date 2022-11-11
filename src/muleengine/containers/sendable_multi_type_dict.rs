@@ -84,7 +84,7 @@ impl SendableMultiTypeDict {
     ) -> SendableMultiTypeDictInsertResult<dyn Any + Send + Sync + 'static> {
         let new_item: SendableMultiTypeDictItem<dyn Any + Send + Sync + 'static> =
             SendableMultiTypeDictItem {
-                type_id: type_id,
+                type_id,
                 item: Arc::new(item),
             };
 
@@ -100,8 +100,7 @@ impl SendableMultiTypeDict {
         let type_id = TypeId::of::<ItemType>();
 
         self.get_item_ref_any(type_id)
-            .map(|item| item.downcast::<ItemType>())
-            .flatten()
+            .and_then(|item| item.downcast::<ItemType>())
     }
 
     pub fn get_or_insert_item_ref<ItemType>(
@@ -134,7 +133,7 @@ impl SendableMultiTypeDict {
         &self,
         type_id: TypeId,
     ) -> Option<SendableMultiTypeDictItem<dyn Any + Send + Sync + 'static>> {
-        self.storage.get(&type_id).map(|item| item.clone())
+        self.storage.get(&type_id).cloned()
     }
 
     pub fn remove<ItemType>(&mut self) -> Option<SendableMultiTypeDictItem<ItemType>>
@@ -144,8 +143,7 @@ impl SendableMultiTypeDict {
         let type_id = TypeId::of::<ItemType>();
 
         self.remove_by_type_id(type_id)
-            .map(|item| item.downcast::<ItemType>())
-            .flatten()
+            .and_then(|item| item.downcast::<ItemType>())
     }
 
     pub fn remove_by_type_id(
@@ -184,6 +182,12 @@ impl<ItemType: ?Sized> SendableMultiTypeDictItem<ItemType> {
 
     pub fn type_id(&self) -> TypeId {
         self.type_id
+    }
+}
+
+impl Default for SendableMultiTypeDict {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

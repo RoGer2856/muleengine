@@ -1,3 +1,5 @@
+#![allow(clippy::type_complexity)]
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -17,6 +19,12 @@ pub struct GLMeshContainer {
             HashMap<*const GLMeshShaderProgram, Arc<RwLock<GLDrawableMesh>>>,
         ),
     >,
+}
+
+impl Default for GLMeshContainer {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl GLMeshContainer {

@@ -129,7 +129,7 @@ impl Renderer {
                     let gl_mesh_shader_program =
                         match self.gl_shader_program_container.get_mesh_shader_program(
                             &shader_path,
-                            &mut self.asset_container.asset_reader().read(),
+                            &self.asset_container.asset_reader().read(),
                         ) {
                             Ok(shader_program) => shader_program,
                             Err(e) => {

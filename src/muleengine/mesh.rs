@@ -224,9 +224,15 @@ impl MaterialTexture {
             image,
             texture_type: MaterialTextureType::from(texture_type),
             texture_map_mode: TextureMapMode::from(map_mode),
-            blend: blend,
+            blend,
             uv_channel_id: uv_index as usize,
         })
+    }
+}
+
+impl Default for Material {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -252,6 +258,12 @@ impl Bone {
             name,
             transform_matrix,
         }
+    }
+}
+
+impl Default for Mesh {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -319,8 +331,7 @@ impl Mesh {
                 bone_weights
                     .sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
-                let mut bone_weight_counter = 0;
-                for bone_weight in bone_weights {
+                for (bone_weight_counter, bone_weight) in bone_weights.into_iter().enumerate() {
                     match bone_weight_counter {
                         0 => {
                             vertex_bone_weight.bone_ids.x = bone_weight.0 as usize;
@@ -340,7 +351,6 @@ impl Mesh {
                         }
                         _ => (),
                     }
-                    bone_weight_counter += 1;
                 }
 
                 let mut vertex_uv_channels = Vec::new();
@@ -445,12 +455,12 @@ impl Mesh {
             let material_texture = MaterialTexture::from_assimp_material_texture(
                 asset_reader,
                 parent_path(scene_path.clone()),
-                &ai_material,
+                ai_material,
                 assimp_sys::AiTextureType::Diffuse,
                 0,
                 image_container,
             )
-            .map_err(|e| MeshConvertError::Utf8Error(e))?;
+            .map_err(MeshConvertError::Utf8Error)?;
 
             material.add_texture(material_texture);
         }
@@ -462,12 +472,12 @@ impl Mesh {
             let material_texture = MaterialTexture::from_assimp_material_texture(
                 asset_reader,
                 parent_path(scene_path.clone()),
-                &ai_material,
+                ai_material,
                 assimp_sys::AiTextureType::Normals,
                 0,
                 image_container,
             )
-            .map_err(|e| MeshConvertError::Utf8Error(e))?;
+            .map_err(MeshConvertError::Utf8Error)?;
 
             material.add_texture(material_texture);
         }
@@ -482,12 +492,12 @@ impl Mesh {
             let material_texture = MaterialTexture::from_assimp_material_texture(
                 asset_reader,
                 parent_path(scene_path.clone()),
-                &ai_material,
+                ai_material,
                 assimp_sys::AiTextureType::Displacement,
                 0,
                 image_container,
             )
-            .map_err(|e| MeshConvertError::Utf8Error(e))?;
+            .map_err(MeshConvertError::Utf8Error)?;
 
             material.add_texture(material_texture);
         }
@@ -499,12 +509,12 @@ impl Mesh {
             let material_texture = MaterialTexture::from_assimp_material_texture(
                 asset_reader,
                 parent_path(scene_path.clone()),
-                &ai_material,
+                ai_material,
                 assimp_sys::AiTextureType::Height,
                 0,
                 image_container,
             )
-            .map_err(|e| MeshConvertError::Utf8Error(e))?;
+            .map_err(MeshConvertError::Utf8Error)?;
 
             material.add_texture(material_texture);
         }
@@ -515,13 +525,13 @@ impl Mesh {
         {
             let material_texture = MaterialTexture::from_assimp_material_texture(
                 asset_reader,
-                parent_path(scene_path.clone()),
-                &ai_material,
+                parent_path(scene_path),
+                ai_material,
                 assimp_sys::AiTextureType::Specular,
                 0,
                 image_container,
             )
-            .map_err(|e| MeshConvertError::Utf8Error(e))?;
+            .map_err(MeshConvertError::Utf8Error)?;
 
             material.add_texture(material_texture);
         }
@@ -533,8 +543,7 @@ impl Mesh {
         for property in material_properties {
             let property = unsafe { &**property };
 
-            let key =
-                ai_string_to_str(&property.key).map_err(|e| MeshConvertError::Utf8Error(e))?;
+            let key = ai_string_to_str(&property.key).map_err(MeshConvertError::Utf8Error)?;
             if key == "$clr.diffuse" {
                 if property.data_length == 12 {
                     let color = unsafe { *(property.data as *const assimp_sys::AiColor3D) };
@@ -692,9 +701,9 @@ impl Mesh {
                 bitangent_vectors[index_c].push(bitangent);
             }
 
-            for vertex_index in 0..tangent_vectors.len() {
+            for (vertex_index, tangent_vectors_for_vertex) in tangent_vectors.iter().enumerate() {
                 let mut sum = vek::Vec3::broadcast(0.0);
-                for v in tangent_vectors[vertex_index].iter() {
+                for v in tangent_vectors_for_vertex.iter() {
                     sum += *v;
                 }
                 sum.normalize();
@@ -702,9 +711,10 @@ impl Mesh {
                 self.tangents[vertex_index] = sum;
             }
 
-            for vertex_index in 0..bitangent_vectors.len() {
+            for (vertex_index, bitangent_vectors_for_vertex) in bitangent_vectors.iter().enumerate()
+            {
                 let mut sum = vek::Vec3::broadcast(0.0);
-                for v in bitangent_vectors[vertex_index].iter() {
+                for v in bitangent_vectors_for_vertex.iter() {
                     sum += *v;
                 }
                 sum.normalize();
@@ -777,7 +787,7 @@ impl Scene {
                         materials,
                         image_container,
                     )
-                    .map(|mesh| Arc::new(mesh)),
+                    .map(Arc::new),
                 );
             }
         }
@@ -798,10 +808,10 @@ impl Scene {
                 })?;
 
         let mut tmp_file =
-            tempfile::NamedTempFile::new().map_err(|e| SceneLoadError::CannotCreateTempFile(e))?;
+            tempfile::NamedTempFile::new().map_err(SceneLoadError::CannotCreateTempFile)?;
 
         std::io::copy(&mut reader, tmp_file.as_file_mut())
-            .map_err(|e| SceneLoadError::TempFileCopyError(e))?;
+            .map_err(SceneLoadError::TempFileCopyError)?;
 
         let mut importer = assimp::Importer::new();
         importer.triangulate(true);
@@ -829,7 +839,7 @@ impl Scene {
         importer.fbx_read_textures(false);
 
         let scene = importer
-            .read_file(&tmp_file.path().to_str().ok_or(SceneLoadError::Unexpected)?)
+            .read_file(tmp_file.path().to_str().ok_or(SceneLoadError::Unexpected)?)
             .map_err(|e| SceneLoadError::AssimpReadError(e.to_string()))?;
 
         Ok(Self::from_assimp_scene(

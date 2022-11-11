@@ -61,7 +61,7 @@ where
     }
 
     pub fn release_object_by_key(&mut self, key: &KeyType) -> Option<(KeyType, ValueType)> {
-        match self.map_of_indices.get(&key) {
+        match self.map_of_indices.get(key) {
             Some(index) => self.release_object_by_index(*index),
             None => None,
         }
@@ -117,7 +117,16 @@ where
     ) -> Option<ObjectMapPoolIndex> {
         self.object_pool
             .first_index(|(key, value)| pred(key, value))
-            .map(|index| ObjectMapPoolIndex(index))
+            .map(ObjectMapPoolIndex)
+    }
+}
+
+impl<KeyType, ValueType> Default for ObjectMapPool<KeyType, ValueType>
+where
+    KeyType: Clone + Ord,
+{
+    fn default() -> Self {
+        Self::new()
     }
 }
 

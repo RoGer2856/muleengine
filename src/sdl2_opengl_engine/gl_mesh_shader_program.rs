@@ -124,7 +124,7 @@ impl GLMeshShaderProgram {
         shader_program.attach_shader(fragment_shader);
         shader_program
             .link_program()
-            .map_err(|e| GLMeshShaderProgramError::ShaderProgramError(e))?;
+            .map_err(GLMeshShaderProgramError::ShaderProgramError)?;
 
         let attributes = Attributes {
             position: shader_program.get_attribute_by_name("position"),

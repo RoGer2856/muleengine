@@ -33,6 +33,12 @@ pub struct DrawableObjectStorage {
     objects: ObjectPool<Object>,
 }
 
+impl Default for DrawableObjectStorage {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DrawableObjectStorage {
     pub fn new() -> Self {
         Self {

@@ -3,16 +3,12 @@ pub fn canonicalize_path(path: String) -> String {
         path
     } else {
         let path = path.replace('\\', "/");
-        let is_absolute = if let Some('/') = path.chars().nth(0) {
-            true
-        } else {
-            false
-        };
+        let is_absolute = matches!(path.chars().next(), Some('/'));
 
         let mut components = Vec::new();
 
-        for component in path.split("/") {
-            if let None = component.chars().find(|chr| *chr != '.') {
+        for component in path.split('/') {
+            if !component.chars().any(|chr| chr != '.') {
                 // component contains only dots ('.')
                 let number_of_dots = component.len();
                 for _ in 1..number_of_dots {
@@ -31,14 +27,14 @@ pub fn canonicalize_path(path: String) -> String {
         let mut first = true;
         for component in components {
             if !first {
-                ret.push_str("/");
+                ret.push('/');
             } else {
                 first = false;
                 if is_absolute {
-                    ret.push_str("/");
+                    ret.push('/');
                 }
             }
-            ret.push_str(&component);
+            ret.push_str(component);
         }
 
         ret
@@ -48,13 +44,18 @@ pub fn canonicalize_path(path: String) -> String {
 pub fn parent_path(path: String) -> String {
     std::path::Path::new(&canonicalize_path(path))
         .ancestors()
-        .skip(1)
-        .next()
+        .nth(1)
         .map_or("".to_string(), |path| path.to_str().unwrap().to_string())
 }
 
 #[derive(Clone)]
 pub struct AssetReader {}
+
+impl Default for AssetReader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl AssetReader {
     pub fn new() -> Self {

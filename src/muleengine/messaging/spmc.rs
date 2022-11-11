@@ -1,3 +1,5 @@
+#![allow(clippy::type_complexity)]
+
 use std::collections::VecDeque;
 use std::sync::Arc;
 
@@ -66,6 +68,15 @@ where
         while let Some(id) = to_be_removed_guard.pop() {
             receiver_queues_guard.release_object(id);
         }
+    }
+}
+
+impl<T> Default for Sender<T>
+where
+    T: Clone,
+{
+    fn default() -> Self {
+        Self::new()
     }
 }
 

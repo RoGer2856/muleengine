@@ -54,7 +54,7 @@ impl DrawableObject for GLDrawableMesh {
         object_matrix: &Mat4<f32>,
     ) {
         GLDrawableMesh::render(
-            &self,
+            self,
             eye_position,
             projection_matrix,
             view_matrix,
@@ -186,7 +186,7 @@ impl GLDrawableMesh {
             if let Some(attribute) = &gl_mesh_shader_program.attributes.uv_channels {
                 for i in 0..gl_mesh.uv_channel_vbos.len() {
                     let uv_channel_vbo = &gl_mesh.uv_channel_vbos[i];
-                    vao_interface.bind_vbo_to_shader_attrib_array(&uv_channel_vbo, attribute, i);
+                    vao_interface.bind_vbo_to_shader_attrib_array(uv_channel_vbo, attribute, i);
                 }
             }
 
@@ -222,25 +222,25 @@ impl GLDrawableMesh {
         self.gl_mesh_shader_program.shader_program.use_program();
 
         if let Some(uniform) = &self.gl_mesh_shader_program.uniforms.eye_position {
-            uniform.send_uniform_3fv(eye_position.as_ptr(), 1);
+            uniform.send_uniform_3fv(eye_position.as_slice(), 1);
         }
 
         if let Some(uniform) = &self.gl_mesh_shader_program.uniforms.object_matrix {
-            uniform.send_uniform_matrix_4fv(object_matrix.as_col_ptr(), 1);
+            uniform.send_uniform_matrix_4fv(object_matrix.as_col_slice(), 1);
         }
 
         if let Some(uniform) = &self.gl_mesh_shader_program.uniforms.view_matrix {
-            uniform.send_uniform_matrix_4fv(view_matrix.as_col_ptr(), 1);
+            uniform.send_uniform_matrix_4fv(view_matrix.as_col_slice(), 1);
         }
 
         if let Some(uniform) = &self.gl_mesh_shader_program.uniforms.projection_matrix {
-            uniform.send_uniform_matrix_4fv(projection_matrix.as_col_ptr(), 1);
+            uniform.send_uniform_matrix_4fv(projection_matrix.as_col_slice(), 1);
         }
 
         if let Some(uniform) = &self.gl_mesh_shader_program.uniforms.normal_matrix {
             let mut normal_matrix = object_matrix.inverted_affine_transform();
             normal_matrix.transpose();
-            uniform.send_uniform_matrix_4fv(normal_matrix.as_col_ptr(), 1);
+            uniform.send_uniform_matrix_4fv(normal_matrix.as_col_slice(), 1);
         }
 
         let bone_transforms = self
@@ -248,7 +248,8 @@ impl GLDrawableMesh {
             .as_ref()
             .unwrap_or(&self.gl_mesh.bone_transforms);
         if let Some(uniform) = &self.gl_mesh_shader_program.uniforms.bones {
-            uniform.send_uniform_matrix_4fv(bone_transforms[0].as_col_ptr(), bone_transforms.len());
+            uniform
+                .send_uniform_matrix_4fv(bone_transforms[0].as_col_slice(), bone_transforms.len());
         }
 
         let material = self.material.as_ref().unwrap_or(&self.gl_mesh.material);
@@ -305,15 +306,15 @@ impl GLDrawableMesh {
         }
 
         if let Some(uniform) = &self.gl_mesh_shader_program.uniforms.albedo_color {
-            uniform.send_uniform_3fv(material.albedo_color.as_ptr(), 1);
+            uniform.send_uniform_3fv(material.albedo_color.as_slice(), 1);
         }
 
         if let Some(uniform) = &self.gl_mesh_shader_program.uniforms.emissive_color {
-            uniform.send_uniform_3fv(material.emissive_color.as_ptr(), 1);
+            uniform.send_uniform_3fv(material.emissive_color.as_slice(), 1);
         }
 
         if let Some(uniform) = &self.gl_mesh_shader_program.uniforms.shininess_color {
-            uniform.send_uniform_3fv(material.shininess_color.as_ptr(), 1);
+            uniform.send_uniform_3fv(material.shininess_color.as_slice(), 1);
         }
 
         self.vertex_array_object.use_vao(|| {
@@ -355,7 +356,7 @@ impl GLDrawableMesh {
 }
 
 fn find_texture_with_min_uv_id(
-    textures: &Vec<GLMaterialTexture>,
+    textures: &[GLMaterialTexture],
     texture_type: MaterialTextureType,
 ) -> Option<&GLMaterialTexture> {
     textures

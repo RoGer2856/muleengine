@@ -13,6 +13,12 @@ pub struct SystemContainer {
     systems: Vec<Arc<RwLock<dyn System>>>,
 }
 
+impl Default for SystemContainer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SystemContainer {
     pub fn new() -> Self {
         Self {

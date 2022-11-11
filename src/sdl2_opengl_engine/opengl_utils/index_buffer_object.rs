@@ -105,7 +105,7 @@ impl IndexBufferObject {
 impl Drop for IndexBufferObject {
     fn drop(&mut self) {
         unsafe {
-            gl::DeleteBuffers(1, &mut self.buffer_id);
+            gl::DeleteBuffers(1, &self.buffer_id);
         }
     }
 }
