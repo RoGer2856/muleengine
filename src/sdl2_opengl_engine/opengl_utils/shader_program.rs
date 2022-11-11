@@ -23,6 +23,12 @@ pub struct ShaderProgram {
     uniforms: Vec<Result<ShaderUniform, FromUtf8Error>>,
 }
 
+impl Default for ShaderProgram {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ShaderProgram {
     pub fn new() -> Self {
         let program_id = unsafe { gl::CreateProgram() };
@@ -60,8 +66,8 @@ impl ShaderProgram {
             );
             error_log.resize(actual_info_log_length as usize, 0);
 
-            let error_msg = String::from_utf8(error_log)
-                .map_err(|e| ShaderProgramError::LinkErrorToString(e))?;
+            let error_msg =
+                String::from_utf8(error_log).map_err(ShaderProgramError::LinkErrorToString)?;
 
             Ok(error_msg)
         } else {
@@ -78,7 +84,7 @@ impl ShaderProgram {
 
             let info_log = self.get_program_info_log()?;
 
-            if info_log.len() > 0 {
+            if !info_log.is_empty() {
                 Err(ShaderProgramError::LinkError {
                     error_msg: info_log,
                 })
@@ -101,7 +107,7 @@ impl ShaderProgram {
             if validate_status == 0 {
                 let info_log = self.get_program_info_log()?;
 
-                if info_log.len() > 0 {
+                if !info_log.is_empty() {
                     Err(ShaderProgramError::ValidateError {
                         error_msg: info_log,
                     })

@@ -16,6 +16,12 @@ pub struct ServiceContainer {
     service_dict: Arc<RwLock<SendableMultiTypeDict>>,
 }
 
+impl Default for ServiceContainer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ServiceMissingError {
     pub fn new<ServiceType>() -> Self {
         Self {

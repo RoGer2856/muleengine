@@ -9,6 +9,12 @@ pub struct SceneContainer {
     scenes: HashMap<String, Arc<Scene>>,
 }
 
+impl Default for SceneContainer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SceneContainer {
     pub fn new() -> Self {
         Self {

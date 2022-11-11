@@ -10,6 +10,12 @@ pub struct GLShaderProgramContainer {
     mesh_shader_programs: HashMap<String, Arc<GLMeshShaderProgram>>,
 }
 
+impl Default for GLShaderProgramContainer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GLShaderProgramContainer {
     pub fn new() -> Self {
         Self {

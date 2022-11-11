@@ -72,7 +72,7 @@ async fn async_main() {
     };
 
     tokio::spawn(populate_with_objects(
-        service_container.clone(),
+        service_container,
         renderer_client.clone(),
     ));
 
@@ -151,7 +151,7 @@ async fn populate_with_objects(
         let mesh = Arc::new(mesh_creator::capsule::create(0.5, 2.0, 16));
 
         renderer_client.add_drawable_mesh(
-            mesh.clone(),
+            mesh,
             transform,
             None,
             "Assets/shaders/lit_wo_normal".to_string(),
@@ -209,7 +209,7 @@ fn add_skybox(asset_container: &AssetContainer, renderer_client: Box<dyn Rendere
         .unwrap();
 
     if scene.meshes_ref().len() == 6 {
-        let textures = [
+        let texture_paths = [
             "Assets/objects/skybox/skyboxRight.png",
             "Assets/objects/skybox/skyboxLeft.png",
             "Assets/objects/skybox/skyboxTop.png",
@@ -217,13 +217,13 @@ fn add_skybox(asset_container: &AssetContainer, renderer_client: Box<dyn Rendere
             "Assets/objects/skybox/skyboxFront.png",
             "Assets/objects/skybox/skyboxBack.png",
         ];
-        for index in 0..6 {
+        for (index, texture_path) in texture_paths.iter().enumerate() {
             let material = Material {
                 textures: vec![MaterialTexture {
                     image: asset_container
                         .image_container()
                         .write()
-                        .get_image(textures[index], &asset_container.asset_reader().read()),
+                        .get_image(texture_path, &asset_container.asset_reader().read()),
                     texture_type: MaterialTextureType::Albedo,
                     texture_map_mode: TextureMapMode::Clamp,
                     blend: 0.0,

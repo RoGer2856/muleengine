@@ -62,7 +62,7 @@ impl Shader {
                 error_log.resize(actual_info_log_length as usize, 0);
 
                 let error_msg = String::from_utf8(error_log)
-                    .map_err(|e| ShaderCreationError::CompilationErrorToString(e))?;
+                    .map_err(ShaderCreationError::CompilationErrorToString)?;
 
                 Err(ShaderCreationError::CompilationError { error_msg })?
             }

@@ -135,7 +135,7 @@ impl System for SpectatorCameraControllerSystem {
 
         let mut axis_z = self.camera.axis_z();
         axis_z.y = 0.0;
-        let axis_z = axis_z.try_normalized().unwrap_or(Vec3::zero());
+        let axis_z = axis_z.try_normalized().unwrap_or_else(Vec3::zero);
         let corrected_moving_direction = self.camera.axis_x() * moving_direction.x
             + Vec3::unit_y() * moving_direction.y
             + axis_z * moving_direction.z;

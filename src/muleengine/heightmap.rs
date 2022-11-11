@@ -12,6 +12,8 @@ impl HeightMap {
         relief_map_image: &'a Image,
         mask_map_image: Option<&'b Image>,
     ) -> Result<Self, &'static str> {
+        #![allow(clippy::needless_range_loop)]
+
         if relief_map_image.width() == 0 || relief_map_image.height() == 0 {
             Err("the dimensions of the relief maps are 0")
         } else {

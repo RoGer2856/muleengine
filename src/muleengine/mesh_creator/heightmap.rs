@@ -116,8 +116,8 @@ pub fn create(height_map: &HeightMap) -> Mesh {
                 let normal = (normal0 + normal1 + normal2 + normal3 + normal4 + normal5) / 6.0;
 
                 mesh.add_vertex(
-                    Vec3::from(position_pivot - Vec3::new(center_x, center_y, center_z)),
-                    Vec3::from(normal),
+                    position_pivot - Vec3::new(center_x, center_y, center_z),
+                    normal,
                     None,
                     None,
                     vec![Vec2::new(x_f32 / column_count_f32, y_f32 / row_count_f32)],

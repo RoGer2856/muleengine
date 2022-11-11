@@ -34,6 +34,12 @@ pub struct ObjectPool<T> {
     number_of_items: usize,
 }
 
+impl<T> Default for ObjectPool<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T> ObjectPool<T> {
     pub fn new() -> Self {
         ObjectPool {
@@ -61,7 +67,7 @@ impl<T> ObjectPool<T> {
                 self.number_of_items += 1;
 
                 ObjectPoolIndex {
-                    index: index,
+                    index,
                     version: obj.version,
                 }
             }
@@ -70,16 +76,13 @@ impl<T> ObjectPool<T> {
                 let version = 1;
 
                 self.objects.push(ObjectWrapper {
-                    version: version,
+                    version,
                     object: Some(value),
                 });
 
                 self.number_of_items += 1;
 
-                ObjectPoolIndex {
-                    index: index,
-                    version: version,
-                }
+                ObjectPoolIndex { index, version }
             }
         }
     }
@@ -113,7 +116,7 @@ impl<T> ObjectPool<T> {
             }
         }
 
-        return None;
+        None
     }
 
     pub fn get_mut(&mut self, index: ObjectPoolIndex) -> Option<&mut T> {
@@ -124,7 +127,7 @@ impl<T> ObjectPool<T> {
             }
         }
 
-        return None;
+        None
     }
 
     pub fn iter(&self) -> ObjectPoolIter<'_, T> {
@@ -144,20 +147,19 @@ impl<T> ObjectPool<T> {
     }
 
     pub fn first_index(&self, pred: impl Fn(&T) -> bool) -> Option<ObjectPoolIndex> {
-        if let Some(index) = self.objects.iter().position(|object_wrapper| {
-            if let Some(object) = object_wrapper.object.as_ref() {
-                pred(object)
-            } else {
-                false
-            }
-        }) {
-            Some(ObjectPoolIndex {
+        self.objects
+            .iter()
+            .position(|object_wrapper| {
+                if let Some(object) = object_wrapper.object.as_ref() {
+                    pred(object)
+                } else {
+                    false
+                }
+            })
+            .map(|index| ObjectPoolIndex {
                 index,
                 version: self.objects[index].version,
             })
-        } else {
-            None
-        }
     }
 }
 
@@ -169,7 +171,7 @@ impl<'a, T> Iterator for ObjectPoolIter<'a, T> {
     type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some(object_wrapper) = self.inner_iterator.next() {
+        for object_wrapper in self.inner_iterator.by_ref() {
             let object = object_wrapper.object.as_ref();
             if object.is_some() {
                 return object;
@@ -190,7 +192,7 @@ impl<'a, T> Iterator for ObjectPoolIterMut<'a, T> {
     type Item = &'a mut T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some(object_wrapper) = self.inner_iterator.next() {
+        for object_wrapper in self.inner_iterator.by_ref() {
             let object = object_wrapper.object.as_mut();
             if object.is_some() {
                 return object;
