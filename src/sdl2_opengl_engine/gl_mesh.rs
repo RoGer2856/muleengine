@@ -45,23 +45,7 @@ pub struct GLDrawableMesh {
     gl_mesh_shader_program: Arc<GLMeshShaderProgram>,
 }
 
-impl DrawableObject for GLDrawableMesh {
-    fn render(
-        &self,
-        eye_position: &Vec3<f32>,
-        projection_matrix: &Mat4<f32>,
-        view_matrix: &Mat4<f32>,
-        object_matrix: &Mat4<f32>,
-    ) {
-        GLDrawableMesh::render(
-            self,
-            eye_position,
-            projection_matrix,
-            view_matrix,
-            object_matrix,
-        );
-    }
-}
+impl DrawableObject for GLDrawableMesh {}
 
 impl GLMesh {
     pub fn new(mesh: Arc<Mesh>, gl_texture_container: &mut GLTextureContainer) -> Self {

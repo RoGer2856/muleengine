@@ -1,11 +1,21 @@
-use vek::{Mat4, Vec3};
+use std::any::Any;
 
-pub trait DrawableObject: 'static {
-    fn render(
-        &self,
-        eye_position: &Vec3<f32>,
-        projection_matrix: &Mat4<f32>,
-        view_matrix: &Mat4<f32>,
-        object_matrix: &Mat4<f32>,
-    );
+pub trait DrawableObjectAny {
+    fn as_any(&self) -> &dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+}
+
+pub trait DrawableObject: DrawableObjectAny + 'static {}
+
+impl<T> DrawableObjectAny for T
+where
+    T: DrawableObject,
+{
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
 }

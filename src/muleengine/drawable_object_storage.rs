@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
 use parking_lot::RwLock;
-use vek::{Mat4, Transform, Vec3};
+use vek::{Mat4, Transform};
 
 use super::{
-    containers::object_pool::{ObjectPool, ObjectPoolIndex},
+    containers::object_pool::{ObjectPool, ObjectPoolIndex, ObjectPoolIter},
     drawable_object::DrawableObject,
 };
 
@@ -26,6 +26,20 @@ impl DrawableObjectStorageIndex {
         std::mem::swap(&mut id, self);
 
         id
+    }
+}
+
+pub struct DrawableObjectStorageIter<'a> {
+    inner_iterator: ObjectPoolIter<'a, Object>,
+}
+
+impl<'a> Iterator for DrawableObjectStorageIter<'a> {
+    type Item = (&'a Mat4<f32>, &'a Arc<RwLock<dyn DrawableObject>>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner_iterator
+            .next()
+            .map(|object| (&object.transform, &object.drawable))
     }
 }
 
@@ -57,19 +71,9 @@ impl DrawableObjectStorage {
         }))
     }
 
-    pub fn render_all(
-        &mut self,
-        eye_position: &Vec3<f32>,
-        projection_matrix: &Mat4<f32>,
-        view_matrix: &Mat4<f32>,
-    ) {
-        for object in self.objects.iter_mut() {
-            object.drawable.read().render(
-                eye_position,
-                projection_matrix,
-                view_matrix,
-                &object.transform,
-            );
+    pub fn iter(&self) -> DrawableObjectStorageIter {
+        DrawableObjectStorageIter {
+            inner_iterator: self.objects.iter(),
         }
     }
 }

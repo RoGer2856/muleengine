@@ -13,7 +13,7 @@ use crate::{
         window_context::WindowContext,
     },
     sdl2_opengl_engine::{
-        gl_material::GLMaterial, gl_mesh_container::GLMeshContainer,
+        gl_material::GLMaterial, gl_mesh::GLDrawableMesh, gl_mesh_container::GLMeshContainer,
         gl_shader_program_container::GLShaderProgramContainer,
         gl_texture_container::GLTextureContainer,
     },
@@ -71,11 +71,18 @@ impl RendererImpl for Renderer {
         }
 
         let view_matrix = self.camera.compute_view_matrix();
-        self.drawable_object_storage.render_all(
-            &self.camera.transform.position,
-            &self.projection_matrix,
-            &view_matrix,
-        );
+        for (transform, drawable_object) in self.drawable_object_storage.iter() {
+            let guard = drawable_object.read();
+            let any_obj = guard.as_any();
+            if let Some(drawable_object) = any_obj.downcast_ref::<GLDrawableMesh>() {
+                drawable_object.render(
+                    &self.camera.transform.position,
+                    &self.projection_matrix,
+                    &view_matrix,
+                    transform,
+                );
+            }
+        }
 
         self.window_context.read().swap_buffers();
     }
