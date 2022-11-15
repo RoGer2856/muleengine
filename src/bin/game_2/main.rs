@@ -10,7 +10,7 @@ use game_2::{
         image_container::ImageContainer,
         mesh::{Material, MaterialTexture, MaterialTextureType, TextureMapMode},
         mesh_creator,
-        renderer::RendererClient,
+        renderer::{Renderer, RendererClient},
         scene_container::SceneContainer,
         service_container::ServiceContainer,
         system_container::SystemContainer,
@@ -58,6 +58,8 @@ async fn async_main() {
                 .read()
                 .clone(),
         );
+
+        let renderer_system = Renderer::new(renderer_system);
         let renderer_client = renderer_system.client();
 
         system_container.add_system(SpectatorCameraControllerSystem::new(
@@ -136,7 +138,7 @@ pub fn init_services() -> ServiceContainer {
 
 async fn populate_with_objects(
     service_container: ServiceContainer,
-    renderer_client: Box<dyn RendererClient>,
+    renderer_client: RendererClient,
 ) {
     let asset_container_arc = service_container.get_service::<AssetContainer>().unwrap();
     let asset_container = asset_container_arc.read();
@@ -194,7 +196,7 @@ async fn populate_with_objects(
     }
 }
 
-fn add_skybox(asset_container: &AssetContainer, renderer_client: Box<dyn RendererClient>) {
+fn add_skybox(asset_container: &AssetContainer, renderer_client: RendererClient) {
     let transform = Transform::<f32, f32, f32>::default();
 
     let scene_path = "Assets/objects/skybox/Skybox.obj";

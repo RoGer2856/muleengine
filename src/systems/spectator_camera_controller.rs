@@ -13,12 +13,12 @@ use crate::muleengine::{
 pub struct SpectatorCameraControllerSystem {
     camera: Camera,
     window_context: Arc<RwLock<dyn WindowContext>>,
-    renderer_client: Box<dyn RendererClient>,
+    renderer_client: RendererClient,
 }
 
 impl SpectatorCameraControllerSystem {
     pub fn new(
-        renderer_client: Box<dyn RendererClient>,
+        renderer_client: RendererClient,
         window_context: Arc<RwLock<dyn WindowContext>>,
     ) -> Self {
         Self {
