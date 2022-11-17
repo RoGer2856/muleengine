@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 use parking_lot::RwLock;
 use vek::{Mat4, Transform, Vec2};
@@ -7,7 +7,7 @@ use crate::{
     muleengine::{
         asset_container::AssetContainer,
         camera::Camera,
-        drawable_object_storage::{DrawableObjectStorage, DrawableObjectStorageIndex},
+        drawable_object::DrawableObject,
         mesh::{Material, Mesh},
         renderer::RendererImpl,
         window_context::WindowContext,
@@ -20,7 +20,10 @@ use crate::{
 };
 
 pub struct Renderer {
-    drawable_object_storage: DrawableObjectStorage,
+    drawable_meshes: BTreeMap<*const dyn DrawableObject, Arc<RwLock<GLDrawableMesh>>>,
+    #[allow(clippy::type_complexity)]
+    drawable_meshes_to_draw:
+        BTreeMap<*const dyn DrawableObject, (Mat4<f32>, Arc<RwLock<GLDrawableMesh>>)>,
 
     camera: Camera,
     projection_matrix: Mat4<f32>,
@@ -41,7 +44,8 @@ impl Renderer {
         asset_container: AssetContainer,
     ) -> Self {
         let mut ret = Self {
-            drawable_object_storage: DrawableObjectStorage::new(),
+            drawable_meshes: BTreeMap::new(),
+            drawable_meshes_to_draw: BTreeMap::new(),
 
             camera: Camera::new(),
             projection_matrix: Mat4::identity(),
@@ -71,29 +75,41 @@ impl RendererImpl for Renderer {
         }
 
         let view_matrix = self.camera.compute_view_matrix();
-        for (transform, drawable_object) in self.drawable_object_storage.iter() {
-            let guard = drawable_object.read();
-            let any_obj = guard.as_any();
-            if let Some(drawable_object) = any_obj.downcast_ref::<GLDrawableMesh>() {
-                drawable_object.render(
-                    &self.camera.transform.position,
-                    &self.projection_matrix,
-                    &view_matrix,
-                    transform,
-                );
-            }
+        for drawable_object in self.drawable_meshes_to_draw.values() {
+            drawable_object.1.read().render(
+                &self.camera.transform.position,
+                &self.projection_matrix,
+                &view_matrix,
+                &drawable_object.0,
+            );
         }
 
         self.window_context.read().swap_buffers();
     }
 
-    fn add_drawable_mesh(
+    fn add_drawable_object(
+        &mut self,
+        drawable_object: &Arc<RwLock<dyn DrawableObject>>,
+        transform: Transform<f32, f32, f32>,
+    ) {
+        let ptr: *const dyn DrawableObject = &*drawable_object.read();
+        self.drawable_meshes.get(&ptr).and_then(|mesh| {
+            self.drawable_meshes_to_draw
+                .insert(ptr, (Mat4::from(transform), mesh.clone()))
+        });
+    }
+
+    fn remove_drawable_object(&mut self, drawable_object: &Arc<RwLock<dyn DrawableObject>>) {
+        let ptr: *const dyn DrawableObject = &*drawable_object.read();
+        self.drawable_meshes_to_draw.remove(&ptr);
+    }
+
+    fn create_drawable_mesh(
         &mut self,
         mesh: Arc<Mesh>,
-        transform: Transform<f32, f32, f32>,
         material: Option<Material>,
         shader_path: String,
-    ) -> DrawableObjectStorageIndex {
+    ) -> Arc<RwLock<dyn DrawableObject>> {
         let gl_mesh_shader_program = match self
             .gl_shader_program_container
             .get_mesh_shader_program(&shader_path, &self.asset_container.asset_reader().read())
@@ -116,11 +132,10 @@ impl RendererImpl for Renderer {
             drawable_mesh.write().material = Some(material);
         }
 
-        let index = self
-            .drawable_object_storage
-            .add_drawable_object(drawable_mesh, transform);
+        self.drawable_meshes
+            .insert(&*drawable_mesh.read(), drawable_mesh.clone());
 
-        index
+        drawable_mesh
     }
 
     fn set_camera(&mut self, camera: Camera) {
