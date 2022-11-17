@@ -4,6 +4,8 @@ use std::{
     sync::Arc,
 };
 
+use super::super::prelude::*;
+
 pub struct MultiTypeDictItem<ItemType: ?Sized> {
     type_id: TypeId,
     item: Arc<ItemType>,
@@ -158,16 +160,12 @@ impl MultiTypeDict {
 
 impl MultiTypeDictItem<dyn Any + 'static> {
     pub fn downcast<CastType: 'static>(&self) -> Option<MultiTypeDictItem<CastType>> {
-        if self.item.is::<CastType>() {
-            let ptr = Arc::into_raw(self.item.clone()).cast::<CastType>();
-
-            Some(MultiTypeDictItem {
+        self.item
+            .downcast_arc::<CastType>()
+            .map(|item| MultiTypeDictItem {
                 type_id: self.type_id,
-                item: unsafe { Arc::from_raw(ptr) },
+                item,
             })
-        } else {
-            None
-        }
     }
 }
 

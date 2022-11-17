@@ -11,6 +11,7 @@ pub mod image_container;
 pub mod mesh;
 pub mod mesh_creator;
 pub mod messaging;
+pub mod prelude;
 pub mod renderer;
 pub mod result_option_inspect;
 pub mod scene_container;
