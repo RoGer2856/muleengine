@@ -6,12 +6,14 @@ use vek::{Transform, Vec2};
 
 use super::{
     camera::Camera,
+    containers::object_pool::{ObjectPool, ObjectPoolIndex},
     drawable_object::DrawableObject,
-    drawable_object_storage::{DrawableObjectStorage, DrawableObjectStorageIndex},
     mesh::{Material, Mesh},
     result_option_inspect::ResultInspector,
     system_container::System,
 };
+
+pub struct DrawableObjectIndex(ObjectPoolIndex);
 
 pub trait RendererImpl {
     fn render(&mut self);
@@ -36,14 +38,14 @@ pub trait RendererImpl {
 
 enum Command {
     AddDrawableObject {
-        drawable_object_id: DrawableObjectStorageIndex,
+        drawable_object_id: DrawableObjectIndex,
         transform: Transform<f32, f32, f32>,
     },
     CreateDrawableMesh {
         mesh: Arc<Mesh>,
         material: Option<Material>,
         shader_path: String,
-        result_sender: std_mpsc::Sender<DrawableObjectStorageIndex>,
+        result_sender: std_mpsc::Sender<DrawableObjectIndex>,
     },
     SetCamera {
         camera: Camera,
@@ -59,7 +61,7 @@ type CommandReceiver = mpsc::UnboundedReceiver<Command>;
 pub struct Renderer {
     renderer_impl: Box<dyn RendererImpl>,
 
-    drawable_object_storage: DrawableObjectStorage,
+    drawable_objects: ObjectPool<Arc<RwLock<dyn DrawableObject>>>,
 
     command_receiver: CommandReceiver,
     command_sender: CommandSender,
@@ -77,7 +79,7 @@ impl Renderer {
         Self {
             renderer_impl: Box::new(renderer_impl),
 
-            drawable_object_storage: DrawableObjectStorage::new(),
+            drawable_objects: ObjectPool::new(),
 
             command_receiver: receiver,
             command_sender: sender,
@@ -109,9 +111,9 @@ impl Renderer {
                         self.renderer_impl
                             .create_drawable_mesh(mesh, material, shader_path);
 
-                    let index = self
-                        .drawable_object_storage
-                        .add_drawable_object(drawable_object.clone());
+                    let index = DrawableObjectIndex(
+                        self.drawable_objects.create_object(drawable_object.clone()),
+                    );
 
                     let _ = result_sender
                         .send(index)
@@ -122,7 +124,7 @@ impl Renderer {
                     transform,
                 } => {
                     if let Some(drawable_object) =
-                        self.drawable_object_storage.get(drawable_object_id)
+                        self.drawable_objects.get_ref(drawable_object_id.0)
                     {
                         self.renderer_impl
                             .add_drawable_object(drawable_object, transform);
@@ -148,7 +150,7 @@ impl System for Renderer {
 impl RendererClient {
     pub fn add_drawable_object(
         &self,
-        drawable_object_id: DrawableObjectStorageIndex,
+        drawable_object_id: DrawableObjectIndex,
         transform: Transform<f32, f32, f32>,
     ) {
         let _ = self
@@ -165,7 +167,7 @@ impl RendererClient {
         mesh: Arc<Mesh>,
         material: Option<Material>,
         shader_path: String,
-    ) -> DrawableObjectStorageIndex {
+    ) -> DrawableObjectIndex {
         let (result_sender, result_receiver) = std_mpsc::channel();
         let _ = self
             .command_sender
