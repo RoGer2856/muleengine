@@ -4,7 +4,6 @@ pub mod asset_reader;
 pub mod camera;
 pub mod containers;
 pub mod drawable_object;
-pub mod drawable_object_storage;
 pub mod heightmap;
 pub mod image;
 pub mod image_container;
