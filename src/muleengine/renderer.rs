@@ -1,11 +1,13 @@
 use std::sync::{mpsc as std_mpsc, Arc};
 
+use parking_lot::RwLock;
 use tokio::sync::mpsc;
 use vek::{Transform, Vec2};
 
 use super::{
     camera::Camera,
-    drawable_object_storage::DrawableObjectStorageIndex,
+    drawable_object::DrawableObject,
+    drawable_object_storage::{DrawableObjectStorage, DrawableObjectStorageIndex},
     mesh::{Material, Mesh},
     result_option_inspect::ResultInspector,
     system_container::System,
@@ -13,21 +15,32 @@ use super::{
 
 pub trait RendererImpl {
     fn render(&mut self);
-    fn add_drawable_mesh(
+
+    fn set_window_dimensions(&mut self, dimensions: Vec2<usize>);
+    fn set_camera(&mut self, camera: Camera);
+
+    fn add_drawable_object(
+        &mut self,
+        drawable_object: &Arc<RwLock<dyn DrawableObject>>,
+        transform: Transform<f32, f32, f32>,
+    );
+    fn remove_drawable_object(&mut self, drawable_object: &Arc<RwLock<dyn DrawableObject>>);
+
+    fn create_drawable_mesh(
         &mut self,
         mesh: Arc<Mesh>,
-        transform: Transform<f32, f32, f32>,
         material: Option<Material>,
         shader_path: String,
-    ) -> DrawableObjectStorageIndex;
-    fn set_camera(&mut self, camera: Camera);
-    fn set_window_dimensions(&mut self, dimensions: Vec2<usize>);
+    ) -> Arc<RwLock<dyn DrawableObject>>;
 }
 
 enum Command {
-    AddDrawableMesh {
-        mesh: Arc<Mesh>,
+    AddDrawableObject {
+        drawable_object_id: DrawableObjectStorageIndex,
         transform: Transform<f32, f32, f32>,
+    },
+    CreateDrawableMesh {
+        mesh: Arc<Mesh>,
         material: Option<Material>,
         shader_path: String,
         result_sender: std_mpsc::Sender<DrawableObjectStorageIndex>,
@@ -46,6 +59,8 @@ type CommandReceiver = mpsc::UnboundedReceiver<Command>;
 pub struct Renderer {
     renderer_impl: Box<dyn RendererImpl>,
 
+    drawable_object_storage: DrawableObjectStorage,
+
     command_receiver: CommandReceiver,
     command_sender: CommandSender,
 }
@@ -61,6 +76,8 @@ impl Renderer {
 
         Self {
             renderer_impl: Box::new(renderer_impl),
+
+            drawable_object_storage: DrawableObjectStorage::new(),
 
             command_receiver: receiver,
             command_sender: sender,
@@ -82,22 +99,34 @@ impl Renderer {
     fn execute_command_queue(&mut self) {
         while let Ok(command) = self.command_receiver.try_recv() {
             match command {
-                Command::AddDrawableMesh {
+                Command::CreateDrawableMesh {
                     mesh,
-                    transform,
                     material,
                     shader_path,
                     result_sender,
                 } => {
-                    let index = self.renderer_impl.add_drawable_mesh(
-                        mesh,
-                        transform,
-                        material,
-                        shader_path,
-                    );
+                    let drawable_object =
+                        self.renderer_impl
+                            .create_drawable_mesh(mesh, material, shader_path);
+
+                    let index = self
+                        .drawable_object_storage
+                        .add_drawable_object(drawable_object.clone());
+
                     let _ = result_sender
                         .send(index)
-                        .inspect_err(|e| log::error!("AddDrawableMesh response error = {e:?}"));
+                        .inspect_err(|e| log::error!("CreateDrawableMesh response error = {e:?}"));
+                }
+                Command::AddDrawableObject {
+                    drawable_object_id,
+                    transform,
+                } => {
+                    if let Some(drawable_object) =
+                        self.drawable_object_storage.get(drawable_object_id)
+                    {
+                        self.renderer_impl
+                            .add_drawable_object(drawable_object, transform);
+                    }
                 }
                 Command::SetCamera { camera } => {
                     self.renderer_impl.set_camera(camera);
@@ -117,24 +146,36 @@ impl System for Renderer {
 }
 
 impl RendererClient {
-    pub fn add_drawable_mesh(
+    pub fn add_drawable_object(
+        &self,
+        drawable_object_id: DrawableObjectStorageIndex,
+        transform: Transform<f32, f32, f32>,
+    ) {
+        let _ = self
+            .command_sender
+            .send(Command::AddDrawableObject {
+                drawable_object_id,
+                transform,
+            })
+            .inspect_err(|e| log::error!("Adding drawable object to renderer, error = {e}"));
+    }
+
+    pub fn create_drawable_mesh(
         &self,
         mesh: Arc<Mesh>,
-        transform: Transform<f32, f32, f32>,
         material: Option<Material>,
         shader_path: String,
     ) -> DrawableObjectStorageIndex {
         let (result_sender, result_receiver) = std_mpsc::channel();
         let _ = self
             .command_sender
-            .send(Command::AddDrawableMesh {
+            .send(Command::CreateDrawableMesh {
                 mesh,
-                transform,
                 material,
                 shader_path,
                 result_sender,
             })
-            .inspect_err(|e| log::error!("Adding drawable object to renderer, error = {e}"));
+            .inspect_err(|e| log::error!("Creating drawable object, error = {e}"));
 
         match result_receiver
             .recv()

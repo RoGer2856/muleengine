@@ -152,12 +152,12 @@ async fn populate_with_objects(
 
         let mesh = Arc::new(mesh_creator::capsule::create(0.5, 2.0, 16));
 
-        renderer_client.add_drawable_mesh(
+        let id = renderer_client.create_drawable_mesh(
             mesh,
-            transform,
             None,
             "Assets/shaders/lit_wo_normal".to_string(),
         );
+        renderer_client.add_drawable_object(id, transform);
     }
 
     {
@@ -181,12 +181,12 @@ async fn populate_with_objects(
         for mesh in scene.meshes_ref().iter() {
             match &mesh {
                 Ok(mesh) => {
-                    renderer_client.add_drawable_mesh(
+                    let id = renderer_client.create_drawable_mesh(
                         mesh.clone(),
-                        transform,
                         None,
                         "Assets/shaders/lit_normal".to_string(),
                     );
+                    renderer_client.add_drawable_object(id, transform);
                 }
                 Err(e) => {
                     log::warn!("Invalid mesh in scene, path = {scene_path}, error = {e:?}")
@@ -239,12 +239,12 @@ fn add_skybox(asset_container: &AssetContainer, renderer_client: RendererClient)
 
             let mesh = scene.meshes_ref()[index].as_ref().unwrap().clone();
 
-            renderer_client.add_drawable_mesh(
+            let id = renderer_client.create_drawable_mesh(
                 mesh,
-                transform,
                 Some(material),
                 "Assets/shaders/unlit".to_string(),
             );
+            renderer_client.add_drawable_object(id, transform);
         }
     } else {
         panic!("Skybox does not contain exactly 6 meshes");

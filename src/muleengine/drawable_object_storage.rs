@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use parking_lot::RwLock;
-use vek::{Mat4, Transform};
 
 use super::{
     containers::object_pool::{ObjectPool, ObjectPoolIndex, ObjectPoolIter},
@@ -10,7 +9,6 @@ use super::{
 
 struct Object {
     drawable: Arc<RwLock<dyn DrawableObject>>,
-    transform: Mat4<f32>,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
@@ -34,12 +32,10 @@ pub struct DrawableObjectStorageIter<'a> {
 }
 
 impl<'a> Iterator for DrawableObjectStorageIter<'a> {
-    type Item = (&'a Mat4<f32>, &'a Arc<RwLock<dyn DrawableObject>>);
+    type Item = &'a Arc<RwLock<dyn DrawableObject>>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner_iterator
-            .next()
-            .map(|object| (&object.transform, &object.drawable))
+        self.inner_iterator.next().map(|object| &object.drawable)
     }
 }
 
@@ -63,11 +59,9 @@ impl DrawableObjectStorage {
     pub fn add_drawable_object(
         &mut self,
         drawable_object: Arc<RwLock<dyn DrawableObject>>,
-        transform: Transform<f32, f32, f32>,
     ) -> DrawableObjectStorageIndex {
         DrawableObjectStorageIndex(self.objects.create_object(Object {
             drawable: drawable_object,
-            transform: transform.into(),
         }))
     }
 
@@ -75,5 +69,9 @@ impl DrawableObjectStorage {
         DrawableObjectStorageIter {
             inner_iterator: self.objects.iter(),
         }
+    }
+
+    pub fn get(&self, id: DrawableObjectStorageIndex) -> Option<&Arc<RwLock<dyn DrawableObject>>> {
+        self.objects.get_ref(id.0).map(|object| &object.drawable)
     }
 }
