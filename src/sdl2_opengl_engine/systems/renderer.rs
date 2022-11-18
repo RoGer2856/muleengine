@@ -7,23 +7,26 @@ use crate::{
     muleengine::{
         asset_container::AssetContainer,
         camera::Camera,
-        drawable_object::DrawableObject,
         mesh::{Material, Mesh},
-        renderer::RendererImpl,
+        renderer::{DrawableMesh, DrawableObject, RendererImpl},
         window_context::WindowContext,
     },
     sdl2_opengl_engine::{
-        gl_material::GLMaterial, gl_mesh::GLDrawableMesh, gl_mesh_container::GLMeshContainer,
+        gl_material::GLMaterial,
+        gl_mesh::{GLDrawableMesh, GLMeshDrawableObject},
+        gl_mesh_container::GLMeshContainer,
         gl_shader_program_container::GLShaderProgramContainer,
         gl_texture_container::GLTextureContainer,
     },
 };
 
 pub struct Renderer {
-    drawable_meshes: BTreeMap<*const dyn DrawableObject, Arc<RwLock<GLDrawableMesh>>>,
+    meshes: BTreeMap<*const dyn DrawableMesh, Arc<RwLock<GLDrawableMesh>>>,
+
+    drawable_meshes: BTreeMap<*const dyn DrawableObject, Arc<RwLock<GLMeshDrawableObject>>>,
     #[allow(clippy::type_complexity)]
     drawable_meshes_to_draw:
-        BTreeMap<*const dyn DrawableObject, (Mat4<f32>, Arc<RwLock<GLDrawableMesh>>)>,
+        BTreeMap<*const dyn DrawableObject, (Mat4<f32>, Arc<RwLock<GLMeshDrawableObject>>)>,
 
     camera: Camera,
     projection_matrix: Mat4<f32>,
@@ -44,6 +47,8 @@ impl Renderer {
         asset_container: AssetContainer,
     ) -> Self {
         let mut ret = Self {
+            meshes: BTreeMap::new(),
+
             drawable_meshes: BTreeMap::new(),
             drawable_meshes_to_draw: BTreeMap::new(),
 
@@ -87,55 +92,85 @@ impl RendererImpl for Renderer {
         self.window_context.read().swap_buffers();
     }
 
-    fn add_drawable_object(
-        &mut self,
-        drawable_object: &Arc<RwLock<dyn DrawableObject>>,
-        transform: Transform<f32, f32, f32>,
-    ) {
-        let ptr: *const dyn DrawableObject = &*drawable_object.read();
-        self.drawable_meshes.get(&ptr).and_then(|mesh| {
-            self.drawable_meshes_to_draw
-                .insert(ptr, (Mat4::from(transform), mesh.clone()))
-        });
-    }
-
-    fn remove_drawable_object(&mut self, drawable_object: &Arc<RwLock<dyn DrawableObject>>) {
-        let ptr: *const dyn DrawableObject = &*drawable_object.read();
-        self.drawable_meshes_to_draw.remove(&ptr);
-    }
-
     fn create_drawable_mesh(
         &mut self,
         mesh: Arc<Mesh>,
+    ) -> Result<Arc<RwLock<dyn DrawableMesh>>, String> {
+        let gl_mesh = self
+            .gl_mesh_container
+            .get_drawable_mesh(mesh, &mut self.gl_texture_container);
+
+        let drawable_mesh = Arc::new(RwLock::new(GLDrawableMesh::new(gl_mesh)));
+
+        self.meshes
+            .insert(&*drawable_mesh.read(), drawable_mesh.clone());
+
+        Ok(drawable_mesh)
+    }
+
+    fn create_drawable_object_from_mesh(
+        &mut self,
+        mesh: &Arc<RwLock<dyn DrawableMesh>>,
         material: Option<Material>,
         shader_path: String,
-    ) -> Arc<RwLock<dyn DrawableObject>> {
+    ) -> Result<Arc<RwLock<dyn DrawableObject>>, String> {
         let gl_mesh_shader_program = match self
             .gl_shader_program_container
             .get_mesh_shader_program(&shader_path, &self.asset_container.asset_reader().read())
         {
-            Ok(shader_program) => shader_program,
-            Err(e) => {
-                log::error!("Error loading shader program, error = {e:?}");
-                todo!();
+            Ok(shader_program) => Ok(shader_program),
+            Err(e) => Err(format!("Error loading shader program, error = {e:?}")),
+        }?;
+
+        let ptr: *const dyn DrawableMesh = &*mesh.read();
+        if let Some(gl_mesh) = self.meshes.get(&ptr) {
+            let drawable_mesh = Arc::new(RwLock::new(GLMeshDrawableObject::new(
+                gl_mesh.read().gl_mesh().clone(),
+                gl_mesh_shader_program,
+            )));
+
+            self.drawable_meshes
+                .insert(&*drawable_mesh.read(), drawable_mesh.clone());
+
+            if let Some(material) = material {
+                let material = GLMaterial::new(&material, &mut self.gl_texture_container);
+                drawable_mesh.write().material = Some(material);
             }
-        };
 
-        let drawable_mesh = self.gl_mesh_container.get_drawable_mesh(
-            gl_mesh_shader_program,
-            mesh,
-            &mut self.gl_texture_container,
-        );
-
-        if let Some(material) = material {
-            let material = GLMaterial::new(&material, &mut self.gl_texture_container);
-            drawable_mesh.write().material = Some(material);
+            Ok(drawable_mesh)
+        } else {
+            Err("Error creating drawable object from mesh, error: could not found mesh".to_string())
         }
+    }
 
-        self.drawable_meshes
-            .insert(&*drawable_mesh.read(), drawable_mesh.clone());
+    fn add_drawable_object(
+        &mut self,
+        drawable_object: &Arc<RwLock<dyn DrawableObject>>,
+        transform: Transform<f32, f32, f32>,
+    ) -> Result<(), String> {
+        let ptr: *const dyn DrawableObject = &*drawable_object.read();
+        if let Some(mesh) = self.drawable_meshes.get(&ptr) {
+            self.drawable_meshes_to_draw
+                .insert(ptr, (Mat4::from(transform), mesh.clone()));
 
-        drawable_mesh
+            Ok(())
+        } else {
+            Err("Error adding drawable object, error: could not found drawable object".to_string())
+        }
+    }
+
+    fn remove_drawable_object(
+        &mut self,
+        drawable_object: &Arc<RwLock<dyn DrawableObject>>,
+    ) -> Result<(), String> {
+        let ptr: *const dyn DrawableObject = &*drawable_object.read();
+        if self.drawable_meshes_to_draw.remove(&ptr).is_some() {
+            Ok(())
+        } else {
+            Err(
+                "Error removing drawable object from renderer, error: could not found drawable object".to_string()
+            )
+        }
     }
 
     fn set_camera(&mut self, camera: Camera) {
