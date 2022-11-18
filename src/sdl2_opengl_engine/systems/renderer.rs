@@ -8,7 +8,7 @@ use crate::{
         asset_container::AssetContainer,
         camera::Camera,
         mesh::{Material, Mesh},
-        renderer::{DrawableMesh, DrawableObject, RendererImpl},
+        renderer::{renderer_impl::RendererImpl, DrawableMesh, DrawableObject},
         window_context::WindowContext,
     },
     sdl2_opengl_engine::{
