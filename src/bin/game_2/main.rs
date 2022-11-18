@@ -22,6 +22,27 @@ use game_2::{
 use parking_lot::RwLock;
 use vek::{Transform, Vec2, Vec3};
 
+fn main() {
+    env_logger::builder()
+        .filter_level(log::LevelFilter::Debug)
+        .init();
+
+    let multi_threaded = true;
+    let rt = if multi_threaded {
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+    } else {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+    };
+
+    rt.block_on(async_main());
+}
+
 async fn async_main() {
     let initial_window_dimensions = Vec2::new(800usize, 600usize);
 
@@ -109,20 +130,9 @@ async fn async_main() {
                 .write()
                 .warp_mouse_normalized_screen_space(Vec2::new(0.5, 0.5));
         }
+
+        tokio::task::yield_now().await;
     }
-}
-
-fn main() {
-    env_logger::builder()
-        .filter_level(log::LevelFilter::Debug)
-        .init();
-
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .unwrap();
-
-    rt.block_on(async_main());
 }
 
 pub fn init_services() -> ServiceContainer {
@@ -141,9 +151,9 @@ async fn populate_with_objects(
     renderer_client: RendererClient,
 ) {
     let asset_container_arc = service_container.get_service::<AssetContainer>().unwrap();
-    let asset_container = asset_container_arc.read();
+    let asset_container = asset_container_arc.read().clone();
 
-    add_skybox(&asset_container, renderer_client.clone());
+    add_skybox(asset_container.clone(), renderer_client.clone()).await;
 
     {
         let mut transform = Transform::<f32, f32, f32>::default();
@@ -152,16 +162,18 @@ async fn populate_with_objects(
 
         let mesh = Arc::new(mesh_creator::capsule::create(0.5, 2.0, 16));
 
-        let mesh_id = renderer_client.create_drawable_mesh(mesh).unwrap();
+        let mesh_id = renderer_client.create_drawable_mesh(mesh).await.unwrap();
         let drawable_object_id = renderer_client
             .create_drawable_object_from_mesh(
                 mesh_id,
                 None,
                 "Assets/shaders/lit_wo_normal".to_string(),
             )
+            .await
             .unwrap();
         renderer_client
             .add_drawable_object(drawable_object_id, transform)
+            .await
             .unwrap();
     }
 
@@ -186,16 +198,21 @@ async fn populate_with_objects(
         for mesh in scene.meshes_ref().iter() {
             match &mesh {
                 Ok(mesh) => {
-                    let mesh_id = renderer_client.create_drawable_mesh(mesh.clone()).unwrap();
+                    let mesh_id = renderer_client
+                        .create_drawable_mesh(mesh.clone())
+                        .await
+                        .unwrap();
                     let drawable_object_id = renderer_client
                         .create_drawable_object_from_mesh(
                             mesh_id,
                             None,
                             "Assets/shaders/lit_normal".to_string(),
                         )
+                        .await
                         .unwrap();
                     renderer_client
                         .add_drawable_object(drawable_object_id, transform)
+                        .await
                         .unwrap();
                 }
                 Err(e) => {
@@ -206,7 +223,7 @@ async fn populate_with_objects(
     }
 }
 
-fn add_skybox(asset_container: &AssetContainer, renderer_client: RendererClient) {
+async fn add_skybox(asset_container: AssetContainer, renderer_client: RendererClient) {
     let transform = Transform::<f32, f32, f32>::default();
 
     let scene_path = "Assets/objects/skybox/Skybox.obj";
@@ -249,16 +266,18 @@ fn add_skybox(asset_container: &AssetContainer, renderer_client: RendererClient)
 
             let mesh = scene.meshes_ref()[index].as_ref().unwrap().clone();
 
-            let mesh_id = renderer_client.create_drawable_mesh(mesh).unwrap();
+            let mesh_id = renderer_client.create_drawable_mesh(mesh).await.unwrap();
             let drawable_object_id = renderer_client
                 .create_drawable_object_from_mesh(
                     mesh_id,
                     Some(material),
                     "Assets/shaders/unlit".to_string(),
                 )
+                .await
                 .unwrap();
             renderer_client
                 .add_drawable_object(drawable_object_id, transform)
+                .await
                 .unwrap();
         }
     } else {
