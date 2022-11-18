@@ -1,7 +1,7 @@
-use std::sync::{mpsc as std_mpsc, Arc};
+use std::sync::Arc;
 
 use parking_lot::RwLock;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use vek::{Transform, Vec2};
 
 use super::{
@@ -60,19 +60,19 @@ pub trait RendererImpl {
 enum Command {
     CreateDrawableMesh {
         mesh: Arc<Mesh>,
-        result_sender: std_mpsc::Sender<Result<DrawableMeshId, RendererError>>,
+        result_sender: oneshot::Sender<Result<DrawableMeshId, RendererError>>,
     },
     CreateDrawableObjectFromMesh {
         mesh_id: DrawableMeshId,
         material: Option<Material>,
         shader_path: String,
-        result_sender: std_mpsc::Sender<Result<DrawableObjectId, RendererError>>,
+        result_sender: oneshot::Sender<Result<DrawableObjectId, RendererError>>,
     },
 
     AddDrawableObject {
         drawable_object_id: DrawableObjectId,
         transform: Transform<f32, f32, f32>,
-        result_sender: std_mpsc::Sender<Result<(), RendererError>>,
+        result_sender: oneshot::Sender<Result<(), RendererError>>,
     },
 
     SetCamera {
@@ -211,8 +211,11 @@ impl System for Renderer {
 }
 
 impl RendererClient {
-    pub fn create_drawable_mesh(&self, mesh: Arc<Mesh>) -> Result<DrawableMeshId, RendererError> {
-        let (result_sender, result_receiver) = std_mpsc::channel();
+    pub async fn create_drawable_mesh(
+        &self,
+        mesh: Arc<Mesh>,
+    ) -> Result<DrawableMeshId, RendererError> {
+        let (result_sender, result_receiver) = oneshot::channel();
         let _ = self
             .command_sender
             .send(Command::CreateDrawableMesh {
@@ -222,7 +225,7 @@ impl RendererClient {
             .inspect_err(|e| log::error!("Creating drawable mesh, error = {e}"));
 
         match result_receiver
-            .recv()
+            .await
             .inspect_err(|e| log::error!("Creating drawable mesh response error = {e}"))
         {
             Ok(ret) => ret,
@@ -230,13 +233,13 @@ impl RendererClient {
         }
     }
 
-    pub fn create_drawable_object_from_mesh(
+    pub async fn create_drawable_object_from_mesh(
         &self,
         mesh_id: DrawableMeshId,
         material: Option<Material>,
         shader_path: String,
     ) -> Result<DrawableObjectId, RendererError> {
-        let (result_sender, result_receiver) = std_mpsc::channel();
+        let (result_sender, result_receiver) = oneshot::channel();
         let _ = self
             .command_sender
             .send(Command::CreateDrawableObjectFromMesh {
@@ -248,7 +251,7 @@ impl RendererClient {
             .inspect_err(|e| log::error!("Creating drawable object from mesh, error = {e}"));
 
         match result_receiver
-            .recv()
+            .await
             .inspect_err(|e| log::error!("Creating drawable object from mesh response error = {e}"))
         {
             Ok(ret) => ret,
@@ -256,12 +259,12 @@ impl RendererClient {
         }
     }
 
-    pub fn add_drawable_object(
+    pub async fn add_drawable_object(
         &self,
         drawable_object_id: DrawableObjectId,
         transform: Transform<f32, f32, f32>,
     ) -> Result<(), RendererError> {
-        let (result_sender, result_receiver) = std_mpsc::channel();
+        let (result_sender, result_receiver) = oneshot::channel();
         let _ = self
             .command_sender
             .send(Command::AddDrawableObject {
@@ -272,7 +275,7 @@ impl RendererClient {
             .inspect_err(|e| log::error!("Adding drawable object to renderer, error = {e}"));
 
         match result_receiver
-            .recv()
+            .await
             .inspect_err(|e| log::error!("Adding drawable object to renderer response error = {e}"))
         {
             Ok(ret) => ret,
