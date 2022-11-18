@@ -10,7 +10,8 @@ use game_2::{
         image_container::ImageContainer,
         mesh::{Material, MaterialTexture, MaterialTextureType, TextureMapMode},
         mesh_creator,
-        renderer::{Renderer, RendererClient},
+        renderer::renderer_client::RendererClient,
+        renderer::renderer_system::Renderer,
         scene_container::SceneContainer,
         service_container::ServiceContainer,
         system_container::SystemContainer,
@@ -70,7 +71,7 @@ async fn async_main() {
         let mut system_container = SystemContainer::new();
 
         // creating renderer system
-        let renderer_system = renderer::Renderer::new(
+        let renderer_impl = renderer::Renderer::new(
             initial_window_dimensions,
             sdl2_gl_context.clone(),
             service_container
@@ -80,7 +81,7 @@ async fn async_main() {
                 .clone(),
         );
 
-        let renderer_system = Renderer::new(renderer_system);
+        let renderer_system = Renderer::new(renderer_impl);
         let renderer_client = renderer_system.client();
 
         system_container.add_system(SpectatorCameraControllerSystem::new(

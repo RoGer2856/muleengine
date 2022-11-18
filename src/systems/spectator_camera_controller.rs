@@ -5,7 +5,7 @@ use vek::{num_traits::Zero, Vec2, Vec3};
 
 use crate::muleengine::{
     camera::Camera,
-    renderer::RendererClient,
+    renderer::renderer_client::RendererClient,
     system_container::System,
     window_context::{Key, WindowContext},
 };
