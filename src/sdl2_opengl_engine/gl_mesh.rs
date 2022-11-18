@@ -3,8 +3,8 @@ use std::sync::Arc;
 use vek::{Mat4, Vec3, Vec4};
 
 use crate::muleengine::{
-    drawable_object::DrawableObject,
     mesh::{Bone, MaterialTextureType, Mesh},
+    renderer::{DrawableMesh, DrawableObject},
 };
 
 use super::{
@@ -39,13 +39,19 @@ pub struct GLMesh {
 
 pub struct GLDrawableMesh {
     gl_mesh: Arc<GLMesh>,
+}
+
+impl DrawableMesh for GLDrawableMesh {}
+
+pub struct GLMeshDrawableObject {
+    gl_mesh: Arc<GLMesh>,
     pub material: Option<GLMaterial>,
     bone_transforms: Option<Vec<Mat4<f32>>>,
     vertex_array_object: VertexArrayObject,
     gl_mesh_shader_program: Arc<GLMeshShaderProgram>,
 }
 
-impl DrawableObject for GLDrawableMesh {}
+impl DrawableObject for GLMeshDrawableObject {}
 
 impl GLMesh {
     pub fn new(mesh: Arc<Mesh>, gl_texture_container: &mut GLTextureContainer) -> Self {
@@ -150,7 +156,7 @@ impl GLMesh {
     }
 }
 
-impl GLDrawableMesh {
+impl GLMeshDrawableObject {
     pub fn new(gl_mesh: Arc<GLMesh>, gl_mesh_shader_program: Arc<GLMeshShaderProgram>) -> Self {
         let vertex_array_object = VertexArrayObject::new(|vao_interface| {
             vao_interface.use_index_buffer_object(&gl_mesh.index_buffer_object);
@@ -190,10 +196,6 @@ impl GLDrawableMesh {
             vertex_array_object,
             gl_mesh_shader_program,
         }
-    }
-
-    pub fn parent_material_ref(&self) -> &GLMaterial {
-        &self.gl_mesh.material
     }
 
     pub fn render(
@@ -336,6 +338,16 @@ impl GLDrawableMesh {
         } else if let Some(use_texture) = use_texture {
             use_texture.send_uniform_1i(0);
         }
+    }
+}
+
+impl GLDrawableMesh {
+    pub fn new(gl_mesh: Arc<GLMesh>) -> Self {
+        Self { gl_mesh }
+    }
+
+    pub fn gl_mesh(&self) -> &Arc<GLMesh> {
+        &self.gl_mesh
     }
 }
 
