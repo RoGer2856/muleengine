@@ -11,7 +11,7 @@ use crate::muleengine::{
 
 use super::{
     renderer_command::{Command, CommandSender},
-    DrawableMeshId, DrawableObjectId, RendererError,
+    DrawableMeshId, DrawableObjectId, RendererError, ShaderId,
 };
 
 #[derive(Clone)]
@@ -20,6 +20,25 @@ pub struct RendererClient {
 }
 
 impl RendererClient {
+    pub async fn create_shader(&self, shader_name: String) -> Result<ShaderId, RendererError> {
+        let (result_sender, result_receiver) = oneshot::channel();
+        let _ = self
+            .command_sender
+            .send(Command::CreateShader {
+                shader_name,
+                result_sender,
+            })
+            .inspect_err(|e| log::error!("Creating shader, error = {e}"));
+
+        match result_receiver
+            .await
+            .inspect_err(|e| log::error!("Creating shader response error = {e}"))
+        {
+            Ok(ret) => ret,
+            Err(_) => unreachable!(),
+        }
+    }
+
     pub async fn create_drawable_mesh(
         &self,
         mesh: Arc<Mesh>,
@@ -45,16 +64,16 @@ impl RendererClient {
     pub async fn create_drawable_object_from_mesh(
         &self,
         mesh_id: DrawableMeshId,
+        shader_id: ShaderId,
         material: Option<Material>,
-        shader_path: String,
     ) -> Result<DrawableObjectId, RendererError> {
         let (result_sender, result_receiver) = oneshot::channel();
         let _ = self
             .command_sender
             .send(Command::CreateDrawableObjectFromMesh {
                 mesh_id,
+                shader_id,
                 material,
-                shader_path,
                 result_sender,
             })
             .inspect_err(|e| log::error!("Creating drawable object from mesh, error = {e}"));

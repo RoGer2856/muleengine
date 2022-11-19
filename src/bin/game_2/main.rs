@@ -163,13 +163,13 @@ async fn populate_with_objects(
 
         let mesh = Arc::new(mesh_creator::capsule::create(0.5, 2.0, 16));
 
+        let shader_id = renderer_client
+            .create_shader("Assets/shaders/lit_wo_normal".to_string())
+            .await
+            .unwrap();
         let mesh_id = renderer_client.create_drawable_mesh(mesh).await.unwrap();
         let drawable_object_id = renderer_client
-            .create_drawable_object_from_mesh(
-                mesh_id,
-                None,
-                "Assets/shaders/lit_wo_normal".to_string(),
-            )
+            .create_drawable_object_from_mesh(mesh_id, shader_id, None)
             .await
             .unwrap();
         renderer_client
@@ -196,6 +196,10 @@ async fn populate_with_objects(
             )
             .unwrap();
 
+        let shader_id = renderer_client
+            .create_shader("Assets/shaders/lit_normal".to_string())
+            .await
+            .unwrap();
         for mesh in scene.meshes_ref().iter() {
             match &mesh {
                 Ok(mesh) => {
@@ -204,11 +208,7 @@ async fn populate_with_objects(
                         .await
                         .unwrap();
                     let drawable_object_id = renderer_client
-                        .create_drawable_object_from_mesh(
-                            mesh_id,
-                            None,
-                            "Assets/shaders/lit_normal".to_string(),
-                        )
+                        .create_drawable_object_from_mesh(mesh_id, shader_id, None)
                         .await
                         .unwrap();
                     renderer_client
@@ -247,6 +247,12 @@ async fn add_skybox(asset_container: AssetContainer, renderer_client: RendererCl
             "Assets/objects/skybox/skyboxFront.png",
             "Assets/objects/skybox/skyboxBack.png",
         ];
+
+        let shader_id = renderer_client
+            .create_shader("Assets/shaders/unlit".to_string())
+            .await
+            .unwrap();
+
         for (index, texture_path) in texture_paths.iter().enumerate() {
             let material = Material {
                 textures: vec![MaterialTexture {
@@ -269,11 +275,7 @@ async fn add_skybox(asset_container: AssetContainer, renderer_client: RendererCl
 
             let mesh_id = renderer_client.create_drawable_mesh(mesh).await.unwrap();
             let drawable_object_id = renderer_client
-                .create_drawable_object_from_mesh(
-                    mesh_id,
-                    Some(material),
-                    "Assets/shaders/unlit".to_string(),
-                )
+                .create_drawable_object_from_mesh(mesh_id, shader_id, Some(material))
                 .await
                 .unwrap();
             renderer_client

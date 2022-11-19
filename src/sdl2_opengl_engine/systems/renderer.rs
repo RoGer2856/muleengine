@@ -8,19 +8,21 @@ use crate::{
         asset_container::AssetContainer,
         camera::Camera,
         mesh::{Material, Mesh},
-        renderer::{renderer_impl::RendererImpl, DrawableMesh, DrawableObject},
+        renderer::{renderer_impl::RendererImpl, DrawableMesh, DrawableObject, Shader},
         window_context::WindowContext,
     },
     sdl2_opengl_engine::{
         gl_material::GLMaterial,
         gl_mesh::{GLDrawableMesh, GLMeshDrawableObject},
         gl_mesh_container::GLMeshContainer,
+        gl_mesh_shader_program::MEShaderImpl,
         gl_shader_program_container::GLShaderProgramContainer,
         gl_texture_container::GLTextureContainer,
     },
 };
 
 pub struct Renderer {
+    shaders: BTreeMap<*const dyn Shader, Arc<RwLock<MEShaderImpl>>>,
     meshes: BTreeMap<*const dyn DrawableMesh, Arc<RwLock<GLDrawableMesh>>>,
 
     drawable_meshes: BTreeMap<*const dyn DrawableObject, Arc<RwLock<GLMeshDrawableObject>>>,
@@ -47,6 +49,7 @@ impl Renderer {
         asset_container: AssetContainer,
     ) -> Self {
         let mut ret = Self {
+            shaders: BTreeMap::new(),
             meshes: BTreeMap::new(),
 
             drawable_meshes: BTreeMap::new(),
@@ -92,6 +95,22 @@ impl RendererImpl for Renderer {
         self.window_context.read().swap_buffers();
     }
 
+    fn create_shader(&mut self, shader_name: String) -> Result<Arc<RwLock<dyn Shader>>, String> {
+        let gl_mesh_shader_program = match self
+            .gl_shader_program_container
+            .get_mesh_shader_program(&shader_name, &self.asset_container.asset_reader().read())
+        {
+            Ok(shader_program) => Ok(shader_program),
+            Err(e) => Err(format!("Error loading shader program, error = {e:?}")),
+        }?;
+
+        let shader = Arc::new(RwLock::new(MEShaderImpl::new(gl_mesh_shader_program)));
+
+        self.shaders.insert(shader.data_ptr(), shader.clone());
+
+        Ok(shader)
+    }
+
     fn create_drawable_mesh(
         &mut self,
         mesh: Arc<Mesh>,
@@ -103,7 +122,7 @@ impl RendererImpl for Renderer {
         let drawable_mesh = Arc::new(RwLock::new(GLDrawableMesh::new(gl_mesh)));
 
         self.meshes
-            .insert(&*drawable_mesh.read(), drawable_mesh.clone());
+            .insert(drawable_mesh.data_ptr(), drawable_mesh.clone());
 
         Ok(drawable_mesh)
     }
@@ -111,36 +130,33 @@ impl RendererImpl for Renderer {
     fn create_drawable_object_from_mesh(
         &mut self,
         mesh: &Arc<RwLock<dyn DrawableMesh>>,
+        shader: &Arc<RwLock<dyn Shader>>,
         material: Option<Material>,
-        shader_path: String,
     ) -> Result<Arc<RwLock<dyn DrawableObject>>, String> {
-        let gl_mesh_shader_program = match self
-            .gl_shader_program_container
-            .get_mesh_shader_program(&shader_path, &self.asset_container.asset_reader().read())
-        {
-            Ok(shader_program) => Ok(shader_program),
-            Err(e) => Err(format!("Error loading shader program, error = {e:?}")),
-        }?;
+        let ptr: *const dyn Shader = shader.data_ptr();
+        let shader = self.shaders.get(&ptr).ok_or_else(|| {
+            "Error creating drawable object from mesh, error: could not found shader".to_string()
+        })?;
 
-        let ptr: *const dyn DrawableMesh = &*mesh.read();
-        if let Some(gl_mesh) = self.meshes.get(&ptr) {
-            let drawable_mesh = Arc::new(RwLock::new(GLMeshDrawableObject::new(
-                gl_mesh.read().gl_mesh().clone(),
-                gl_mesh_shader_program,
-            )));
+        let ptr: *const dyn DrawableMesh = mesh.data_ptr();
+        let gl_mesh = self.meshes.get(&ptr).ok_or_else(|| {
+            "Error creating drawable object from mesh, error: could not found mesh".to_string()
+        })?;
 
-            self.drawable_meshes
-                .insert(&*drawable_mesh.read(), drawable_mesh.clone());
+        let drawable_mesh = Arc::new(RwLock::new(GLMeshDrawableObject::new(
+            gl_mesh.read().gl_mesh().clone(),
+            shader.read().gl_mesh_shader_program().clone(),
+        )));
 
-            if let Some(material) = material {
-                let material = GLMaterial::new(&material, &mut self.gl_texture_container);
-                drawable_mesh.write().material = Some(material);
-            }
+        self.drawable_meshes
+            .insert(&*drawable_mesh.read(), drawable_mesh.clone());
 
-            Ok(drawable_mesh)
-        } else {
-            Err("Error creating drawable object from mesh, error: could not found mesh".to_string())
+        if let Some(material) = material {
+            let material = GLMaterial::new(&material, &mut self.gl_texture_container);
+            drawable_mesh.write().material = Some(material);
         }
+
+        Ok(drawable_mesh)
     }
 
     fn add_drawable_object(
@@ -148,22 +164,22 @@ impl RendererImpl for Renderer {
         drawable_object: &Arc<RwLock<dyn DrawableObject>>,
         transform: Transform<f32, f32, f32>,
     ) -> Result<(), String> {
-        let ptr: *const dyn DrawableObject = &*drawable_object.read();
-        if let Some(mesh) = self.drawable_meshes.get(&ptr) {
-            self.drawable_meshes_to_draw
-                .insert(ptr, (Mat4::from(transform), mesh.clone()));
+        let ptr: *const dyn DrawableObject = drawable_object.data_ptr();
+        let mesh = self.drawable_meshes.get(&ptr).ok_or_else(|| {
+            "Error adding drawable object, error: could not found drawable object".to_string()
+        })?;
 
-            Ok(())
-        } else {
-            Err("Error adding drawable object, error: could not found drawable object".to_string())
-        }
+        self.drawable_meshes_to_draw
+            .insert(ptr, (Mat4::from(transform), mesh.clone()));
+
+        Ok(())
     }
 
     fn remove_drawable_object(
         &mut self,
         drawable_object: &Arc<RwLock<dyn DrawableObject>>,
     ) -> Result<(), String> {
-        let ptr: *const dyn DrawableObject = &*drawable_object.read();
+        let ptr: *const dyn DrawableObject = drawable_object.data_ptr();
         if self.drawable_meshes_to_draw.remove(&ptr).is_some() {
             Ok(())
         } else {

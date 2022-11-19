@@ -1,6 +1,6 @@
-use std::io::Read;
+use std::{io::Read, sync::Arc};
 
-use crate::muleengine::asset_reader::AssetReader;
+use crate::muleengine::{asset_reader::AssetReader, renderer::Shader as MEShader};
 
 use super::opengl_utils::{
     shader::{Shader, ShaderCreationError, ShaderType},
@@ -49,6 +49,12 @@ pub struct GLMeshShaderProgram {
     pub(super) uniforms: Uniforms,
     pub(super) attributes: Attributes,
 }
+
+pub struct MEShaderImpl {
+    mesh_shader_program: Arc<GLMeshShaderProgram>,
+}
+
+impl MEShader for MEShaderImpl {}
 
 #[derive(Debug)]
 pub enum GLMeshShaderProgramError {
@@ -174,5 +180,17 @@ impl GLMeshShaderProgram {
 
     pub fn get_shader_base_path(&self) -> &String {
         &self.shader_base_path
+    }
+}
+
+impl MEShaderImpl {
+    pub fn new(mesh_shader_program: Arc<GLMeshShaderProgram>) -> Self {
+        Self {
+            mesh_shader_program,
+        }
+    }
+
+    pub fn gl_mesh_shader_program(&self) -> &Arc<GLMeshShaderProgram> {
+        &self.mesh_shader_program
     }
 }
