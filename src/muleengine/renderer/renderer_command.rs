@@ -8,17 +8,21 @@ use crate::muleengine::{
     mesh::{Material, Mesh},
 };
 
-use super::{DrawableMeshId, DrawableObjectId, RendererError};
+use super::{DrawableMeshId, DrawableObjectId, RendererError, ShaderId};
 
 pub enum Command {
+    CreateShader {
+        shader_name: String,
+        result_sender: oneshot::Sender<Result<ShaderId, RendererError>>,
+    },
     CreateDrawableMesh {
         mesh: Arc<Mesh>,
         result_sender: oneshot::Sender<Result<DrawableMeshId, RendererError>>,
     },
     CreateDrawableObjectFromMesh {
         mesh_id: DrawableMeshId,
+        shader_id: ShaderId,
         material: Option<Material>,
-        shader_path: String,
         result_sender: oneshot::Sender<Result<DrawableObjectId, RendererError>>,
     },
 

@@ -8,13 +8,15 @@ use crate::muleengine::{
     mesh::{Material, Mesh},
 };
 
-use super::{DrawableMesh, DrawableObject};
+use super::{DrawableMesh, DrawableObject, Shader};
 
 pub trait RendererImpl {
     fn render(&mut self);
 
     fn set_window_dimensions(&mut self, dimensions: Vec2<usize>);
     fn set_camera(&mut self, camera: Camera);
+
+    fn create_shader(&mut self, shader_name: String) -> Result<Arc<RwLock<dyn Shader>>, String>;
 
     fn create_drawable_mesh(
         &mut self,
@@ -24,8 +26,8 @@ pub trait RendererImpl {
     fn create_drawable_object_from_mesh(
         &mut self,
         mesh: &Arc<RwLock<dyn DrawableMesh>>,
+        shader: &Arc<RwLock<dyn Shader>>,
         material: Option<Material>,
-        shader_path: String,
     ) -> Result<Arc<RwLock<dyn DrawableObject>>, String>;
 
     fn add_drawable_object(

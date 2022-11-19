@@ -12,12 +12,14 @@ use super::{
     renderer_client::RendererClient,
     renderer_command::{Command, CommandReceiver, CommandSender},
     renderer_impl::RendererImpl,
-    DrawableMesh, DrawableMeshId, DrawableObject, DrawableObjectId, RendererError,
+    DrawableMesh, DrawableMeshId, DrawableObject, DrawableObjectId, RendererError, Shader,
+    ShaderId,
 };
 
 pub struct Renderer {
     renderer_impl: Box<dyn RendererImpl>,
 
+    shaders: ObjectPool<Arc<RwLock<dyn Shader>>>,
     drawable_meshes: ObjectPool<Arc<RwLock<dyn DrawableMesh>>>,
     drawable_objects: ObjectPool<Arc<RwLock<dyn DrawableObject>>>,
 
@@ -32,6 +34,7 @@ impl Renderer {
         Self {
             renderer_impl: Box::new(renderer_impl),
 
+            shaders: ObjectPool::new(),
             drawable_meshes: ObjectPool::new(),
             drawable_objects: ObjectPool::new(),
 
@@ -55,17 +58,33 @@ impl Renderer {
     fn execute_command_queue(&mut self) {
         while let Ok(command) = self.command_receiver.try_recv() {
             match command {
+                Command::CreateShader {
+                    shader_name,
+                    result_sender,
+                } => {
+                    let ret = self
+                        .renderer_impl
+                        .create_shader(shader_name)
+                        .map(|shader| ShaderId(self.shaders.create_object(shader.clone())))
+                        .map_err(RendererError::RendererImplError);
+
+                    let _ = result_sender
+                        .send(ret)
+                        .inspect_err(|e| log::error!("CreateShader response error = {e:?}"));
+                }
                 Command::CreateDrawableMesh {
                     mesh,
                     result_sender,
                 } => {
-                    let ret = match self.renderer_impl.create_drawable_mesh(mesh) {
-                        Ok(drawable_mesh) => {
-                            let index = self.drawable_meshes.create_object(drawable_mesh.clone());
-                            Ok(DrawableMeshId(index))
-                        }
-                        Err(err) => Err(RendererError::RendererImplError(err)),
-                    };
+                    let ret = self
+                        .renderer_impl
+                        .create_drawable_mesh(mesh)
+                        .map(|drawable_mesh| {
+                            DrawableMeshId(
+                                self.drawable_meshes.create_object(drawable_mesh.clone()),
+                            )
+                        })
+                        .map_err(RendererError::RendererImplError);
 
                     let _ = result_sender
                         .send(ret)
@@ -73,28 +92,33 @@ impl Renderer {
                 }
                 Command::CreateDrawableObjectFromMesh {
                     mesh_id,
+                    shader_id,
                     material,
-                    shader_path,
                     result_sender,
                 } => {
-                    let ret = if let Some(drawable_mesh) = self.drawable_meshes.get_ref(mesh_id.0) {
-                        match self.renderer_impl.create_drawable_object_from_mesh(
-                            drawable_mesh,
-                            material,
-                            shader_path,
-                        ) {
-                            Ok(drawable_object) => {
-                                let index =
-                                    self.drawable_objects.create_object(drawable_object.clone());
-                                Ok(DrawableObjectId(index))
-                            }
-                            Err(err) => Err(RendererError::RendererImplError(err)),
-                        }
-                    } else {
-                        Err(RendererError::InvalidDrawableMeshId(mesh_id))
+                    // the closure helps the readability of the code by enabling the usage of the ? operator
+                    let closure = || {
+                        let drawable_mesh = self
+                            .drawable_meshes
+                            .get_ref(mesh_id.0)
+                            .ok_or(RendererError::InvalidDrawableMeshId(mesh_id))?;
+
+                        let shader = self
+                            .shaders
+                            .get_ref(shader_id.0)
+                            .ok_or(RendererError::InvalidShaderId(shader_id))?;
+
+                        self.renderer_impl
+                            .create_drawable_object_from_mesh(drawable_mesh, shader, material)
+                            .map(|drawable_object| {
+                                DrawableObjectId(
+                                    self.drawable_objects.create_object(drawable_object.clone()),
+                                )
+                            })
+                            .map_err(RendererError::RendererImplError)
                     };
 
-                    let _ = result_sender.send(ret).inspect_err(|e| {
+                    let _ = result_sender.send(closure()).inspect_err(|e| {
                         log::error!("CreateDrawableObjectFromMesh response error = {e:?}")
                     });
                 }
