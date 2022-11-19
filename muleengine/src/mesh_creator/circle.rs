@@ -1,6 +1,6 @@
 use vek::{Mat4, Vec2, Vec3, Vec4};
 
-use crate::muleengine::mesh::{Bone, Mesh, VertexBoneWeight};
+use crate::mesh::{Bone, Mesh, VertexBoneWeight};
 
 pub fn create(radius: f32, resolution: i32) -> Mesh {
     let mut mesh = Mesh::new();

@@ -15,7 +15,7 @@ use sdl2::video::{GLContext, Window, WindowBuildError};
 use sdl2::{video, EventPump, Sdl, VideoSubsystem};
 use vek::Vec2;
 
-use crate::muleengine::window_context::{Event, EventSender, Key, MouseButton, WindowContext};
+use muleengine::window_context::{Event, EventSender, Key, MouseButton, WindowContext};
 
 pub struct Sdl2GLContext {
     sdl_context: Sdl,

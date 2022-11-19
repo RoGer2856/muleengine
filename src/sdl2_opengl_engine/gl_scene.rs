@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::muleengine::mesh::MeshConvertError;
+use muleengine::mesh::MeshConvertError;
 
 use super::gl_mesh::GLMesh;
 

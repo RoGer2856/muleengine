@@ -3,7 +3,7 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
 use vek::{Transform, Vec2};
 
-use crate::muleengine::{
+use crate::{
     camera::Camera,
     mesh::{Material, Mesh},
 };

@@ -1,5 +1,3 @@
-#![allow(unstable_name_collisions)]
-
 pub trait ResultInspector<T, E> {
     fn inspect(self, inspector_function: impl FnOnce(&T)) -> Self;
     fn inspect_err(self, inspector_function: impl FnOnce(&E)) -> Self;

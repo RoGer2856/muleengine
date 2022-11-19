@@ -1,24 +1,22 @@
 use std::{collections::BTreeMap, sync::Arc};
 
+use muleengine::{
+    asset_container::AssetContainer,
+    camera::Camera,
+    mesh::{Material, Mesh},
+    renderer::{renderer_impl::RendererImpl, DrawableMesh, DrawableObject, Shader},
+    window_context::WindowContext,
+};
 use parking_lot::RwLock;
 use vek::{Mat4, Transform, Vec2};
 
-use crate::{
-    muleengine::{
-        asset_container::AssetContainer,
-        camera::Camera,
-        mesh::{Material, Mesh},
-        renderer::{renderer_impl::RendererImpl, DrawableMesh, DrawableObject, Shader},
-        window_context::WindowContext,
-    },
-    sdl2_opengl_engine::{
-        gl_material::GLMaterial,
-        gl_mesh::{GLDrawableMesh, GLMeshDrawableObject},
-        gl_mesh_container::GLMeshContainer,
-        gl_mesh_shader_program::MEShaderImpl,
-        gl_shader_program_container::GLShaderProgramContainer,
-        gl_texture_container::GLTextureContainer,
-    },
+use crate::sdl2_opengl_engine::{
+    gl_material::GLMaterial,
+    gl_mesh::{GLDrawableMesh, GLMeshDrawableObject},
+    gl_mesh_container::GLMeshContainer,
+    gl_mesh_shader_program::MEShaderImpl,
+    gl_shader_program_container::GLShaderProgramContainer,
+    gl_texture_container::GLTextureContainer,
 };
 
 pub struct Renderer {

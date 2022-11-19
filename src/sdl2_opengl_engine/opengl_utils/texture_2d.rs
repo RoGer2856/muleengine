@@ -2,7 +2,7 @@ use std::{ffi::c_void, sync::Arc};
 
 use gl::types::GLuint;
 
-use crate::muleengine::image::{ColorType, Image};
+use muleengine::image::{ColorType, Image};
 
 #[derive(Clone, Copy)]
 pub enum GLTextureAnisotropyMode {

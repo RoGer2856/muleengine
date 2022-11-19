@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::muleengine::image::Image;
+use muleengine::image::Image;
 
 use super::opengl_utils::texture_2d::Texture2D;
 

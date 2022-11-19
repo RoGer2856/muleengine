@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::muleengine::asset_reader::AssetReader;
+use muleengine::asset_reader::AssetReader;
 
 use super::gl_mesh_shader_program::{GLMeshShaderProgram, GLMeshShaderProgramError};
 
