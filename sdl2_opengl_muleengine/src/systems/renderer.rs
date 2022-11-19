@@ -12,8 +12,8 @@ use vek::{Mat4, Transform, Vec2};
 
 use crate::{
     gl_material::GLMaterial,
-    gl_mesh::{GLDrawableMesh, GLMeshDrawableObject},
     gl_mesh_container::GLMeshContainer,
+    gl_mesh_drawable_object::{GLDrawableMesh, GLMeshDrawableObject},
     gl_mesh_shader_program::MEShaderImpl,
     gl_shader_program_container::GLShaderProgramContainer,
     gl_texture_container::GLTextureContainer,
