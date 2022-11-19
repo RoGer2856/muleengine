@@ -1,0 +1,14 @@
+[package]
+name = "sdl2_opengl_muleengine"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+log = "0.4"
+vek = "0.15"
+parking_lot = "*"
+sdl2 = "0.35"
+gl = "0.14"
+muleengine = { path = "../muleengine" }

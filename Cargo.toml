@@ -8,16 +8,16 @@ edition = "2021"
 [dependencies]
 env_logger = "0.9"
 log = "0.4"
-sdl2 = "0.35"
 tokio = { version = "1.20", features = ["full"] }
-gl = "0.14"
 vek = "0.15"
 parking_lot = "*"
 muleengine = { path = "muleengine" }
+sdl2_opengl_muleengine = { path = "sdl2_opengl_muleengine" }
 
 [workspace]
 members = [
-	"muleengine"
+	"muleengine",
+	"sdl2_opengl_muleengine"
 ]
 
 # muleengine

@@ -8,5 +8,4 @@
 )]
 
 pub mod main_loop;
-pub mod sdl2_opengl_engine;
 pub mod systems;

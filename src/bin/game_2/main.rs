@@ -3,9 +3,7 @@
 use std::sync::Arc;
 
 use game_2::{
-    main_loop::MainLoop,
-    sdl2_opengl_engine::{systems::renderer, GLProfile, Sdl2GLContext},
-    systems::spectator_camera_controller::SpectatorCameraControllerSystem,
+    main_loop::MainLoop, systems::spectator_camera_controller::SpectatorCameraControllerSystem,
 };
 use muleengine::{
     asset_container::AssetContainer,
@@ -21,6 +19,7 @@ use muleengine::{
     window_context::{Event, WindowContext},
 };
 use parking_lot::RwLock;
+use sdl2_opengl_muleengine::{systems::renderer, GLProfile, Sdl2GLContext};
 use vek::{Transform, Vec2, Vec3};
 
 fn main() {
