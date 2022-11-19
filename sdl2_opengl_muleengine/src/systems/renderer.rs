@@ -10,7 +10,7 @@ use muleengine::{
 use parking_lot::RwLock;
 use vek::{Mat4, Transform, Vec2};
 
-use crate::sdl2_opengl_engine::{
+use crate::{
     gl_material::GLMaterial,
     gl_mesh::{GLDrawableMesh, GLMeshDrawableObject},
     gl_mesh_container::GLMeshContainer,
