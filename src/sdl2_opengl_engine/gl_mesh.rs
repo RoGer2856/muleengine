@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use vek::{Mat4, Vec3, Vec4};
 
-use crate::muleengine::{
+use muleengine::{
     mesh::{Bone, MaterialTextureType, Mesh},
     renderer::{DrawableMesh, DrawableObject},
 };

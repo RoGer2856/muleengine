@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use vek::Vec3;
 
-use crate::muleengine::{
+use muleengine::{
     image_container::ImageContainerError,
     mesh::{Material, MaterialTexture, MaterialTextureType, TextureMapMode},
     result_option_inspect::ResultInspector,

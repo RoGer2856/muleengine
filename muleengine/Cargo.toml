@@ -1,0 +1,16 @@
+[package]
+name = "muleengine"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+log = "0.4"
+vek = "0.15"
+image = "0.24"
+assimp = "0.3.1"
+assimp-sys = "0.3.1"
+tempfile = "3"
+parking_lot = "*"
+tokio = { version = "1.20", features = ["full"] }

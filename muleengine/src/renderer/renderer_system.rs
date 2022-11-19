@@ -3,7 +3,7 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 use tokio::sync::mpsc;
 
-use crate::muleengine::{
+use crate::{
     containers::object_pool::ObjectPool, result_option_inspect::ResultInspector,
     system_container::System,
 };

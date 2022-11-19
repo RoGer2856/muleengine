@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use crate::muleengine::mesh::{Mesh, MeshConvertError, Scene};
+use muleengine::mesh::{Mesh, MeshConvertError, Scene};
 
 use super::gl_mesh::GLMesh;
 use super::gl_texture_container::GLTextureContainer;

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::muleengine::{
+use crate::{
     asset_reader::AssetReader, image_container::ImageContainer, scene_container::SceneContainer,
     service_container::ServiceContainer,
 };

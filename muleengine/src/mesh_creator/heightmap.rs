@@ -1,6 +1,6 @@
 use vek::{Mat4, Vec2, Vec3, Vec4};
 
-use crate::muleengine::{
+use crate::{
     heightmap::HeightMap,
     mesh::{Bone, Mesh, VertexBoneWeight},
 };

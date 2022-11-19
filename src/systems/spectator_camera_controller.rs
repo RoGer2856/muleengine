@@ -3,7 +3,7 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 use vek::{num_traits::Zero, Vec2, Vec3};
 
-use crate::muleengine::{
+use muleengine::{
     camera::Camera,
     renderer::renderer_client::RendererClient,
     system_container::System,

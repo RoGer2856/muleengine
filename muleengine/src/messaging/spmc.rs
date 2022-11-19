@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use parking_lot::Mutex;
 
-use crate::muleengine::containers::object_pool::{ObjectPool, ObjectPoolIndex};
+use crate::containers::object_pool::{ObjectPool, ObjectPoolIndex};
 
 struct ReceiverQueue<T> {
     queue: VecDeque<T>,

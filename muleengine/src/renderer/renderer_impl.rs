@@ -3,7 +3,7 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 use vek::{Transform, Vec2};
 
-use crate::muleengine::{
+use crate::{
     camera::Camera,
     mesh::{Material, Mesh},
 };

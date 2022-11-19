@@ -1,6 +1,6 @@
 use std::{io::Read, sync::Arc};
 
-use crate::muleengine::{asset_reader::AssetReader, renderer::Shader as MEShader};
+use muleengine::{asset_reader::AssetReader, renderer::Shader as MEShader};
 
 use super::opengl_utils::{
     shader::{Shader, ShaderCreationError, ShaderType},

@@ -4,21 +4,21 @@ use std::sync::Arc;
 
 use game_2::{
     main_loop::MainLoop,
-    muleengine::{
-        asset_container::AssetContainer,
-        asset_reader::AssetReader,
-        image_container::ImageContainer,
-        mesh::{Material, MaterialTexture, MaterialTextureType, TextureMapMode},
-        mesh_creator,
-        renderer::renderer_client::RendererClient,
-        renderer::renderer_system::Renderer,
-        scene_container::SceneContainer,
-        service_container::ServiceContainer,
-        system_container::SystemContainer,
-        window_context::{Event, WindowContext},
-    },
     sdl2_opengl_engine::{systems::renderer, GLProfile, Sdl2GLContext},
     systems::spectator_camera_controller::SpectatorCameraControllerSystem,
+};
+use muleengine::{
+    asset_container::AssetContainer,
+    asset_reader::AssetReader,
+    image_container::ImageContainer,
+    mesh::{Material, MaterialTexture, MaterialTextureType, TextureMapMode},
+    mesh_creator,
+    renderer::renderer_client::RendererClient,
+    renderer::renderer_system::Renderer,
+    scene_container::SceneContainer,
+    service_container::ServiceContainer,
+    system_container::SystemContainer,
+    window_context::{Event, WindowContext},
 };
 use parking_lot::RwLock;
 use vek::{Transform, Vec2, Vec3};
