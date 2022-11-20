@@ -85,6 +85,7 @@ pub struct MaterialTexture {
     pub uv_channel_id: usize,
 }
 
+#[derive(Clone)]
 pub struct Material {
     pub textures: Vec<MaterialTexture>,
     pub opacity: f32,
@@ -92,21 +93,6 @@ pub struct Material {
     pub shininess_color: Vec3<f32>,
     pub emissive_color: Vec3<f32>,
 }
-
-impl Clone for Material {
-    fn clone(&self) -> Self {
-        Self {
-            textures: self.textures.clone(),
-            opacity: self.opacity,
-            albedo_color: self.albedo_color,
-            shininess_color: self.shininess_color,
-            emissive_color: self.shininess_color,
-        }
-    }
-}
-
-unsafe impl std::marker::Sync for Material {}
-unsafe impl std::marker::Send for Material {}
 
 #[repr(C)]
 pub struct Mesh {
@@ -122,15 +108,9 @@ pub struct Mesh {
     aabb: AxisAlignedBoundingBox,
 }
 
-unsafe impl std::marker::Sync for Mesh {}
-unsafe impl std::marker::Send for Mesh {}
-
 pub struct Scene {
     meshes: Vec<Result<Arc<Mesh>, MeshConvertError>>,
 }
-
-unsafe impl std::marker::Sync for Scene {}
-unsafe impl std::marker::Send for Scene {}
 
 fn ai_string_to_str(ai_string: &assimp_sys::AiString) -> Result<&str, Utf8Error> {
     std::str::from_utf8(&ai_string.data[0..ai_string.length])
