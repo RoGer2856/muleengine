@@ -5,6 +5,7 @@ use vek::Vec3;
 use muleengine::{
     image_container::ImageContainerError,
     mesh::{Material, MaterialTexture, MaterialTextureType, TextureMapMode},
+    renderer::RendererMaterial,
     result_option_inspect::ResultInspector,
 };
 
@@ -28,6 +29,12 @@ pub struct GLMaterial {
     pub shininess_color: Vec3<f32>,
     pub textures: Vec<GLMaterialTexture>,
 }
+
+pub struct RendererMaterialImpl {
+    gl_material: Arc<GLMaterial>,
+}
+
+impl RendererMaterial for RendererMaterialImpl {}
 
 impl GLMaterial {
     pub fn new(material: &Material, gl_texture_container: &mut GLTextureContainer) -> Self {
@@ -71,5 +78,17 @@ impl GLMaterialTexture {
             blend: texture.blend,
             uv_channel_id: texture.uv_channel_id,
         })
+    }
+}
+
+impl RendererMaterialImpl {
+    pub fn new(gl_mesh: Arc<GLMaterial>) -> Self {
+        Self {
+            gl_material: gl_mesh,
+        }
+    }
+
+    pub fn gl_material(&self) -> &Arc<GLMaterial> {
+        &self.gl_material
     }
 }

@@ -166,9 +166,13 @@ async fn populate_with_objects(
             .create_shader("Assets/shaders/lit_wo_normal".to_string())
             .await
             .unwrap();
+        let material_id = renderer_client
+            .create_material(mesh.get_material().clone())
+            .await
+            .unwrap();
         let mesh_id = renderer_client.create_drawable_mesh(mesh).await.unwrap();
         let drawable_object_id = renderer_client
-            .create_drawable_object_from_mesh(mesh_id, shader_id, None)
+            .create_drawable_object_from_mesh(mesh_id, shader_id, material_id)
             .await
             .unwrap();
         renderer_client
@@ -202,12 +206,16 @@ async fn populate_with_objects(
         for mesh in scene.meshes_ref().iter() {
             match &mesh {
                 Ok(mesh) => {
+                    let material_id = renderer_client
+                        .create_material(mesh.get_material().clone())
+                        .await
+                        .unwrap();
                     let mesh_id = renderer_client
                         .create_drawable_mesh(mesh.clone())
                         .await
                         .unwrap();
                     let drawable_object_id = renderer_client
-                        .create_drawable_object_from_mesh(mesh_id, shader_id, None)
+                        .create_drawable_object_from_mesh(mesh_id, shader_id, material_id)
                         .await
                         .unwrap();
                     renderer_client
@@ -272,9 +280,10 @@ async fn add_skybox(asset_container: AssetContainer, renderer_client: RendererCl
 
             let mesh = scene.meshes_ref()[index].as_ref().unwrap().clone();
 
+            let material_id = renderer_client.create_material(material).await.unwrap();
             let mesh_id = renderer_client.create_drawable_mesh(mesh).await.unwrap();
             let drawable_object_id = renderer_client
-                .create_drawable_object_from_mesh(mesh_id, shader_id, Some(material))
+                .create_drawable_object_from_mesh(mesh_id, shader_id, material_id)
                 .await
                 .unwrap();
             renderer_client
