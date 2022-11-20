@@ -2,10 +2,7 @@ use std::sync::Arc;
 
 use vek::{Mat4, Vec3};
 
-use muleengine::{
-    mesh::MaterialTextureType,
-    renderer::{DrawableMesh, DrawableObject},
-};
+use muleengine::{mesh::MaterialTextureType, renderer::RendererObject};
 
 use crate::gl_mesh::GLMesh;
 
@@ -15,24 +12,22 @@ use super::{
     opengl_utils::{shader_input::ShaderUniform, vertex_array_object::VertexArrayObject},
 };
 
-pub struct GLDrawableMesh {
-    gl_mesh: Arc<GLMesh>,
-}
-
-impl DrawableMesh for GLDrawableMesh {}
-
 pub struct GLMeshDrawableObject {
     gl_mesh: Arc<GLMesh>,
-    pub material: Option<GLMaterial>,
+    material: Arc<GLMaterial>,
     bone_transforms: Option<Vec<Mat4<f32>>>,
     vertex_array_object: VertexArrayObject,
     gl_mesh_shader_program: Arc<GLMeshShaderProgram>,
 }
 
-impl DrawableObject for GLMeshDrawableObject {}
+impl RendererObject for GLMeshDrawableObject {}
 
 impl GLMeshDrawableObject {
-    pub fn new(gl_mesh: Arc<GLMesh>, gl_mesh_shader_program: Arc<GLMeshShaderProgram>) -> Self {
+    pub fn new(
+        gl_mesh: Arc<GLMesh>,
+        material: Arc<GLMaterial>,
+        gl_mesh_shader_program: Arc<GLMeshShaderProgram>,
+    ) -> Self {
         let vertex_array_object = VertexArrayObject::new(|vao_interface| {
             vao_interface.use_index_buffer_object(&gl_mesh.index_buffer_object);
 
@@ -66,7 +61,7 @@ impl GLMeshDrawableObject {
 
         Self {
             gl_mesh,
-            material: None,
+            material,
             bone_transforms: None,
             vertex_array_object,
             gl_mesh_shader_program,
@@ -113,13 +108,11 @@ impl GLMeshDrawableObject {
                 .send_uniform_matrix_4fv(bone_transforms[0].as_col_slice(), bone_transforms.len());
         }
 
-        let material = self.material.as_ref().unwrap_or(&self.gl_mesh.material);
-
         let mut texture_layer_counter = 0;
 
         self.use_texture(
             &mut texture_layer_counter,
-            find_texture_with_min_uv_id(&material.textures, MaterialTextureType::Albedo),
+            find_texture_with_min_uv_id(&self.material.textures, MaterialTextureType::Albedo),
             self.gl_mesh_shader_program
                 .uniforms
                 .use_albedo_texture
@@ -133,7 +126,7 @@ impl GLMeshDrawableObject {
 
         self.use_texture(
             &mut texture_layer_counter,
-            find_texture_with_min_uv_id(&material.textures, MaterialTextureType::Normal),
+            find_texture_with_min_uv_id(&self.material.textures, MaterialTextureType::Normal),
             self.gl_mesh_shader_program
                 .uniforms
                 .use_normal_texture
@@ -147,7 +140,7 @@ impl GLMeshDrawableObject {
 
         self.use_texture(
             &mut texture_layer_counter,
-            find_texture_with_min_uv_id(&material.textures, MaterialTextureType::Displacement),
+            find_texture_with_min_uv_id(&self.material.textures, MaterialTextureType::Displacement),
             self.gl_mesh_shader_program
                 .uniforms
                 .use_displacement_texture
@@ -163,19 +156,19 @@ impl GLMeshDrawableObject {
         );
 
         if let Some(uniform) = &self.gl_mesh_shader_program.uniforms.opacity {
-            uniform.send_uniform_1f(material.opacity);
+            uniform.send_uniform_1f(self.material.opacity);
         }
 
         if let Some(uniform) = &self.gl_mesh_shader_program.uniforms.albedo_color {
-            uniform.send_uniform_3fv(material.albedo_color.as_slice(), 1);
+            uniform.send_uniform_3fv(self.material.albedo_color.as_slice(), 1);
         }
 
         if let Some(uniform) = &self.gl_mesh_shader_program.uniforms.emissive_color {
-            uniform.send_uniform_3fv(material.emissive_color.as_slice(), 1);
+            uniform.send_uniform_3fv(self.material.emissive_color.as_slice(), 1);
         }
 
         if let Some(uniform) = &self.gl_mesh_shader_program.uniforms.shininess_color {
-            uniform.send_uniform_3fv(material.shininess_color.as_slice(), 1);
+            uniform.send_uniform_3fv(self.material.shininess_color.as_slice(), 1);
         }
 
         self.vertex_array_object.use_vao(|| {
@@ -213,16 +206,6 @@ impl GLMeshDrawableObject {
         } else if let Some(use_texture) = use_texture {
             use_texture.send_uniform_1i(0);
         }
-    }
-}
-
-impl GLDrawableMesh {
-    pub fn new(gl_mesh: Arc<GLMesh>) -> Self {
-        Self { gl_mesh }
-    }
-
-    pub fn gl_mesh(&self) -> &Arc<GLMesh> {
-        &self.gl_mesh
     }
 }
 

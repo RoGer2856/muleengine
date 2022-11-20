@@ -11,7 +11,7 @@ use crate::{
 
 use super::{
     renderer_command::{Command, CommandSender},
-    DrawableMeshId, DrawableObjectId, RendererError, ShaderId,
+    DrawableMeshId, DrawableObjectId, MaterialId, RendererError, ShaderId,
 };
 
 #[derive(Clone)]
@@ -20,6 +20,25 @@ pub struct RendererClient {
 }
 
 impl RendererClient {
+    pub async fn create_material(&self, material: Material) -> Result<MaterialId, RendererError> {
+        let (result_sender, result_receiver) = oneshot::channel();
+        let _ = self
+            .command_sender
+            .send(Command::CreateMaterial {
+                material,
+                result_sender,
+            })
+            .inspect_err(|e| log::error!("Creating material, error = {e}"));
+
+        match result_receiver
+            .await
+            .inspect_err(|e| log::error!("Creating material response, error = {e}"))
+        {
+            Ok(ret) => ret,
+            Err(_) => unreachable!(),
+        }
+    }
+
     pub async fn create_shader(&self, shader_name: String) -> Result<ShaderId, RendererError> {
         let (result_sender, result_receiver) = oneshot::channel();
         let _ = self
@@ -32,7 +51,7 @@ impl RendererClient {
 
         match result_receiver
             .await
-            .inspect_err(|e| log::error!("Creating shader response error = {e}"))
+            .inspect_err(|e| log::error!("Creating shader response, error = {e}"))
         {
             Ok(ret) => ret,
             Err(_) => unreachable!(),
@@ -54,7 +73,7 @@ impl RendererClient {
 
         match result_receiver
             .await
-            .inspect_err(|e| log::error!("Creating drawable mesh response error = {e}"))
+            .inspect_err(|e| log::error!("Creating drawable mesh response, error = {e}"))
         {
             Ok(ret) => ret,
             Err(_) => unreachable!(),
@@ -65,7 +84,7 @@ impl RendererClient {
         &self,
         mesh_id: DrawableMeshId,
         shader_id: ShaderId,
-        material: Option<Material>,
+        material_id: MaterialId,
     ) -> Result<DrawableObjectId, RendererError> {
         let (result_sender, result_receiver) = oneshot::channel();
         let _ = self
@@ -73,15 +92,14 @@ impl RendererClient {
             .send(Command::CreateDrawableObjectFromMesh {
                 mesh_id,
                 shader_id,
-                material,
+                material_id,
                 result_sender,
             })
             .inspect_err(|e| log::error!("Creating drawable object from mesh, error = {e}"));
 
-        match result_receiver
-            .await
-            .inspect_err(|e| log::error!("Creating drawable object from mesh response error = {e}"))
-        {
+        match result_receiver.await.inspect_err(|e| {
+            log::error!("Creating drawable object from mesh response, error = {e}")
+        }) {
             Ok(ret) => ret,
             Err(_) => unreachable!(),
         }
@@ -102,10 +120,9 @@ impl RendererClient {
             })
             .inspect_err(|e| log::error!("Adding drawable object to renderer, error = {e}"));
 
-        match result_receiver
-            .await
-            .inspect_err(|e| log::error!("Adding drawable object to renderer response error = {e}"))
-        {
+        match result_receiver.await.inspect_err(|e| {
+            log::error!("Adding drawable object to renderer response, error = {e}")
+        }) {
             Ok(ret) => ret,
             Err(_) => unreachable!(),
         }

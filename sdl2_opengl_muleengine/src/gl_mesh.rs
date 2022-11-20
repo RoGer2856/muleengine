@@ -2,21 +2,16 @@ use std::sync::Arc;
 
 use vek::{Mat4, Vec4};
 
-use muleengine::mesh::Mesh;
+use muleengine::{mesh::Mesh, renderer::RendererMesh};
 
-use super::{
-    gl_material::GLMaterial,
-    gl_texture_container::GLTextureContainer,
-    opengl_utils::{
-        index_buffer_object::{IndexBufferObject, PrimitiveMode},
-        vertex_buffer_object::{DataCount, DataType, VertexBufferObject},
-    },
+use super::opengl_utils::{
+    index_buffer_object::{IndexBufferObject, PrimitiveMode},
+    vertex_buffer_object::{DataCount, DataType, VertexBufferObject},
 };
 
 pub struct GLMesh {
     _mesh: Arc<Mesh>,
 
-    pub(super) material: Arc<GLMaterial>,
     pub(super) bone_transforms: Vec<Mat4<f32>>,
 
     pub(super) index_buffer_object: IndexBufferObject,
@@ -31,8 +26,14 @@ pub struct GLMesh {
     _bone_ids_vector: Vec<Vec4<u32>>,
 }
 
+pub struct RendererMeshImpl {
+    gl_mesh: Arc<GLMesh>,
+}
+
+impl RendererMesh for RendererMeshImpl {}
+
 impl GLMesh {
-    pub fn new(mesh: Arc<Mesh>, gl_texture_container: &mut GLTextureContainer) -> Self {
+    pub fn new(mesh: Arc<Mesh>) -> Self {
         let index_buffer_object = IndexBufferObject::new(
             mesh.get_faces().as_ptr(),
             mesh.get_faces().len(),
@@ -103,7 +104,6 @@ impl GLMesh {
             DataCount::Coords4,
         );
 
-        let material = GLMaterial::new(mesh.get_material(), gl_texture_container);
         let bone_transforms = mesh
             .get_bones()
             .iter()
@@ -112,7 +112,6 @@ impl GLMesh {
 
         Self {
             _mesh: mesh,
-            material: Arc::new(material),
             bone_transforms,
 
             index_buffer_object,
@@ -127,5 +126,15 @@ impl GLMesh {
             _bone_weights_vector: bone_weights_vector,
             _bone_ids_vector: bone_ids_vector,
         }
+    }
+}
+
+impl RendererMeshImpl {
+    pub fn new(gl_mesh: Arc<GLMesh>) -> Self {
+        Self { gl_mesh }
+    }
+
+    pub fn gl_mesh(&self) -> &Arc<GLMesh> {
+        &self.gl_mesh
     }
 }

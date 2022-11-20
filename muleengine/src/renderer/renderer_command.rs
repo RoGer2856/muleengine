@@ -8,9 +8,13 @@ use crate::{
     mesh::{Material, Mesh},
 };
 
-use super::{DrawableMeshId, DrawableObjectId, RendererError, ShaderId};
+use super::{DrawableMeshId, DrawableObjectId, MaterialId, RendererError, ShaderId};
 
 pub enum Command {
+    CreateMaterial {
+        material: Material,
+        result_sender: oneshot::Sender<Result<MaterialId, RendererError>>,
+    },
     CreateShader {
         shader_name: String,
         result_sender: oneshot::Sender<Result<ShaderId, RendererError>>,
@@ -22,7 +26,7 @@ pub enum Command {
     CreateDrawableObjectFromMesh {
         mesh_id: DrawableMeshId,
         shader_id: ShaderId,
-        material: Option<Material>,
+        material_id: MaterialId,
         result_sender: oneshot::Sender<Result<DrawableObjectId, RendererError>>,
     },
 

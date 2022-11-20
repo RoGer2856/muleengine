@@ -4,29 +4,33 @@ use muleengine::{
     asset_container::AssetContainer,
     camera::Camera,
     mesh::{Material, Mesh},
-    renderer::{renderer_impl::RendererImpl, DrawableMesh, DrawableObject, Shader},
+    renderer::{
+        renderer_impl::RendererImpl, RendererMaterial, RendererMesh, RendererObject, RendererShader,
+    },
     window_context::WindowContext,
 };
 use parking_lot::RwLock;
 use vek::{Mat4, Transform, Vec2};
 
 use crate::{
-    gl_material::GLMaterial,
+    gl_material::{GLMaterial, RendererMaterialImpl},
+    gl_mesh::RendererMeshImpl,
     gl_mesh_container::GLMeshContainer,
-    gl_mesh_drawable_object::{GLDrawableMesh, GLMeshDrawableObject},
-    gl_mesh_shader_program::MEShaderImpl,
+    gl_mesh_drawable_object::GLMeshDrawableObject,
+    gl_mesh_shader_program::RendererShaderImpl,
     gl_shader_program_container::GLShaderProgramContainer,
     gl_texture_container::GLTextureContainer,
 };
 
 pub struct Renderer {
-    shaders: BTreeMap<*const dyn Shader, Arc<RwLock<MEShaderImpl>>>,
-    meshes: BTreeMap<*const dyn DrawableMesh, Arc<RwLock<GLDrawableMesh>>>,
+    materials: BTreeMap<*const dyn RendererMaterial, Arc<RwLock<RendererMaterialImpl>>>,
+    shaders: BTreeMap<*const dyn RendererShader, Arc<RwLock<RendererShaderImpl>>>,
+    meshes: BTreeMap<*const dyn RendererMesh, Arc<RwLock<RendererMeshImpl>>>,
 
-    drawable_meshes: BTreeMap<*const dyn DrawableObject, Arc<RwLock<GLMeshDrawableObject>>>,
+    drawable_meshes: BTreeMap<*const dyn RendererObject, Arc<RwLock<GLMeshDrawableObject>>>,
     #[allow(clippy::type_complexity)]
     drawable_meshes_to_draw:
-        BTreeMap<*const dyn DrawableObject, (Mat4<f32>, Arc<RwLock<GLMeshDrawableObject>>)>,
+        BTreeMap<*const dyn RendererObject, (Mat4<f32>, Arc<RwLock<GLMeshDrawableObject>>)>,
 
     camera: Camera,
     projection_matrix: Mat4<f32>,
@@ -47,6 +51,7 @@ impl Renderer {
         asset_container: AssetContainer,
     ) -> Self {
         let mut ret = Self {
+            materials: BTreeMap::new(),
             shaders: BTreeMap::new(),
             meshes: BTreeMap::new(),
 
@@ -93,16 +98,32 @@ impl RendererImpl for Renderer {
         self.window_context.read().swap_buffers();
     }
 
-    fn create_shader(&mut self, shader_name: String) -> Result<Arc<RwLock<dyn Shader>>, String> {
+    fn create_material(
+        &mut self,
+        material: Material,
+    ) -> Result<Arc<RwLock<dyn RendererMaterial>>, String> {
+        let gl_material = Arc::new(GLMaterial::new(&material, &mut self.gl_texture_container));
+
+        let material = Arc::new(RwLock::new(RendererMaterialImpl::new(gl_material)));
+
+        self.materials.insert(material.data_ptr(), material.clone());
+
+        Ok(material)
+    }
+
+    fn create_shader(
+        &mut self,
+        shader_name: String,
+    ) -> Result<Arc<RwLock<dyn RendererShader>>, String> {
         let gl_mesh_shader_program = match self
             .gl_shader_program_container
             .get_mesh_shader_program(&shader_name, &self.asset_container.asset_reader().read())
         {
             Ok(shader_program) => Ok(shader_program),
-            Err(e) => Err(format!("Error loading shader program, error = {e:?}")),
+            Err(e) => Err(format!("Loading shader program, error = {e:?}")),
         }?;
 
-        let shader = Arc::new(RwLock::new(MEShaderImpl::new(gl_mesh_shader_program)));
+        let shader = Arc::new(RwLock::new(RendererShaderImpl::new(gl_mesh_shader_program)));
 
         self.shaders.insert(shader.data_ptr(), shader.clone());
 
@@ -112,12 +133,10 @@ impl RendererImpl for Renderer {
     fn create_drawable_mesh(
         &mut self,
         mesh: Arc<Mesh>,
-    ) -> Result<Arc<RwLock<dyn DrawableMesh>>, String> {
-        let gl_mesh = self
-            .gl_mesh_container
-            .get_drawable_mesh(mesh, &mut self.gl_texture_container);
+    ) -> Result<Arc<RwLock<dyn RendererMesh>>, String> {
+        let gl_mesh = self.gl_mesh_container.get_drawable_mesh(mesh);
 
-        let drawable_mesh = Arc::new(RwLock::new(GLDrawableMesh::new(gl_mesh)));
+        let drawable_mesh = Arc::new(RwLock::new(RendererMeshImpl::new(gl_mesh)));
 
         self.meshes
             .insert(drawable_mesh.data_ptr(), drawable_mesh.clone());
@@ -127,44 +146,45 @@ impl RendererImpl for Renderer {
 
     fn create_drawable_object_from_mesh(
         &mut self,
-        mesh: &Arc<RwLock<dyn DrawableMesh>>,
-        shader: &Arc<RwLock<dyn Shader>>,
-        material: Option<Material>,
-    ) -> Result<Arc<RwLock<dyn DrawableObject>>, String> {
-        let ptr: *const dyn Shader = shader.data_ptr();
+        mesh: &Arc<RwLock<dyn RendererMesh>>,
+        shader: &Arc<RwLock<dyn RendererShader>>,
+        material: &Arc<RwLock<dyn RendererMaterial>>,
+    ) -> Result<Arc<RwLock<dyn RendererObject>>, String> {
+        let ptr: *const dyn RendererShader = shader.data_ptr();
         let shader = self.shaders.get(&ptr).ok_or_else(|| {
-            "Error creating drawable object from mesh, error: could not found shader".to_string()
+            "Creating drawable object from mesh, error = could not found shader".to_string()
         })?;
 
-        let ptr: *const dyn DrawableMesh = mesh.data_ptr();
+        let ptr: *const dyn RendererMaterial = material.data_ptr();
+        let material = self.materials.get(&ptr).ok_or_else(|| {
+            "Creating drawable object from mesh, error = could not found material".to_string()
+        })?;
+
+        let ptr: *const dyn RendererMesh = mesh.data_ptr();
         let gl_mesh = self.meshes.get(&ptr).ok_or_else(|| {
-            "Error creating drawable object from mesh, error: could not found mesh".to_string()
+            "Creating drawable object from mesh, error = could not found mesh".to_string()
         })?;
 
         let drawable_mesh = Arc::new(RwLock::new(GLMeshDrawableObject::new(
             gl_mesh.read().gl_mesh().clone(),
+            material.read().gl_material().clone(),
             shader.read().gl_mesh_shader_program().clone(),
         )));
 
         self.drawable_meshes
             .insert(&*drawable_mesh.read(), drawable_mesh.clone());
 
-        if let Some(material) = material {
-            let material = GLMaterial::new(&material, &mut self.gl_texture_container);
-            drawable_mesh.write().material = Some(material);
-        }
-
         Ok(drawable_mesh)
     }
 
     fn add_drawable_object(
         &mut self,
-        drawable_object: &Arc<RwLock<dyn DrawableObject>>,
+        drawable_object: &Arc<RwLock<dyn RendererObject>>,
         transform: Transform<f32, f32, f32>,
     ) -> Result<(), String> {
-        let ptr: *const dyn DrawableObject = drawable_object.data_ptr();
+        let ptr: *const dyn RendererObject = drawable_object.data_ptr();
         let mesh = self.drawable_meshes.get(&ptr).ok_or_else(|| {
-            "Error adding drawable object, error: could not found drawable object".to_string()
+            "Adding drawable object, error = could not found drawable object".to_string()
         })?;
 
         self.drawable_meshes_to_draw
@@ -175,14 +195,15 @@ impl RendererImpl for Renderer {
 
     fn remove_drawable_object(
         &mut self,
-        drawable_object: &Arc<RwLock<dyn DrawableObject>>,
+        drawable_object: &Arc<RwLock<dyn RendererObject>>,
     ) -> Result<(), String> {
-        let ptr: *const dyn DrawableObject = drawable_object.data_ptr();
+        let ptr: *const dyn RendererObject = drawable_object.data_ptr();
         if self.drawable_meshes_to_draw.remove(&ptr).is_some() {
             Ok(())
         } else {
             Err(
-                "Error removing drawable object from renderer, error: could not found drawable object".to_string()
+                "Removing drawable object from renderer, error = could not found drawable object"
+                    .to_string(),
             )
         }
     }

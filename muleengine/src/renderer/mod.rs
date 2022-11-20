@@ -5,10 +5,13 @@ mod renderer_command;
 pub mod renderer_impl;
 pub mod renderer_system;
 
-pub trait Shader: AsAny + 'static {}
-pub trait DrawableMesh: AsAny + 'static {}
-pub trait DrawableObject: AsAny + 'static {}
+pub trait RendererMaterial: AsAny + 'static {}
+pub trait RendererShader: AsAny + 'static {}
+pub trait RendererMesh: AsAny + 'static {}
+pub trait RendererObject: AsAny + 'static {}
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct MaterialId(ObjectPoolIndex);
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct ShaderId(ObjectPoolIndex);
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
@@ -18,6 +21,7 @@ pub struct DrawableObjectId(ObjectPoolIndex);
 
 #[derive(Debug)]
 pub enum RendererError {
+    InvalidMaterialId(MaterialId),
     InvalidShaderId(ShaderId),
     InvalidDrawableMeshId(DrawableMeshId),
     InvalidDrawableObjectId(DrawableObjectId),

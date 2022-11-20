@@ -12,16 +12,17 @@ use super::{
     renderer_client::RendererClient,
     renderer_command::{Command, CommandReceiver, CommandSender},
     renderer_impl::RendererImpl,
-    DrawableMesh, DrawableMeshId, DrawableObject, DrawableObjectId, RendererError, Shader,
-    ShaderId,
+    DrawableMeshId, DrawableObjectId, MaterialId, RendererError, RendererMaterial, RendererMesh,
+    RendererObject, RendererShader, ShaderId,
 };
 
 pub struct Renderer {
     renderer_impl: Box<dyn RendererImpl>,
 
-    shaders: ObjectPool<Arc<RwLock<dyn Shader>>>,
-    drawable_meshes: ObjectPool<Arc<RwLock<dyn DrawableMesh>>>,
-    drawable_objects: ObjectPool<Arc<RwLock<dyn DrawableObject>>>,
+    materials: ObjectPool<Arc<RwLock<dyn RendererMaterial>>>,
+    shaders: ObjectPool<Arc<RwLock<dyn RendererShader>>>,
+    drawable_meshes: ObjectPool<Arc<RwLock<dyn RendererMesh>>>,
+    drawable_objects: ObjectPool<Arc<RwLock<dyn RendererObject>>>,
 
     command_receiver: CommandReceiver,
     command_sender: CommandSender,
@@ -34,6 +35,7 @@ impl Renderer {
         Self {
             renderer_impl: Box::new(renderer_impl),
 
+            materials: ObjectPool::new(),
             shaders: ObjectPool::new(),
             drawable_meshes: ObjectPool::new(),
             drawable_objects: ObjectPool::new(),
@@ -58,6 +60,20 @@ impl Renderer {
     fn execute_command_queue(&mut self) {
         while let Ok(command) = self.command_receiver.try_recv() {
             match command {
+                Command::CreateMaterial {
+                    material,
+                    result_sender,
+                } => {
+                    let ret = self
+                        .renderer_impl
+                        .create_material(material)
+                        .map(|material| MaterialId(self.materials.create_object(material.clone())))
+                        .map_err(RendererError::RendererImplError);
+
+                    let _ = result_sender
+                        .send(ret)
+                        .inspect_err(|e| log::error!("CreateMaterial response error = {e:?}"));
+                }
                 Command::CreateShader {
                     shader_name,
                     result_sender,
@@ -93,11 +109,11 @@ impl Renderer {
                 Command::CreateDrawableObjectFromMesh {
                     mesh_id,
                     shader_id,
-                    material,
+                    material_id,
                     result_sender,
                 } => {
                     // the closure helps the readability of the code by enabling the usage of the ? operator
-                    let closure = || {
+                    let mut closure = || {
                         let drawable_mesh = self
                             .drawable_meshes
                             .get_ref(mesh_id.0)
@@ -107,6 +123,11 @@ impl Renderer {
                             .shaders
                             .get_ref(shader_id.0)
                             .ok_or(RendererError::InvalidShaderId(shader_id))?;
+
+                        let material = self
+                            .materials
+                            .get_ref(material_id.0)
+                            .ok_or(RendererError::InvalidMaterialId(material_id))?;
 
                         self.renderer_impl
                             .create_drawable_object_from_mesh(drawable_mesh, shader, material)
