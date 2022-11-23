@@ -22,6 +22,7 @@ pub mod prelude;
 pub mod renderer;
 pub mod result_option_inspect;
 pub mod scene_container;
+pub mod sendable_ptr;
 pub mod service_container;
 pub mod system_container;
 pub mod window_context;

@@ -1,5 +1,8 @@
 use super::{containers::object_pool::ObjectPoolIndex, prelude::AsAny};
 
+#[cfg(test)]
+mod tests;
+
 pub mod renderer_client;
 mod renderer_command;
 pub mod renderer_impl;
