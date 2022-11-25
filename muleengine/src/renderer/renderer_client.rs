@@ -11,7 +11,7 @@ use crate::{
 
 use super::{
     renderer_command::{Command, CommandSender},
-    DrawableMeshId, DrawableObjectId, MaterialId, RendererError, ShaderId,
+    MaterialHandler, MeshHandler, RendererError, RendererObjectHandler, ShaderHandler,
 };
 
 #[derive(Clone)]
@@ -20,7 +20,10 @@ pub struct RendererClient {
 }
 
 impl RendererClient {
-    pub async fn create_material(&self, material: Material) -> Result<MaterialId, RendererError> {
+    pub async fn create_material(
+        &self,
+        material: Material,
+    ) -> Result<MaterialHandler, RendererError> {
         let (result_sender, result_receiver) = oneshot::channel();
         let _ = self
             .command_sender
@@ -39,7 +42,7 @@ impl RendererClient {
         }
     }
 
-    pub async fn create_shader(&self, shader_name: String) -> Result<ShaderId, RendererError> {
+    pub async fn create_shader(&self, shader_name: String) -> Result<ShaderHandler, RendererError> {
         let (result_sender, result_receiver) = oneshot::channel();
         let _ = self
             .command_sender
@@ -58,70 +61,67 @@ impl RendererClient {
         }
     }
 
-    pub async fn create_drawable_mesh(
-        &self,
-        mesh: Arc<Mesh>,
-    ) -> Result<DrawableMeshId, RendererError> {
+    pub async fn create_mesh(&self, mesh: Arc<Mesh>) -> Result<MeshHandler, RendererError> {
         let (result_sender, result_receiver) = oneshot::channel();
         let _ = self
             .command_sender
-            .send(Command::CreateDrawableMesh {
+            .send(Command::CreateMesh {
                 mesh,
                 result_sender,
             })
-            .inspect_err(|e| log::error!("Creating drawable mesh, error = {e}"));
+            .inspect_err(|e| log::error!("Creating renderer mesh, error = {e}"));
 
         match result_receiver
             .await
-            .inspect_err(|e| log::error!("Creating drawable mesh response, error = {e}"))
+            .inspect_err(|e| log::error!("Creating renderer mesh response, error = {e}"))
         {
             Ok(ret) => ret,
             Err(_) => unreachable!(),
         }
     }
 
-    pub async fn create_drawable_object_from_mesh(
+    pub async fn create_renderer_object_from_mesh(
         &self,
-        mesh_id: DrawableMeshId,
-        shader_id: ShaderId,
-        material_id: MaterialId,
-    ) -> Result<DrawableObjectId, RendererError> {
+        mesh_handler: MeshHandler,
+        shader_handler: ShaderHandler,
+        material_handler: MaterialHandler,
+    ) -> Result<RendererObjectHandler, RendererError> {
         let (result_sender, result_receiver) = oneshot::channel();
         let _ = self
             .command_sender
-            .send(Command::CreateDrawableObjectFromMesh {
-                mesh_id,
-                shader_id,
-                material_id,
+            .send(Command::CreateRendererObjectFromMesh {
+                mesh_handler,
+                shader_handler,
+                material_handler,
                 result_sender,
             })
-            .inspect_err(|e| log::error!("Creating drawable object from mesh, error = {e}"));
+            .inspect_err(|e| log::error!("Creating renderer object from mesh, error = {e}"));
 
         match result_receiver.await.inspect_err(|e| {
-            log::error!("Creating drawable object from mesh response, error = {e}")
+            log::error!("Creating renderer object from mesh response, error = {e}")
         }) {
             Ok(ret) => ret,
             Err(_) => unreachable!(),
         }
     }
 
-    pub async fn add_drawable_object(
+    pub async fn add_renderer_object(
         &self,
-        drawable_object_id: DrawableObjectId,
+        renderer_object_handler: RendererObjectHandler,
         transform: Transform<f32, f32, f32>,
     ) -> Result<(), RendererError> {
         let (result_sender, result_receiver) = oneshot::channel();
         let _ = self
             .command_sender
-            .send(Command::AddDrawableObject {
-                drawable_object_id,
+            .send(Command::AddRendererObject {
+                renderer_object_handler,
                 transform,
                 result_sender,
             })
-            .inspect_err(|e| log::error!("Adding drawable object to renderer, error = {e}"));
+            .inspect_err(|e| log::error!("Adding renderer object to renderer, error = {e}"));
 
         match result_receiver.await.inspect_err(|e| {
-            log::error!("Adding drawable object to renderer response, error = {e}")
+            log::error!("Adding renderer object to renderer response, error = {e}")
         }) {
             Ok(ret) => ret,
             Err(_) => unreachable!(),

@@ -142,8 +142,12 @@ impl<T> ObjectPool<T> {
         }
     }
 
-    pub fn number_of_items(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.number_of_items
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.number_of_items == 0
     }
 
     pub fn first_index(&self, pred: impl Fn(&T) -> bool) -> Option<ObjectPoolIndex> {
@@ -286,13 +290,13 @@ mod tests {
         let _index3 = pool.create_object("item3".to_string());
         let index4 = pool.create_object("item4".to_string());
 
-        assert_eq!(pool.number_of_items(), 5);
+        assert_eq!(pool.len(), 5);
 
         assert_eq!(pool.release_object(index2), Some("item2".to_string()));
         assert_eq!(pool.release_object(index1), Some("item1".to_string()));
         assert_eq!(pool.release_object(index4), Some("item4".to_string()));
 
-        assert_eq!(pool.number_of_items(), 2);
+        assert_eq!(pool.len(), 2);
 
         assert_eq!(pool.get_ref(index1), None);
         assert_eq!(pool.get_ref(index2), None);

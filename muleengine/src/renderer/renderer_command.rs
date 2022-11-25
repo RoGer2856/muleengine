@@ -5,33 +5,45 @@ use vek::{Transform, Vec2};
 
 use crate::{
     camera::Camera,
+    containers::object_pool::ObjectPoolIndex,
     mesh::{Material, Mesh},
 };
 
-use super::{DrawableMeshId, DrawableObjectId, MaterialId, RendererError, ShaderId};
+use super::{MaterialHandler, MeshHandler, RendererError, RendererObjectHandler, ShaderHandler};
 
 pub enum Command {
     CreateMaterial {
         material: Material,
-        result_sender: oneshot::Sender<Result<MaterialId, RendererError>>,
+        result_sender: oneshot::Sender<Result<MaterialHandler, RendererError>>,
+    },
+    ReleaseMaterial {
+        object_pool_index: ObjectPoolIndex,
     },
     CreateShader {
         shader_name: String,
-        result_sender: oneshot::Sender<Result<ShaderId, RendererError>>,
+        result_sender: oneshot::Sender<Result<ShaderHandler, RendererError>>,
     },
-    CreateDrawableMesh {
+    ReleaseShader {
+        object_pool_index: ObjectPoolIndex,
+    },
+    CreateMesh {
         mesh: Arc<Mesh>,
-        result_sender: oneshot::Sender<Result<DrawableMeshId, RendererError>>,
+        result_sender: oneshot::Sender<Result<MeshHandler, RendererError>>,
     },
-    CreateDrawableObjectFromMesh {
-        mesh_id: DrawableMeshId,
-        shader_id: ShaderId,
-        material_id: MaterialId,
-        result_sender: oneshot::Sender<Result<DrawableObjectId, RendererError>>,
+    ReleaseMesh {
+        object_pool_index: ObjectPoolIndex,
     },
-
-    AddDrawableObject {
-        drawable_object_id: DrawableObjectId,
+    CreateRendererObjectFromMesh {
+        mesh_handler: MeshHandler,
+        shader_handler: ShaderHandler,
+        material_handler: MaterialHandler,
+        result_sender: oneshot::Sender<Result<RendererObjectHandler, RendererError>>,
+    },
+    ReleaseRendererObject {
+        object_pool_index: ObjectPoolIndex,
+    },
+    AddRendererObject {
+        renderer_object_handler: RendererObjectHandler,
         transform: Transform<f32, f32, f32>,
         result_sender: oneshot::Sender<Result<(), RendererError>>,
     },

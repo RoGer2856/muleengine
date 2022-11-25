@@ -20,31 +20,38 @@ pub trait RendererImpl {
         &mut self,
         material: Material,
     ) -> Result<Arc<RwLock<dyn RendererMaterial>>, String>;
+    fn release_material(
+        &mut self,
+        material: Arc<RwLock<dyn RendererMaterial>>,
+    ) -> Result<(), String>;
 
     fn create_shader(
         &mut self,
         shader_name: String,
     ) -> Result<Arc<RwLock<dyn RendererShader>>, String>;
+    fn release_shader(&mut self, shader: Arc<RwLock<dyn RendererShader>>) -> Result<(), String>;
 
-    fn create_drawable_mesh(
-        &mut self,
-        mesh: Arc<Mesh>,
-    ) -> Result<Arc<RwLock<dyn RendererMesh>>, String>;
+    fn create_mesh(&mut self, mesh: Arc<Mesh>) -> Result<Arc<RwLock<dyn RendererMesh>>, String>;
+    fn release_mesh(&mut self, mesh: Arc<RwLock<dyn RendererMesh>>) -> Result<(), String>;
 
-    fn create_drawable_object_from_mesh(
+    fn create_renderer_object_from_mesh(
         &mut self,
         mesh: &Arc<RwLock<dyn RendererMesh>>,
         shader: &Arc<RwLock<dyn RendererShader>>,
         material: &Arc<RwLock<dyn RendererMaterial>>,
     ) -> Result<Arc<RwLock<dyn RendererObject>>, String>;
-
-    fn add_drawable_object(
+    fn release_renderer_object(
         &mut self,
-        drawable_object: &Arc<RwLock<dyn RendererObject>>,
+        renderer_object: Arc<RwLock<dyn RendererObject>>,
+    ) -> Result<(), String>;
+
+    fn add_renderer_object(
+        &mut self,
+        renderer_object: &Arc<RwLock<dyn RendererObject>>,
         transform: Transform<f32, f32, f32>,
     ) -> Result<(), String>;
-    fn remove_drawable_object(
+    fn remove_renderer_object(
         &mut self,
-        drawable_object: &Arc<RwLock<dyn RendererObject>>,
+        renderer_object: &Arc<RwLock<dyn RendererObject>>,
     ) -> Result<(), String>;
 }
