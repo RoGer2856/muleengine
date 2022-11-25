@@ -31,8 +31,8 @@ impl GLMeshContainer {
         for mesh in scene.meshes_ref().iter() {
             match mesh {
                 Ok(mesh) => {
-                    let drawable_object = self.get_drawable_mesh(mesh.clone());
-                    ret.push(Ok(drawable_object));
+                    let gl_mesh = self.get_gl_mesh(mesh.clone());
+                    ret.push(Ok(gl_mesh));
                 }
                 Err(e) => {
                     ret.push(Err(e.clone()));
@@ -43,7 +43,7 @@ impl GLMeshContainer {
         ret
     }
 
-    pub fn get_drawable_mesh(&mut self, mesh: Arc<Mesh>) -> Arc<GLMesh> {
+    pub fn get_gl_mesh(&mut self, mesh: Arc<Mesh>) -> Arc<GLMesh> {
         let inner_container = self
             .meshes
             .entry(&*mesh)

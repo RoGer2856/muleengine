@@ -107,8 +107,12 @@ where
         }
     }
 
-    pub fn number_of_items(&self) -> usize {
-        self.object_pool.number_of_items()
+    pub fn len(&self) -> usize {
+        self.object_pool.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.object_pool.is_empty()
     }
 
     pub fn first_index(
@@ -215,7 +219,7 @@ mod tests {
         let _index3 = pool.create_object(3, "item3".to_string());
         let _index4 = pool.create_object(4, "item4".to_string());
 
-        assert_eq!(pool.number_of_items(), 5);
+        assert_eq!(pool.len(), 5);
 
         assert_eq!(
             pool.release_object_by_key(&2),
@@ -230,7 +234,7 @@ mod tests {
             Some((4, "item4".to_string()))
         );
 
-        assert_eq!(pool.number_of_items(), 2);
+        assert_eq!(pool.len(), 2);
 
         assert_eq!(pool.get_ref_by_key(&1), None);
         assert_eq!(pool.get_ref_by_index(index2), None);

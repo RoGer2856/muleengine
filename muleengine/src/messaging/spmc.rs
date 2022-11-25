@@ -253,13 +253,6 @@ mod tests {
 
         sender.send("0".to_string());
 
-        assert_eq!(
-            sender
-                .receiver_queues
-                .receiver_queues
-                .lock()
-                .number_of_items(),
-            0
-        );
+        assert_eq!(sender.receiver_queues.receiver_queues.lock().len(), 0);
     }
 }

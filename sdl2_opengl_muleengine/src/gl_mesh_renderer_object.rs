@@ -12,7 +12,7 @@ use super::{
     opengl_utils::{shader_input::ShaderUniform, vertex_array_object::VertexArrayObject},
 };
 
-pub struct GLMeshDrawableObject {
+pub struct GLMeshRendererObject {
     gl_mesh: Arc<GLMesh>,
     material: Arc<GLMaterial>,
     bone_transforms: Option<Vec<Mat4<f32>>>,
@@ -20,9 +20,9 @@ pub struct GLMeshDrawableObject {
     gl_mesh_shader_program: Arc<GLMeshShaderProgram>,
 }
 
-impl RendererObject for GLMeshDrawableObject {}
+impl RendererObject for GLMeshRendererObject {}
 
-impl GLMeshDrawableObject {
+impl GLMeshRendererObject {
     pub fn new(
         gl_mesh: Arc<GLMesh>,
         material: Arc<GLMaterial>,

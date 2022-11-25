@@ -162,21 +162,21 @@ async fn populate_with_objects(
 
         let mesh = Arc::new(mesh_creator::capsule::create(0.5, 2.0, 16));
 
-        let shader_id = renderer_client
+        let shader_handler = renderer_client
             .create_shader("Assets/shaders/lit_wo_normal".to_string())
             .await
             .unwrap();
-        let material_id = renderer_client
+        let material_handler = renderer_client
             .create_material(mesh.get_material().clone())
             .await
             .unwrap();
-        let mesh_id = renderer_client.create_drawable_mesh(mesh).await.unwrap();
-        let drawable_object_id = renderer_client
-            .create_drawable_object_from_mesh(mesh_id, shader_id, material_id)
+        let mesh_handler = renderer_client.create_mesh(mesh).await.unwrap();
+        let renderer_object_handler = renderer_client
+            .create_renderer_object_from_mesh(mesh_handler, shader_handler, material_handler)
             .await
             .unwrap();
         renderer_client
-            .add_drawable_object(drawable_object_id, transform)
+            .add_renderer_object(renderer_object_handler, transform)
             .await
             .unwrap();
     }
@@ -199,27 +199,28 @@ async fn populate_with_objects(
             )
             .unwrap();
 
-        let shader_id = renderer_client
+        let shader_handler = renderer_client
             .create_shader("Assets/shaders/lit_normal".to_string())
             .await
             .unwrap();
         for mesh in scene.meshes_ref().iter() {
             match &mesh {
                 Ok(mesh) => {
-                    let material_id = renderer_client
+                    let material_handler = renderer_client
                         .create_material(mesh.get_material().clone())
                         .await
                         .unwrap();
-                    let mesh_id = renderer_client
-                        .create_drawable_mesh(mesh.clone())
-                        .await
-                        .unwrap();
-                    let drawable_object_id = renderer_client
-                        .create_drawable_object_from_mesh(mesh_id, shader_id, material_id)
+                    let mesh_handler = renderer_client.create_mesh(mesh.clone()).await.unwrap();
+                    let renderer_object_handler = renderer_client
+                        .create_renderer_object_from_mesh(
+                            mesh_handler,
+                            shader_handler.clone(),
+                            material_handler,
+                        )
                         .await
                         .unwrap();
                     renderer_client
-                        .add_drawable_object(drawable_object_id, transform)
+                        .add_renderer_object(renderer_object_handler, transform)
                         .await
                         .unwrap();
                 }
@@ -255,7 +256,7 @@ async fn add_skybox(asset_container: AssetContainer, renderer_client: RendererCl
             "Assets/objects/skybox/skyboxBack.png",
         ];
 
-        let shader_id = renderer_client
+        let shader_handler = renderer_client
             .create_shader("Assets/shaders/unlit".to_string())
             .await
             .unwrap();
@@ -280,14 +281,18 @@ async fn add_skybox(asset_container: AssetContainer, renderer_client: RendererCl
 
             let mesh = scene.meshes_ref()[index].as_ref().unwrap().clone();
 
-            let material_id = renderer_client.create_material(material).await.unwrap();
-            let mesh_id = renderer_client.create_drawable_mesh(mesh).await.unwrap();
-            let drawable_object_id = renderer_client
-                .create_drawable_object_from_mesh(mesh_id, shader_id, material_id)
+            let material_handler = renderer_client.create_material(material).await.unwrap();
+            let mesh_handler = renderer_client.create_mesh(mesh).await.unwrap();
+            let renderer_object_handler = renderer_client
+                .create_renderer_object_from_mesh(
+                    mesh_handler,
+                    shader_handler.clone(),
+                    material_handler,
+                )
                 .await
                 .unwrap();
             renderer_client
-                .add_drawable_object(drawable_object_id, transform)
+                .add_renderer_object(renderer_object_handler, transform)
                 .await
                 .unwrap();
         }
