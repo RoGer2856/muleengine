@@ -116,9 +116,11 @@ impl RendererImpl for Renderer {
         &mut self,
         material: Arc<RwLock<dyn RendererMaterial>>,
     ) -> Result<(), String> {
-        // todo!();
-        log::warn!("TODO");
-        Ok(())
+        let ptr: *const dyn RendererMaterial = material.data_ptr();
+        self.renderer_materials
+            .remove(&ptr)
+            .ok_or_else(|| "Releasing material, error = could not found material".to_string())
+            .map(|_| ())
     }
 
     fn create_shader(
@@ -142,9 +144,11 @@ impl RendererImpl for Renderer {
     }
 
     fn release_shader(&mut self, shader: Arc<RwLock<dyn RendererShader>>) -> Result<(), String> {
-        // todo!();
-        log::warn!("TODO");
-        Ok(())
+        let ptr: *const dyn RendererShader = shader.data_ptr();
+        self.renderer_shaders
+            .remove(&ptr)
+            .ok_or_else(|| "Releasing shader, error = could not found shader".to_string())
+            .map(|_| ())
     }
 
     fn create_mesh(&mut self, mesh: Arc<Mesh>) -> Result<Arc<RwLock<dyn RendererMesh>>, String> {
@@ -159,9 +163,11 @@ impl RendererImpl for Renderer {
     }
 
     fn release_mesh(&mut self, mesh: Arc<RwLock<dyn RendererMesh>>) -> Result<(), String> {
-        // todo!();
-        log::warn!("TODO");
-        Ok(())
+        let ptr: *const dyn RendererMesh = mesh.data_ptr();
+        self.renderer_meshes
+            .remove(&ptr)
+            .ok_or_else(|| "Releasing mesh, error = could not found mesh".to_string())
+            .map(|_| ())
     }
 
     fn create_renderer_object_from_mesh(
@@ -201,8 +207,16 @@ impl RendererImpl for Renderer {
         &mut self,
         renderer_object: Arc<RwLock<dyn RendererObject>>,
     ) -> Result<(), String> {
-        // todo!();
-        log::warn!("TODO");
+        let ptr: *const dyn RendererObject = renderer_object.data_ptr();
+        self.mesh_renderer_objects
+            .remove(&ptr)
+            .ok_or_else(|| {
+                "Releasing renderer object, error = could not found renderer object".to_string()
+            })
+            .map(|_| ())?;
+
+        self.mesh_renderer_objects_to_draw.remove(&ptr);
+
         Ok(())
     }
 
