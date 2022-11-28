@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use vek::{Mat4, Vec3};
+use vek::{Mat4, Transform, Vec3};
 
 use muleengine::{mesh::MaterialTextureType, renderer::RendererObject};
 
@@ -15,6 +15,7 @@ use super::{
 pub struct GLMeshRendererObject {
     gl_mesh: Arc<GLMesh>,
     material: Arc<GLMaterial>,
+    object_matrix: Mat4<f32>,
     bone_transforms: Option<Vec<Mat4<f32>>>,
     vertex_array_object: VertexArrayObject,
     gl_mesh_shader_program: Arc<GLMeshShaderProgram>,
@@ -26,6 +27,7 @@ impl GLMeshRendererObject {
     pub fn new(
         gl_mesh: Arc<GLMesh>,
         material: Arc<GLMaterial>,
+        transform: Transform<f32, f32, f32>,
         gl_mesh_shader_program: Arc<GLMeshShaderProgram>,
     ) -> Self {
         let vertex_array_object = VertexArrayObject::new(|vao_interface| {
@@ -62,6 +64,7 @@ impl GLMeshRendererObject {
         Self {
             gl_mesh,
             material,
+            object_matrix: transform.into(),
             bone_transforms: None,
             vertex_array_object,
             gl_mesh_shader_program,
@@ -73,7 +76,6 @@ impl GLMeshRendererObject {
         eye_position: &Vec3<f32>,
         projection_matrix: &Mat4<f32>,
         view_matrix: &Mat4<f32>,
-        object_matrix: &Mat4<f32>,
     ) {
         self.gl_mesh_shader_program.shader_program.use_program();
 
@@ -82,7 +84,7 @@ impl GLMeshRendererObject {
         }
 
         if let Some(uniform) = &self.gl_mesh_shader_program.uniforms.object_matrix {
-            uniform.send_uniform_matrix_4fv(object_matrix.as_col_slice(), 1);
+            uniform.send_uniform_matrix_4fv(self.object_matrix.as_col_slice(), 1);
         }
 
         if let Some(uniform) = &self.gl_mesh_shader_program.uniforms.view_matrix {
@@ -94,7 +96,7 @@ impl GLMeshRendererObject {
         }
 
         if let Some(uniform) = &self.gl_mesh_shader_program.uniforms.normal_matrix {
-            let mut normal_matrix = object_matrix.inverted_affine_transform();
+            let mut normal_matrix = self.object_matrix.inverted_affine_transform();
             normal_matrix.transpose();
             uniform.send_uniform_matrix_4fv(normal_matrix.as_col_slice(), 1);
         }

@@ -13,12 +13,13 @@ use super::{
     renderer_command::{Command, CommandReceiver, CommandSender},
     renderer_impl::RendererImpl,
     MaterialHandler, MeshHandler, RendererError, RendererMaterial, RendererMesh, RendererObject,
-    RendererObjectHandler, RendererShader, ShaderHandler,
+    RendererObjectHandler, RendererShader, RendererTransform, ShaderHandler, TransformHandler,
 };
 
 pub struct Renderer {
     pub(super) renderer_impl: Box<dyn RendererImpl>,
 
+    pub(super) renderer_transforms: ObjectPool<Arc<RwLock<dyn RendererTransform>>>,
     pub(super) renderer_materials: ObjectPool<Arc<RwLock<dyn RendererMaterial>>>,
     pub(super) renderer_shaders: ObjectPool<Arc<RwLock<dyn RendererShader>>>,
     pub(super) renderer_meshes: ObjectPool<Arc<RwLock<dyn RendererMesh>>>,
@@ -35,6 +36,7 @@ impl Renderer {
         Self {
             renderer_impl: Box::new(renderer_impl),
 
+            renderer_transforms: ObjectPool::new(),
             renderer_materials: ObjectPool::new(),
             renderer_shaders: ObjectPool::new(),
             renderer_meshes: ObjectPool::new(),
@@ -60,6 +62,37 @@ impl Renderer {
     fn execute_command_queue(&mut self) {
         while let Ok(command) = self.command_receiver.try_recv() {
             match command {
+                Command::CreateTransform {
+                    transform,
+                    result_sender,
+                } => {
+                    let ret = self
+                        .renderer_impl
+                        .create_transform(transform)
+                        .map(|transform| {
+                            TransformHandler::new(
+                                self.renderer_transforms.create_object(transform.clone()),
+                                self.command_sender.clone(),
+                            )
+                        })
+                        .map_err(RendererError::RendererImplError);
+
+                    let _ = result_sender
+                        .send(ret)
+                        .inspect_err(|e| log::error!("CreateTransform response, error = {e:?}"));
+                }
+                Command::ReleaseTransform { object_pool_index } => {
+                    let transform = self.renderer_transforms.release_object(object_pool_index);
+
+                    if let Some(transform) = transform {
+                        let _ = self
+                            .renderer_impl
+                            .release_transform(transform.clone())
+                            .inspect_err(|e| log::error!("ReleaseTransform, error = {e}"));
+                    } else {
+                        log::error!("ReleaseTransform, error = could not find transform");
+                    }
+                }
                 Command::CreateMaterial {
                     material,
                     result_sender,
@@ -88,7 +121,7 @@ impl Renderer {
                             .release_material(material.clone())
                             .inspect_err(|e| log::error!("ReleaseMaterial, error = {e}"));
                     } else {
-                        log::error!("ReleaseMaterial, error = could not found material");
+                        log::error!("ReleaseMaterial, error = could not find material");
                     }
                 }
                 Command::CreateShader {
@@ -119,7 +152,7 @@ impl Renderer {
                             .release_shader(shader.clone())
                             .inspect_err(|e| log::error!("ReleaseShader, error = {e}"));
                     } else {
-                        log::error!("ReleaseShader, error = could not found shader");
+                        log::error!("ReleaseShader, error = could not find shader");
                     }
                 }
                 Command::CreateMesh {
@@ -150,13 +183,14 @@ impl Renderer {
                             .release_mesh(mesh.clone())
                             .inspect_err(|e| log::error!("ReleaseMesh, error = {e}"));
                     } else {
-                        log::error!("ReleaseMesh, error = could not found mesh");
+                        log::error!("ReleaseMesh, error = could not find mesh");
                     }
                 }
                 Command::CreateRendererObjectFromMesh {
                     mesh_handler,
                     shader_handler,
                     material_handler,
+                    transform_handler,
                     result_sender,
                 } => {
                     // the closure helps the readability of the code by enabling the usage of the ? operator
@@ -178,8 +212,15 @@ impl Renderer {
                                 material_handler,
                             ))?;
 
+                        let transform = self
+                            .renderer_transforms
+                            .get_ref(transform_handler.0.object_pool_index)
+                            .ok_or(RendererError::InvalidRendererTransformHandler(
+                                transform_handler,
+                            ))?;
+
                         self.renderer_impl
-                            .create_renderer_object_from_mesh(mesh, shader, material)
+                            .create_renderer_object_from_mesh(mesh, shader, material, transform)
                             .map(|renderer_object| {
                                 RendererObjectHandler::new(
                                     self.renderer_objects.create_object(renderer_object.clone()),
@@ -203,13 +244,12 @@ impl Renderer {
                             .inspect_err(|e| log::error!("ReleaseRendererObject, error = {e}"));
                     } else {
                         log::error!(
-                            "ReleaseRendererObject, error = could not found renderer object"
+                            "ReleaseRendererObject, error = could not find renderer object"
                         );
                     }
                 }
                 Command::AddRendererObject {
                     renderer_object_handler,
-                    transform,
                     result_sender,
                 } => {
                     let ret = if let Some(renderer_object) = self
@@ -217,7 +257,7 @@ impl Renderer {
                         .get_ref(renderer_object_handler.0.object_pool_index)
                     {
                         self.renderer_impl
-                            .add_renderer_object(renderer_object, transform)
+                            .add_renderer_object(renderer_object)
                             .map_err(RendererError::RendererImplError)
                     } else {
                         Err(RendererError::InvalidRendererObjectHandler(

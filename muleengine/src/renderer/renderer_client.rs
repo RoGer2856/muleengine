@@ -12,6 +12,7 @@ use crate::{
 use super::{
     renderer_command::{Command, CommandSender},
     MaterialHandler, MeshHandler, RendererError, RendererObjectHandler, ShaderHandler,
+    TransformHandler,
 };
 
 #[derive(Clone)]
@@ -20,6 +21,28 @@ pub struct RendererClient {
 }
 
 impl RendererClient {
+    pub async fn create_transform(
+        &self,
+        transform: Transform<f32, f32, f32>,
+    ) -> Result<TransformHandler, RendererError> {
+        let (result_sender, result_receiver) = oneshot::channel();
+        let _ = self
+            .command_sender
+            .send(Command::CreateTransform {
+                transform,
+                result_sender,
+            })
+            .inspect_err(|e| log::error!("Creating transform, error = {e}"));
+
+        match result_receiver
+            .await
+            .inspect_err(|e| log::error!("Creating transform response, error = {e}"))
+        {
+            Ok(ret) => ret,
+            Err(_) => unreachable!(),
+        }
+    }
+
     pub async fn create_material(
         &self,
         material: Material,
@@ -85,6 +108,7 @@ impl RendererClient {
         mesh_handler: MeshHandler,
         shader_handler: ShaderHandler,
         material_handler: MaterialHandler,
+        transform_handler: TransformHandler,
     ) -> Result<RendererObjectHandler, RendererError> {
         let (result_sender, result_receiver) = oneshot::channel();
         let _ = self
@@ -93,6 +117,7 @@ impl RendererClient {
                 mesh_handler,
                 shader_handler,
                 material_handler,
+                transform_handler,
                 result_sender,
             })
             .inspect_err(|e| log::error!("Creating renderer object from mesh, error = {e}"));
@@ -108,14 +133,12 @@ impl RendererClient {
     pub async fn add_renderer_object(
         &self,
         renderer_object_handler: RendererObjectHandler,
-        transform: Transform<f32, f32, f32>,
     ) -> Result<(), RendererError> {
         let (result_sender, result_receiver) = oneshot::channel();
         let _ = self
             .command_sender
             .send(Command::AddRendererObject {
                 renderer_object_handler,
-                transform,
                 result_sender,
             })
             .inspect_err(|e| log::error!("Adding renderer object to renderer, error = {e}"));

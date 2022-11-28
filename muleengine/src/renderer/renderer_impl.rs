@@ -8,13 +8,22 @@ use crate::{
     mesh::{Material, Mesh},
 };
 
-use super::{RendererMaterial, RendererMesh, RendererObject, RendererShader};
+use super::{RendererMaterial, RendererMesh, RendererObject, RendererShader, RendererTransform};
 
 pub trait RendererImpl {
     fn render(&mut self);
 
     fn set_window_dimensions(&mut self, dimensions: Vec2<usize>);
     fn set_camera(&mut self, camera: Camera);
+
+    fn create_transform(
+        &mut self,
+        transform: Transform<f32, f32, f32>,
+    ) -> Result<Arc<RwLock<dyn RendererTransform>>, String>;
+    fn release_transform(
+        &mut self,
+        transform: Arc<RwLock<dyn RendererTransform>>,
+    ) -> Result<(), String>;
 
     fn create_material(
         &mut self,
@@ -39,6 +48,7 @@ pub trait RendererImpl {
         mesh: &Arc<RwLock<dyn RendererMesh>>,
         shader: &Arc<RwLock<dyn RendererShader>>,
         material: &Arc<RwLock<dyn RendererMaterial>>,
+        transform: &Arc<RwLock<dyn RendererTransform>>,
     ) -> Result<Arc<RwLock<dyn RendererObject>>, String>;
     fn release_renderer_object(
         &mut self,
@@ -48,7 +58,6 @@ pub trait RendererImpl {
     fn add_renderer_object(
         &mut self,
         renderer_object: &Arc<RwLock<dyn RendererObject>>,
-        transform: Transform<f32, f32, f32>,
     ) -> Result<(), String>;
     fn remove_renderer_object(
         &mut self,

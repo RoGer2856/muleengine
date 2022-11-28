@@ -17,11 +17,12 @@ use crate::{
 
 use super::{
     renderer_client::RendererClient, renderer_impl::RendererImpl, renderer_system::Renderer,
-    RendererMaterial, RendererMesh, RendererObject, RendererShader,
+    RendererMaterial, RendererMesh, RendererObject, RendererShader, RendererTransform,
 };
 
 #[derive(Clone)]
 struct TestRendererImpl {
+    transforms: Arc<RwLock<BTreeSet<SendablePtr<dyn RendererTransform>>>>,
     materials: Arc<RwLock<BTreeSet<SendablePtr<dyn RendererMaterial>>>>,
     shaders: Arc<RwLock<BTreeSet<SendablePtr<dyn RendererShader>>>>,
     meshes: Arc<RwLock<BTreeSet<SendablePtr<dyn RendererMesh>>>>,
@@ -33,6 +34,7 @@ struct TestRendererImpl {
 impl TestRendererImpl {
     pub fn new() -> Self {
         Self {
+            transforms: Arc::new(RwLock::new(BTreeSet::new())),
             materials: Arc::new(RwLock::new(BTreeSet::new())),
             shaders: Arc::new(RwLock::new(BTreeSet::new())),
             meshes: Arc::new(RwLock::new(BTreeSet::new())),
@@ -41,6 +43,9 @@ impl TestRendererImpl {
         }
     }
 }
+
+struct TestRendererTransformImpl;
+impl RendererTransform for TestRendererTransformImpl {}
 
 struct TestRendererMaterialImpl;
 impl RendererMaterial for TestRendererMaterialImpl {}
@@ -58,19 +63,39 @@ impl RendererImpl for TestRendererImpl {
     fn add_renderer_object(
         &mut self,
         renderer_object: &Arc<RwLock<dyn super::RendererObject>>,
-        _transform: vek::Transform<f32, f32, f32>,
     ) -> Result<(), String> {
         let renderer_object = *self
             .renderer_objects
             .read()
             .get(&SendablePtr::new(renderer_object.data_ptr()))
             .ok_or_else(|| {
-                "Adding renderer object, error = could not found renderer object".to_string()
+                "Adding renderer object, error = could not find renderer object".to_string()
             })?;
         self.renderer_objects_to_draw
             .write()
             .insert(renderer_object);
 
+        Ok(())
+    }
+
+    fn create_transform(
+        &mut self,
+        _transform: Transform<f32, f32, f32>,
+    ) -> Result<Arc<RwLock<dyn RendererTransform>>, String> {
+        let transform = Arc::new(RwLock::new(TestRendererTransformImpl));
+        self.transforms
+            .write()
+            .insert(SendablePtr::new(transform.data_ptr()));
+        Ok(transform)
+    }
+
+    fn release_transform(
+        &mut self,
+        transform: Arc<RwLock<dyn RendererTransform>>,
+    ) -> Result<(), String> {
+        self.transforms
+            .write()
+            .remove(&SendablePtr::new(transform.data_ptr()));
         Ok(())
     }
 
@@ -136,26 +161,34 @@ impl RendererImpl for TestRendererImpl {
         mesh: &Arc<RwLock<dyn super::RendererMesh>>,
         shader: &Arc<RwLock<dyn super::RendererShader>>,
         material: &Arc<RwLock<dyn super::RendererMaterial>>,
+        transform: &Arc<RwLock<dyn super::RendererTransform>>,
     ) -> Result<Arc<RwLock<dyn super::RendererObject>>, String> {
         self.shaders
             .read()
             .get(&SendablePtr::new(shader.data_ptr()))
             .ok_or_else(|| {
-                "Creating renderer object from mesh, error = could not found shader".to_string()
+                "Creating renderer object from mesh, error = could not find shader".to_string()
             })?;
 
         self.materials
             .read()
             .get(&SendablePtr::new(material.data_ptr()))
             .ok_or_else(|| {
-                "Creating renderer object from mesh, error = could not found material".to_string()
+                "Creating renderer object from mesh, error = could not find material".to_string()
             })?;
 
         self.meshes
             .read()
             .get(&SendablePtr::new(mesh.data_ptr()))
             .ok_or_else(|| {
-                "Creating renderer object from mesh, error = could not found mesh".to_string()
+                "Creating renderer object from mesh, error = could not find mesh".to_string()
+            })?;
+
+        self.transforms
+            .read()
+            .get(&SendablePtr::new(transform.data_ptr()))
+            .ok_or_else(|| {
+                "Creating renderer object from mesh, error = could not find transform".to_string()
             })?;
 
         let renderer_object = Arc::new(RwLock::new(TestMeshRendererObjectImpl));
@@ -190,7 +223,7 @@ impl RendererImpl for TestRendererImpl {
             Ok(())
         } else {
             Err(
-                "Removing renderer object from renderer, error = could not found renderer object"
+                "Removing renderer object from renderer, error = could not find renderer object"
                     .to_string(),
             )
         }
@@ -262,6 +295,33 @@ impl TestLoopClient {
     pub fn renderer_impl(&self) -> &TestRendererImpl {
         &self.renderer_impl
     }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn transform_is_released_when_handlers_are_dropped() {
+    let (mut test_loop, test_client) = init_test();
+
+    let test_task = {
+        let test_client = test_client.clone();
+        tokio::spawn(async move {
+            let _handler = test_client
+                .renderer_client()
+                .create_transform(Transform::default())
+                .await
+                .unwrap();
+
+            assert_eq!(1, test_client.renderer_impl().transforms.read().len());
+
+            test_client.stop_main_loop();
+        })
+    };
+
+    test_loop.block_on_main_loop().await;
+
+    test_task.await.unwrap();
+
+    assert_eq!(0, test_loop.renderer_system().renderer_transforms.len());
+    assert_eq!(0, test_client.renderer_impl().transforms.read().len());
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -352,6 +412,12 @@ async fn renderer_object_is_released_when_handlers_are_dropped() {
     let test_task = {
         let test_client = test_client.clone();
         tokio::spawn(async move {
+            let transform_handler = test_client
+                .renderer_client()
+                .create_transform(Transform::default())
+                .await
+                .unwrap();
+
             let material_handler = test_client
                 .renderer_client()
                 .create_material(Material::default())
@@ -372,13 +438,18 @@ async fn renderer_object_is_released_when_handlers_are_dropped() {
 
             let renderer_object_handler = test_client
                 .renderer_client()
-                .create_renderer_object_from_mesh(mesh_handler, shader_handler, material_handler)
+                .create_renderer_object_from_mesh(
+                    mesh_handler,
+                    shader_handler,
+                    material_handler,
+                    transform_handler,
+                )
                 .await
                 .unwrap();
 
             test_client
                 .renderer_client()
-                .add_renderer_object(renderer_object_handler.clone(), Transform::default())
+                .add_renderer_object(renderer_object_handler.clone())
                 .await
                 .unwrap();
 

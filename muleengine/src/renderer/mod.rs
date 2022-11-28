@@ -14,10 +14,20 @@ mod renderer_command;
 pub mod renderer_impl;
 pub mod renderer_system;
 
+pub trait RendererTransform: AsAny + 'static {}
 pub trait RendererMaterial: AsAny + 'static {}
 pub trait RendererShader: AsAny + 'static {}
 pub trait RendererMesh: AsAny + 'static {}
 pub trait RendererObject: AsAny + 'static {}
+
+#[derive(Clone)]
+struct TransformHandlerDestructor {
+    object_pool_index: ObjectPoolIndex,
+    command_sender: CommandSender,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct TransformHandler(Arc<TransformHandlerDestructor>);
 
 #[derive(Clone)]
 struct MaterialHandlerDestructor {
@@ -57,11 +67,60 @@ pub struct RendererObjectHandler(Arc<RendererObjectHandlerDestructor>);
 
 #[derive(Debug)]
 pub enum RendererError {
+    InvalidRendererTransformHandler(TransformHandler),
     InvalidRendererMaterialHandler(MaterialHandler),
     InvalidRendererShaderHandler(ShaderHandler),
     InvalidRendererMeshHandler(MeshHandler),
     InvalidRendererObjectHandler(RendererObjectHandler),
     RendererImplError(String),
+}
+
+impl TransformHandler {
+    pub fn new(object_pool_index: ObjectPoolIndex, command_sender: CommandSender) -> Self {
+        Self(Arc::new(TransformHandlerDestructor {
+            object_pool_index,
+            command_sender,
+        }))
+    }
+}
+
+impl Debug for TransformHandlerDestructor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TransformHandlerDestructor")
+            .field("object_pool_index", &self.object_pool_index)
+            .finish()
+    }
+}
+
+impl Eq for TransformHandlerDestructor {}
+
+impl PartialEq for TransformHandlerDestructor {
+    fn eq(&self, other: &Self) -> bool {
+        self.command_sender.same_channel(&other.command_sender)
+    }
+}
+
+impl Ord for TransformHandlerDestructor {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.object_pool_index.cmp(&other.object_pool_index)
+    }
+}
+
+impl PartialOrd for TransformHandlerDestructor {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Drop for TransformHandlerDestructor {
+    fn drop(&mut self) {
+        let _ = self
+            .command_sender
+            .send(Command::ReleaseTransform {
+                object_pool_index: self.object_pool_index,
+            })
+            .inspect_err(|e| log::error!("Release transform, error = {e}"));
+    }
 }
 
 impl MaterialHandler {

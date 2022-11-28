@@ -72,15 +72,25 @@ impl GameManagerPri {
                 .await
                 .unwrap();
             let mesh_handler = self.renderer_client.create_mesh(mesh).await.unwrap();
+            let transform_handler = self
+                .renderer_client
+                .create_transform(transform)
+                .await
+                .unwrap();
             let renderer_object_handler = self
                 .renderer_client
-                .create_renderer_object_from_mesh(mesh_handler, shader_handler, material_handler)
+                .create_renderer_object_from_mesh(
+                    mesh_handler,
+                    shader_handler,
+                    material_handler,
+                    transform_handler,
+                )
                 .await
                 .unwrap();
             self.renderer_object_handlers
                 .push(renderer_object_handler.clone());
             self.renderer_client
-                .add_renderer_object(renderer_object_handler, transform)
+                .add_renderer_object(renderer_object_handler)
                 .await
                 .unwrap();
         }
@@ -109,6 +119,11 @@ impl GameManagerPri {
                 .create_shader("Assets/shaders/lit_normal".to_string())
                 .await
                 .unwrap();
+            let transform_handler = self
+                .renderer_client
+                .create_transform(transform)
+                .await
+                .unwrap();
             for mesh in scene.meshes_ref().iter() {
                 match &mesh {
                     Ok(mesh) => {
@@ -128,13 +143,14 @@ impl GameManagerPri {
                                 mesh_handler,
                                 shader_handler.clone(),
                                 material_handler,
+                                transform_handler.clone(),
                             )
                             .await
                             .unwrap();
                         self.renderer_object_handlers
                             .push(renderer_object_handler.clone());
                         self.renderer_client
-                            .add_renderer_object(renderer_object_handler, transform)
+                            .add_renderer_object(renderer_object_handler)
                             .await
                             .unwrap();
                     }
@@ -177,6 +193,12 @@ impl GameManagerPri {
                 .await
                 .unwrap();
 
+            let transform_handler = self
+                .renderer_client
+                .create_transform(transform)
+                .await
+                .unwrap();
+
             for (index, texture_path) in texture_paths.iter().enumerate() {
                 let material = Material {
                     textures: vec![MaterialTexture {
@@ -210,13 +232,14 @@ impl GameManagerPri {
                         mesh_handler,
                         shader_handler.clone(),
                         material_handler,
+                        transform_handler.clone(),
                     )
                     .await
                     .unwrap();
                 self.renderer_object_handlers
                     .push(renderer_object_handler.clone());
                 self.renderer_client
-                    .add_renderer_object(renderer_object_handler, transform)
+                    .add_renderer_object(renderer_object_handler)
                     .await
                     .unwrap();
             }

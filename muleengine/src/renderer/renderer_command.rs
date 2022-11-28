@@ -9,9 +9,19 @@ use crate::{
     mesh::{Material, Mesh},
 };
 
-use super::{MaterialHandler, MeshHandler, RendererError, RendererObjectHandler, ShaderHandler};
+use super::{
+    MaterialHandler, MeshHandler, RendererError, RendererObjectHandler, ShaderHandler,
+    TransformHandler,
+};
 
 pub enum Command {
+    CreateTransform {
+        transform: Transform<f32, f32, f32>,
+        result_sender: oneshot::Sender<Result<TransformHandler, RendererError>>,
+    },
+    ReleaseTransform {
+        object_pool_index: ObjectPoolIndex,
+    },
     CreateMaterial {
         material: Material,
         result_sender: oneshot::Sender<Result<MaterialHandler, RendererError>>,
@@ -37,6 +47,7 @@ pub enum Command {
         mesh_handler: MeshHandler,
         shader_handler: ShaderHandler,
         material_handler: MaterialHandler,
+        transform_handler: TransformHandler,
         result_sender: oneshot::Sender<Result<RendererObjectHandler, RendererError>>,
     },
     ReleaseRendererObject {
@@ -44,7 +55,6 @@ pub enum Command {
     },
     AddRendererObject {
         renderer_object_handler: RendererObjectHandler,
-        transform: Transform<f32, f32, f32>,
         result_sender: oneshot::Sender<Result<(), RendererError>>,
     },
 
