@@ -55,7 +55,7 @@ impl ServiceContainer {
             .read()
             .get_item_ref::<RwLock<ServiceType>>()
             .map(|service| service.as_arc_ref().clone())
-            .ok_or_else(|| ServiceMissingError::new::<ServiceType>())
+            .ok_or_else(ServiceMissingError::new::<ServiceType>)
     }
 
     pub fn get_or_insert_service<ServiceType: Send + Sync + 'static>(

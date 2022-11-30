@@ -7,6 +7,7 @@
     clippy::collapsible_if
 )]
 
+pub mod gl_drawable_mesh;
 pub mod gl_material;
 pub mod gl_mesh;
 pub mod gl_mesh_container;

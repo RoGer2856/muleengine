@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -7,7 +7,7 @@ use std::{
 };
 
 use parking_lot::RwLock;
-use vek::Transform;
+use vek::{Transform, Vec3};
 
 use crate::{
     mesh::{Material, Mesh},
@@ -22,10 +22,10 @@ use super::{
 
 #[derive(Clone)]
 struct TestRendererImpl {
-    transforms: Arc<RwLock<BTreeSet<SendablePtr<dyn RendererTransform>>>>,
-    materials: Arc<RwLock<BTreeSet<SendablePtr<dyn RendererMaterial>>>>,
-    shaders: Arc<RwLock<BTreeSet<SendablePtr<dyn RendererShader>>>>,
-    meshes: Arc<RwLock<BTreeSet<SendablePtr<dyn RendererMesh>>>>,
+    transforms: Arc<RwLock<BTreeMap<SendablePtr<dyn RendererTransform>, Transform<f32, f32, f32>>>>,
+    materials: Arc<RwLock<BTreeMap<SendablePtr<dyn RendererMaterial>, Material>>>,
+    shaders: Arc<RwLock<BTreeMap<SendablePtr<dyn RendererShader>, String>>>,
+    meshes: Arc<RwLock<BTreeMap<SendablePtr<dyn RendererMesh>, Arc<Mesh>>>>,
 
     renderer_objects: Arc<RwLock<BTreeSet<SendablePtr<dyn RendererObject>>>>,
     renderer_objects_to_draw: Arc<RwLock<BTreeSet<SendablePtr<dyn RendererObject>>>>,
@@ -34,10 +34,10 @@ struct TestRendererImpl {
 impl TestRendererImpl {
     pub fn new() -> Self {
         Self {
-            transforms: Arc::new(RwLock::new(BTreeSet::new())),
-            materials: Arc::new(RwLock::new(BTreeSet::new())),
-            shaders: Arc::new(RwLock::new(BTreeSet::new())),
-            meshes: Arc::new(RwLock::new(BTreeSet::new())),
+            transforms: Arc::new(RwLock::new(BTreeMap::new())),
+            materials: Arc::new(RwLock::new(BTreeMap::new())),
+            shaders: Arc::new(RwLock::new(BTreeMap::new())),
+            meshes: Arc::new(RwLock::new(BTreeMap::new())),
             renderer_objects: Arc::new(RwLock::new(BTreeSet::new())),
             renderer_objects_to_draw: Arc::new(RwLock::new(BTreeSet::new())),
         }
@@ -80,13 +80,28 @@ impl RendererImpl for TestRendererImpl {
 
     fn create_transform(
         &mut self,
-        _transform: Transform<f32, f32, f32>,
+        transform: Transform<f32, f32, f32>,
     ) -> Result<Arc<RwLock<dyn RendererTransform>>, String> {
-        let transform = Arc::new(RwLock::new(TestRendererTransformImpl));
+        let renderer_transform = Arc::new(RwLock::new(TestRendererTransformImpl));
         self.transforms
             .write()
-            .insert(SendablePtr::new(transform.data_ptr()));
-        Ok(transform)
+            .insert(SendablePtr::new(renderer_transform.data_ptr()), transform);
+        Ok(renderer_transform)
+    }
+
+    fn update_transform(
+        &mut self,
+        transform: &Arc<RwLock<dyn RendererTransform>>,
+        new_transform: Transform<f32, f32, f32>,
+    ) -> Result<(), String> {
+        self.transforms
+            .write()
+            .get_mut(&SendablePtr::new(transform.data_ptr()))
+            .and_then(|transform| {
+                *transform = new_transform;
+                Some(())
+            })
+            .ok_or_else(|| "Updating transform, error = could not find transform".to_string())
     }
 
     fn release_transform(
@@ -101,13 +116,13 @@ impl RendererImpl for TestRendererImpl {
 
     fn create_material(
         &mut self,
-        _material: crate::mesh::Material,
+        material: crate::mesh::Material,
     ) -> Result<Arc<RwLock<dyn super::RendererMaterial>>, String> {
-        let material = Arc::new(RwLock::new(TestRendererMaterialImpl));
+        let renderer_material = Arc::new(RwLock::new(TestRendererMaterialImpl));
         self.materials
             .write()
-            .insert(SendablePtr::new(material.data_ptr()));
-        Ok(material)
+            .insert(SendablePtr::new(renderer_material.data_ptr()), material);
+        Ok(renderer_material)
     }
 
     fn release_material(
@@ -122,13 +137,13 @@ impl RendererImpl for TestRendererImpl {
 
     fn create_shader(
         &mut self,
-        _shader_name: String,
+        shader_name: String,
     ) -> Result<Arc<RwLock<dyn super::RendererShader>>, String> {
-        let shader = Arc::new(RwLock::new(TestRendererShaderImpl));
+        let renderer_shader = Arc::new(RwLock::new(TestRendererShaderImpl));
         self.shaders
             .write()
-            .insert(SendablePtr::new(shader.data_ptr()));
-        Ok(shader)
+            .insert(SendablePtr::new(renderer_shader.data_ptr()), shader_name);
+        Ok(renderer_shader)
     }
 
     fn release_shader(&mut self, shader: Arc<RwLock<dyn RendererShader>>) -> Result<(), String> {
@@ -140,13 +155,13 @@ impl RendererImpl for TestRendererImpl {
 
     fn create_mesh(
         &mut self,
-        _mesh: Arc<crate::mesh::Mesh>,
+        mesh: Arc<crate::mesh::Mesh>,
     ) -> Result<Arc<RwLock<dyn super::RendererMesh>>, String> {
-        let mesh = Arc::new(RwLock::new(TestRendererMeshImpl));
+        let renderer_mesh = Arc::new(RwLock::new(TestRendererMeshImpl));
         self.meshes
             .write()
-            .insert(SendablePtr::new(mesh.data_ptr()));
-        Ok(mesh)
+            .insert(SendablePtr::new(renderer_mesh.data_ptr()), mesh);
+        Ok(renderer_mesh)
     }
 
     fn release_mesh(&mut self, mesh: Arc<RwLock<dyn RendererMesh>>) -> Result<(), String> {
@@ -322,6 +337,49 @@ async fn transform_is_released_when_handlers_are_dropped() {
 
     assert_eq!(0, test_loop.renderer_system().renderer_transforms.len());
     assert_eq!(0, test_client.renderer_impl().transforms.read().len());
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn update_transform() {
+    let (mut test_loop, test_client) = init_test();
+
+    let test_task = {
+        let test_client = test_client.clone();
+        tokio::spawn(async move {
+            let mut transform = Transform::default();
+
+            let handler = test_client
+                .renderer_client()
+                .create_transform(transform)
+                .await
+                .unwrap();
+
+            transform.position += Vec3::new(1.0, 2.0, 3.0);
+            test_client
+                .renderer_client()
+                .update_transform(handler.clone(), transform)
+                .await
+                .unwrap();
+
+            assert_eq!(
+                transform,
+                *test_client
+                    .renderer_impl()
+                    .transforms
+                    .read()
+                    .iter()
+                    .next()
+                    .unwrap()
+                    .1
+            );
+
+            test_client.stop_main_loop();
+        })
+    };
+
+    test_loop.block_on_main_loop().await;
+
+    test_task.await.unwrap();
 }
 
 #[tokio::test(flavor = "current_thread")]

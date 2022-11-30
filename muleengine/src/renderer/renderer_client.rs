@@ -43,6 +43,30 @@ impl RendererClient {
         }
     }
 
+    pub async fn update_transform(
+        &self,
+        transform_handler: TransformHandler,
+        new_transform: Transform<f32, f32, f32>,
+    ) -> Result<(), RendererError> {
+        let (result_sender, result_receiver) = oneshot::channel();
+        let _ = self
+            .command_sender
+            .send(Command::UpdateTransform {
+                transform_handler,
+                new_transform,
+                result_sender,
+            })
+            .inspect_err(|e| log::error!("Updating transform, error = {e}"));
+
+        match result_receiver
+            .await
+            .inspect_err(|e| log::error!("Updating transform response, error = {e}"))
+        {
+            Ok(ret) => ret,
+            Err(_) => unreachable!(),
+        }
+    }
+
     pub async fn create_material(
         &self,
         material: Material,

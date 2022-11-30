@@ -81,6 +81,29 @@ impl Renderer {
                         .send(ret)
                         .inspect_err(|e| log::error!("CreateTransform response, error = {e:?}"));
                 }
+                Command::UpdateTransform {
+                    transform_handler,
+                    new_transform,
+                    result_sender,
+                } => {
+                    // the closure helps the readability of the code by enabling the usage of the ? operator
+                    let closure = || {
+                        let transform = self
+                            .renderer_transforms
+                            .get_ref(transform_handler.0.object_pool_index)
+                            .ok_or(RendererError::InvalidRendererTransformHandler(
+                                transform_handler,
+                            ))?;
+
+                        self.renderer_impl
+                            .update_transform(transform, new_transform)
+                            .map_err(RendererError::RendererImplError)
+                    };
+
+                    let _ = result_sender
+                        .send(closure())
+                        .inspect_err(|e| log::error!("UpdateTransform response, error = {e:?}"));
+                }
                 Command::ReleaseTransform { object_pool_index } => {
                     let transform = self.renderer_transforms.release_object(object_pool_index);
 

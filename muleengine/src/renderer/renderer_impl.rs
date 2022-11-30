@@ -20,6 +20,11 @@ pub trait RendererImpl {
         &mut self,
         transform: Transform<f32, f32, f32>,
     ) -> Result<Arc<RwLock<dyn RendererTransform>>, String>;
+    fn update_transform(
+        &mut self,
+        transform: &Arc<RwLock<dyn RendererTransform>>,
+        new_transform: Transform<f32, f32, f32>,
+    ) -> Result<(), String>;
     fn release_transform(
         &mut self,
         transform: Arc<RwLock<dyn RendererTransform>>,

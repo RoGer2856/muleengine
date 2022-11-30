@@ -19,6 +19,11 @@ pub enum Command {
         transform: Transform<f32, f32, f32>,
         result_sender: oneshot::Sender<Result<TransformHandler, RendererError>>,
     },
+    UpdateTransform {
+        transform_handler: TransformHandler,
+        new_transform: Transform<f32, f32, f32>,
+        result_sender: oneshot::Sender<Result<(), RendererError>>,
+    },
     ReleaseTransform {
         object_pool_index: ObjectPoolIndex,
     },

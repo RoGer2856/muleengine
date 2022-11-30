@@ -1,3 +1,5 @@
+#![allow(clippy::type_complexity)]
+
 use std::{collections::BTreeMap, sync::Arc};
 
 use muleengine::{
@@ -8,12 +10,14 @@ use muleengine::{
         renderer_impl::RendererImpl, RendererMaterial, RendererMesh, RendererObject,
         RendererShader, RendererTransform,
     },
+    result_option_inspect::OptionInspector,
     window_context::WindowContext,
 };
 use parking_lot::RwLock;
 use vek::{Mat4, Transform, Vec2};
 
 use crate::{
+    gl_drawable_mesh::GLDrawableMesh,
     gl_material::{GLMaterial, RendererMaterialImpl},
     gl_mesh::RendererMeshImpl,
     gl_mesh_container::GLMeshContainer,
@@ -27,6 +31,11 @@ use super::RendererTransformImpl;
 
 pub struct Renderer {
     renderer_transforms: BTreeMap<*const dyn RendererTransform, Arc<RwLock<RendererTransformImpl>>>,
+    transform_update_observers: BTreeMap<
+        *const dyn RendererTransform,
+        BTreeMap<*const dyn RendererObject, Box<dyn Fn(&Transform<f32, f32, f32>)>>,
+    >,
+
     renderer_materials: BTreeMap<*const dyn RendererMaterial, Arc<RwLock<RendererMaterialImpl>>>,
     renderer_shaders: BTreeMap<*const dyn RendererShader, Arc<RwLock<RendererShaderImpl>>>,
     renderer_meshes: BTreeMap<*const dyn RendererMesh, Arc<RwLock<RendererMeshImpl>>>,
@@ -55,6 +64,8 @@ impl Renderer {
     ) -> Self {
         let mut ret = Self {
             renderer_transforms: BTreeMap::new(),
+            transform_update_observers: BTreeMap::new(),
+
             renderer_materials: BTreeMap::new(),
             renderer_shaders: BTreeMap::new(),
             renderer_meshes: BTreeMap::new(),
@@ -78,6 +89,58 @@ impl Renderer {
 
         ret
     }
+
+    fn add_transform_update_observer(
+        &mut self,
+        renderer_transform: *const dyn RendererTransform,
+        renderer_object: *const dyn RendererObject,
+        observer_fn: impl Fn(&Transform<f32, f32, f32>) + 'static,
+    ) {
+        self.transform_update_observers
+            .entry(renderer_transform)
+            .or_insert_with(|| {
+                let mut map: BTreeMap<
+                    *const dyn RendererObject,
+                    Box<dyn Fn(&Transform<f32, f32, f32>)>,
+                > = BTreeMap::new();
+                map.insert(renderer_object, Box::new(observer_fn));
+                map
+            });
+    }
+
+    fn remove_transform_update_observers(
+        &mut self,
+        renderer_transform: *const dyn RendererTransform,
+    ) {
+        self.transform_update_observers.remove(&renderer_transform);
+    }
+
+    fn remove_transform_update_observer_of_renderer_object(
+        &mut self,
+        renderer_transform: *const dyn RendererTransform,
+        renderer_object: *const dyn RendererObject,
+    ) {
+        self.transform_update_observers
+            .get_mut(&renderer_transform)
+            .map(|observers| {
+                observers.remove(&renderer_object);
+                Some(())
+            });
+    }
+
+    fn trigger_transform_update_observer(
+        &self,
+        renderer_transform: *const dyn RendererTransform,
+        transform: &Transform<f32, f32, f32>,
+    ) {
+        self.transform_update_observers
+            .get(&renderer_transform)
+            .inspect(|observers| {
+                for observer in observers.values() {
+                    observer(transform);
+                }
+            });
+    }
 }
 
 impl RendererImpl for Renderer {
@@ -91,7 +154,7 @@ impl RendererImpl for Renderer {
 
         let view_matrix = self.camera.compute_view_matrix();
         for renderer_object in self.mesh_renderer_objects_to_draw.values() {
-            renderer_object.read().render(
+            renderer_object.read().gl_drawable_mesh.render(
                 &self.camera.transform.position,
                 &self.projection_matrix,
                 &view_matrix,
@@ -113,11 +176,32 @@ impl RendererImpl for Renderer {
         Ok(transform)
     }
 
+    fn update_transform(
+        &mut self,
+        transform: &Arc<RwLock<dyn RendererTransform>>,
+        new_transform: Transform<f32, f32, f32>,
+    ) -> Result<(), String> {
+        let ptr: *const dyn RendererTransform = transform.data_ptr();
+        let transform = self
+            .renderer_transforms
+            .get(&ptr)
+            .ok_or_else(|| "Updating transform, error = could not find transform".to_string())?;
+
+        transform.write().transform = new_transform;
+
+        self.trigger_transform_update_observer(transform.data_ptr(), &new_transform);
+
+        Ok(())
+    }
+
     fn release_transform(
         &mut self,
         transform: Arc<RwLock<dyn RendererTransform>>,
     ) -> Result<(), String> {
         let ptr: *const dyn RendererTransform = transform.data_ptr();
+
+        self.remove_transform_update_observers(ptr);
+
         self.renderer_transforms
             .remove(&ptr)
             .ok_or_else(|| "Releasing transform, error = could not find transform".to_string())
@@ -223,12 +307,29 @@ impl RendererImpl for Renderer {
             "Creating renderer object from mesh, error = could not find mesh".to_string()
         })?;
 
-        let mesh_renderer_object = Arc::new(RwLock::new(GLMeshRendererObject::new(
-            gl_mesh.read().gl_mesh().clone(),
-            material.read().gl_material().clone(),
-            transform.read().transform,
-            shader.read().gl_mesh_shader_program().clone(),
-        )));
+        let mesh_renderer_object = Arc::new(RwLock::new(GLMeshRendererObject {
+            transform: transform.clone(),
+            gl_drawable_mesh: GLDrawableMesh::new(
+                gl_mesh.read().gl_mesh().clone(),
+                material.read().gl_material().clone(),
+                transform.read().transform,
+                shader.read().gl_mesh_shader_program().clone(),
+            ),
+        }));
+
+        {
+            let mesh_renderer_object = mesh_renderer_object.clone();
+            self.add_transform_update_observer(
+                transform.data_ptr(),
+                mesh_renderer_object.data_ptr(),
+                move |transform| {
+                    mesh_renderer_object
+                        .write()
+                        .gl_drawable_mesh
+                        .set_transform(transform)
+                },
+            );
+        }
 
         self.mesh_renderer_objects
             .insert(&*mesh_renderer_object.read(), mesh_renderer_object.clone());
@@ -246,7 +347,13 @@ impl RendererImpl for Renderer {
             .ok_or_else(|| {
                 "Releasing renderer object, error = could not find renderer object".to_string()
             })
-            .map(|_| ())?;
+            .map(|renderer_object| {
+                self.remove_transform_update_observer_of_renderer_object(
+                    renderer_object.read().transform.data_ptr(),
+                    ptr,
+                );
+                Some(())
+            })?;
 
         self.mesh_renderer_objects_to_draw.remove(&ptr);
 

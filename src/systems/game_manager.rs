@@ -56,8 +56,6 @@ impl GameManagerPri {
 
         {
             let mut transform = Transform::<f32, f32, f32>::default();
-            transform.position.x = -2.0;
-            transform.position.z = -5.0;
 
             let mesh = Arc::new(mesh_creator::capsule::create(0.5, 2.0, 16));
 
@@ -83,7 +81,7 @@ impl GameManagerPri {
                     mesh_handler,
                     shader_handler,
                     material_handler,
-                    transform_handler,
+                    transform_handler.clone(),
                 )
                 .await
                 .unwrap();
@@ -91,6 +89,13 @@ impl GameManagerPri {
                 .push(renderer_object_handler.clone());
             self.renderer_client
                 .add_renderer_object(renderer_object_handler)
+                .await
+                .unwrap();
+
+            transform.position.x = -2.0;
+            transform.position.z = -5.0;
+            self.renderer_client
+                .update_transform(transform_handler, transform)
                 .await
                 .unwrap();
         }
