@@ -64,7 +64,7 @@ async fn async_main() {
         sdl2_gl_context.warp_mouse_normalized_screen_space(Vec2::new(0.5, 0.5));
     }
 
-    let service_container = init_services();
+    let mut service_container = init_services();
 
     let (mut system_container, renderer_client) = {
         let mut system_container = SystemContainer::new();
@@ -83,7 +83,9 @@ async fn async_main() {
         let renderer_system = Renderer::new(renderer_impl);
         let renderer_client = renderer_system.client();
 
-        system_container.add_system(GameManager::new(service_container, renderer_client.clone()));
+        service_container.insert(renderer_client.clone());
+
+        system_container.add_system(GameManager::new(service_container));
         system_container.add_system(SpectatorCameraControllerSystem::new(
             renderer_client.clone(),
             sdl2_gl_context.clone(),

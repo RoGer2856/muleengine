@@ -19,29 +19,30 @@ pub struct GameManager {
 struct GameManagerPri {
     renderer_object_handlers: Vec<RendererObjectHandler>,
 
-    _service_container: ServiceContainer,
     renderer_client: RendererClient,
     asset_container: AssetContainer,
 }
 
 impl GameManager {
-    pub fn new(service_container: ServiceContainer, renderer_client: RendererClient) -> Self {
+    pub fn new(service_container: ServiceContainer) -> Self {
         Self {
             first_tick: true,
-            inner: Arc::new(RwLock::new(GameManagerPri::new(
-                service_container,
-                renderer_client,
-            ))),
+            inner: Arc::new(RwLock::new(GameManagerPri::new(service_container))),
         }
     }
 }
 
 impl GameManagerPri {
-    pub fn new(service_container: ServiceContainer, renderer_client: RendererClient) -> Self {
+    pub fn new(service_container: ServiceContainer) -> Self {
+        let renderer_client = service_container
+            .get_service::<RendererClient>()
+            .unwrap()
+            .read()
+            .clone();
+
         Self {
             renderer_object_handlers: Vec::new(),
 
-            _service_container: service_container.clone(),
             renderer_client,
             asset_container: service_container
                 .get_service::<AssetContainer>()
