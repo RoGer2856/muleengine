@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
-use parking_lot::RwLock;
 use vek::{Transform, Vec2};
 
 use crate::{
     camera::Camera,
     mesh::{Material, Mesh},
+    prelude::ArcRwLock,
 };
 
 use super::{RendererMaterial, RendererMesh, RendererObject, RendererShader, RendererTransform};
@@ -19,53 +19,82 @@ pub trait RendererImpl {
     fn create_transform(
         &mut self,
         transform: Transform<f32, f32, f32>,
-    ) -> Result<Arc<RwLock<dyn RendererTransform>>, String>;
+    ) -> Result<ArcRwLock<dyn RendererTransform>, String>;
     fn update_transform(
         &mut self,
-        transform: &Arc<RwLock<dyn RendererTransform>>,
+        transform: ArcRwLock<dyn RendererTransform>,
         new_transform: Transform<f32, f32, f32>,
     ) -> Result<(), String>;
     fn release_transform(
         &mut self,
-        transform: Arc<RwLock<dyn RendererTransform>>,
+        transform: ArcRwLock<dyn RendererTransform>,
     ) -> Result<(), String>;
 
     fn create_material(
         &mut self,
         material: Material,
-    ) -> Result<Arc<RwLock<dyn RendererMaterial>>, String>;
-    fn release_material(
-        &mut self,
-        material: Arc<RwLock<dyn RendererMaterial>>,
-    ) -> Result<(), String>;
+    ) -> Result<ArcRwLock<dyn RendererMaterial>, String>;
+    fn release_material(&mut self, material: ArcRwLock<dyn RendererMaterial>)
+        -> Result<(), String>;
 
     fn create_shader(
         &mut self,
         shader_name: String,
-    ) -> Result<Arc<RwLock<dyn RendererShader>>, String>;
-    fn release_shader(&mut self, shader: Arc<RwLock<dyn RendererShader>>) -> Result<(), String>;
+    ) -> Result<ArcRwLock<dyn RendererShader>, String>;
+    fn release_shader(&mut self, shader: ArcRwLock<dyn RendererShader>) -> Result<(), String>;
 
-    fn create_mesh(&mut self, mesh: Arc<Mesh>) -> Result<Arc<RwLock<dyn RendererMesh>>, String>;
-    fn release_mesh(&mut self, mesh: Arc<RwLock<dyn RendererMesh>>) -> Result<(), String>;
+    fn create_mesh(&mut self, mesh: Arc<Mesh>) -> Result<ArcRwLock<dyn RendererMesh>, String>;
+    fn release_mesh(&mut self, mesh: ArcRwLock<dyn RendererMesh>) -> Result<(), String>;
 
     fn create_renderer_object_from_mesh(
         &mut self,
-        mesh: &Arc<RwLock<dyn RendererMesh>>,
-        shader: &Arc<RwLock<dyn RendererShader>>,
-        material: &Arc<RwLock<dyn RendererMaterial>>,
-        transform: &Arc<RwLock<dyn RendererTransform>>,
-    ) -> Result<Arc<RwLock<dyn RendererObject>>, String>;
+        mesh: ArcRwLock<dyn RendererMesh>,
+        shader: ArcRwLock<dyn RendererShader>,
+        material: ArcRwLock<dyn RendererMaterial>,
+        transform: ArcRwLock<dyn RendererTransform>,
+    ) -> Result<ArcRwLock<dyn RendererObject>, String>;
     fn release_renderer_object(
         &mut self,
-        renderer_object: Arc<RwLock<dyn RendererObject>>,
+        renderer_object: ArcRwLock<dyn RendererObject>,
     ) -> Result<(), String>;
 
     fn add_renderer_object(
         &mut self,
-        renderer_object: &Arc<RwLock<dyn RendererObject>>,
+        renderer_object: ArcRwLock<dyn RendererObject>,
     ) -> Result<(), String>;
     fn remove_renderer_object(
         &mut self,
-        renderer_object: &Arc<RwLock<dyn RendererObject>>,
+        renderer_object: ArcRwLock<dyn RendererObject>,
     ) -> Result<(), String>;
+}
+
+pub trait AsRendererImpl {
+    fn as_renderer_impl_ref(&self) -> &dyn RendererImpl;
+    fn as_renderer_impl_mut(&mut self) -> &mut dyn RendererImpl;
+}
+
+pub trait RendererImplAsync: AsRendererImpl + RendererImpl + Send + 'static {
+    fn box_clone(&self) -> Box<dyn RendererImplAsync + 'static>;
+}
+
+impl<T: RendererImpl + AsRendererImpl + Clone + Send + 'static> RendererImplAsync for T {
+    fn box_clone(&self) -> Box<dyn RendererImplAsync> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for Box<dyn RendererImplAsync> {
+    fn clone(&self) -> Box<dyn RendererImplAsync> {
+        self.box_clone()
+    }
+}
+
+impl<T: RendererImpl + Clone + Send + 'static> AsRendererImpl for T {
+    fn as_renderer_impl_ref(&self) -> &dyn RendererImpl {
+        self
+    }
+
+    fn as_renderer_impl_mut(&mut self) -> &mut dyn RendererImpl {
+        self
+    }
 }

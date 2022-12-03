@@ -6,11 +6,11 @@ use muleengine::{
     asset_container::AssetContainer,
     camera::Camera,
     mesh::{Material, Mesh},
+    prelude::{ArcRwLock, OptionInspector},
     renderer::{
         renderer_impl::RendererImpl, RendererMaterial, RendererMesh, RendererObject,
         RendererShader, RendererTransform,
     },
-    result_option_inspect::OptionInspector,
     window_context::WindowContext,
 };
 use parking_lot::RwLock;
@@ -30,24 +30,24 @@ use crate::{
 use super::RendererTransformImpl;
 
 pub struct Renderer {
-    renderer_transforms: BTreeMap<*const dyn RendererTransform, Arc<RwLock<RendererTransformImpl>>>,
+    renderer_transforms: BTreeMap<*const dyn RendererTransform, ArcRwLock<RendererTransformImpl>>,
     transform_update_observers: BTreeMap<
         *const dyn RendererTransform,
         BTreeMap<*const dyn RendererObject, Box<dyn Fn(&Transform<f32, f32, f32>)>>,
     >,
 
-    renderer_materials: BTreeMap<*const dyn RendererMaterial, Arc<RwLock<RendererMaterialImpl>>>,
-    renderer_shaders: BTreeMap<*const dyn RendererShader, Arc<RwLock<RendererShaderImpl>>>,
-    renderer_meshes: BTreeMap<*const dyn RendererMesh, Arc<RwLock<RendererMeshImpl>>>,
+    renderer_materials: BTreeMap<*const dyn RendererMaterial, ArcRwLock<RendererMaterialImpl>>,
+    renderer_shaders: BTreeMap<*const dyn RendererShader, ArcRwLock<RendererShaderImpl>>,
+    renderer_meshes: BTreeMap<*const dyn RendererMesh, ArcRwLock<RendererMeshImpl>>,
 
-    mesh_renderer_objects: BTreeMap<*const dyn RendererObject, Arc<RwLock<GLMeshRendererObject>>>,
+    mesh_renderer_objects: BTreeMap<*const dyn RendererObject, ArcRwLock<GLMeshRendererObject>>,
     mesh_renderer_objects_to_draw:
-        BTreeMap<*const dyn RendererObject, Arc<RwLock<GLMeshRendererObject>>>,
+        BTreeMap<*const dyn RendererObject, ArcRwLock<GLMeshRendererObject>>,
 
     camera: Camera,
     projection_matrix: Mat4<f32>,
     window_dimensions: Vec2<usize>,
-    window_context: Arc<RwLock<dyn WindowContext>>,
+    window_context: ArcRwLock<dyn WindowContext>,
 
     asset_container: AssetContainer,
 
@@ -59,7 +59,7 @@ pub struct Renderer {
 impl Renderer {
     pub fn new(
         initial_window_dimensions: Vec2<usize>,
-        window_context: Arc<RwLock<dyn WindowContext>>,
+        window_context: ArcRwLock<dyn WindowContext>,
         asset_container: AssetContainer,
     ) -> Self {
         let mut ret = Self {
@@ -167,7 +167,7 @@ impl RendererImpl for Renderer {
     fn create_transform(
         &mut self,
         transform: Transform<f32, f32, f32>,
-    ) -> Result<Arc<RwLock<dyn RendererTransform>>, String> {
+    ) -> Result<ArcRwLock<dyn RendererTransform>, String> {
         let transform = Arc::new(RwLock::new(RendererTransformImpl { transform }));
 
         self.renderer_transforms
@@ -178,7 +178,7 @@ impl RendererImpl for Renderer {
 
     fn update_transform(
         &mut self,
-        transform: &Arc<RwLock<dyn RendererTransform>>,
+        transform: ArcRwLock<dyn RendererTransform>,
         new_transform: Transform<f32, f32, f32>,
     ) -> Result<(), String> {
         let ptr: *const dyn RendererTransform = transform.data_ptr();
@@ -196,7 +196,7 @@ impl RendererImpl for Renderer {
 
     fn release_transform(
         &mut self,
-        transform: Arc<RwLock<dyn RendererTransform>>,
+        transform: ArcRwLock<dyn RendererTransform>,
     ) -> Result<(), String> {
         let ptr: *const dyn RendererTransform = transform.data_ptr();
 
@@ -211,7 +211,7 @@ impl RendererImpl for Renderer {
     fn create_material(
         &mut self,
         material: Material,
-    ) -> Result<Arc<RwLock<dyn RendererMaterial>>, String> {
+    ) -> Result<ArcRwLock<dyn RendererMaterial>, String> {
         let gl_material = Arc::new(GLMaterial::new(&material, &mut self.gl_texture_container));
 
         let material = Arc::new(RwLock::new(RendererMaterialImpl::new(gl_material)));
@@ -224,7 +224,7 @@ impl RendererImpl for Renderer {
 
     fn release_material(
         &mut self,
-        material: Arc<RwLock<dyn RendererMaterial>>,
+        material: ArcRwLock<dyn RendererMaterial>,
     ) -> Result<(), String> {
         let ptr: *const dyn RendererMaterial = material.data_ptr();
         self.renderer_materials
@@ -236,7 +236,7 @@ impl RendererImpl for Renderer {
     fn create_shader(
         &mut self,
         shader_name: String,
-    ) -> Result<Arc<RwLock<dyn RendererShader>>, String> {
+    ) -> Result<ArcRwLock<dyn RendererShader>, String> {
         let gl_mesh_shader_program = match self
             .gl_shader_program_container
             .get_mesh_shader_program(&shader_name, &self.asset_container.asset_reader().read())
@@ -253,7 +253,7 @@ impl RendererImpl for Renderer {
         Ok(shader)
     }
 
-    fn release_shader(&mut self, shader: Arc<RwLock<dyn RendererShader>>) -> Result<(), String> {
+    fn release_shader(&mut self, shader: ArcRwLock<dyn RendererShader>) -> Result<(), String> {
         let ptr: *const dyn RendererShader = shader.data_ptr();
         self.renderer_shaders
             .remove(&ptr)
@@ -261,7 +261,7 @@ impl RendererImpl for Renderer {
             .map(|_| ())
     }
 
-    fn create_mesh(&mut self, mesh: Arc<Mesh>) -> Result<Arc<RwLock<dyn RendererMesh>>, String> {
+    fn create_mesh(&mut self, mesh: Arc<Mesh>) -> Result<ArcRwLock<dyn RendererMesh>, String> {
         let gl_mesh = self.gl_mesh_container.get_gl_mesh(mesh);
 
         let renderer_mesh = Arc::new(RwLock::new(RendererMeshImpl::new(gl_mesh)));
@@ -272,7 +272,7 @@ impl RendererImpl for Renderer {
         Ok(renderer_mesh)
     }
 
-    fn release_mesh(&mut self, mesh: Arc<RwLock<dyn RendererMesh>>) -> Result<(), String> {
+    fn release_mesh(&mut self, mesh: ArcRwLock<dyn RendererMesh>) -> Result<(), String> {
         let ptr: *const dyn RendererMesh = mesh.data_ptr();
         self.renderer_meshes
             .remove(&ptr)
@@ -282,11 +282,11 @@ impl RendererImpl for Renderer {
 
     fn create_renderer_object_from_mesh(
         &mut self,
-        mesh: &Arc<RwLock<dyn RendererMesh>>,
-        shader: &Arc<RwLock<dyn RendererShader>>,
-        material: &Arc<RwLock<dyn RendererMaterial>>,
-        transform: &Arc<RwLock<dyn RendererTransform>>,
-    ) -> Result<Arc<RwLock<dyn RendererObject>>, String> {
+        mesh: ArcRwLock<dyn RendererMesh>,
+        shader: ArcRwLock<dyn RendererShader>,
+        material: ArcRwLock<dyn RendererMaterial>,
+        transform: ArcRwLock<dyn RendererTransform>,
+    ) -> Result<ArcRwLock<dyn RendererObject>, String> {
         let ptr: *const dyn RendererShader = shader.data_ptr();
         let shader = self.renderer_shaders.get(&ptr).ok_or_else(|| {
             "Creating renderer object from mesh, error = could not find shader".to_string()
@@ -339,7 +339,7 @@ impl RendererImpl for Renderer {
 
     fn release_renderer_object(
         &mut self,
-        renderer_object: Arc<RwLock<dyn RendererObject>>,
+        renderer_object: ArcRwLock<dyn RendererObject>,
     ) -> Result<(), String> {
         let ptr: *const dyn RendererObject = renderer_object.data_ptr();
         self.mesh_renderer_objects
@@ -362,7 +362,7 @@ impl RendererImpl for Renderer {
 
     fn add_renderer_object(
         &mut self,
-        renderer_object: &Arc<RwLock<dyn RendererObject>>,
+        renderer_object: ArcRwLock<dyn RendererObject>,
     ) -> Result<(), String> {
         let ptr: *const dyn RendererObject = renderer_object.data_ptr();
         let mesh = self.mesh_renderer_objects.get(&ptr).ok_or_else(|| {
@@ -376,7 +376,7 @@ impl RendererImpl for Renderer {
 
     fn remove_renderer_object(
         &mut self,
-        renderer_object: &Arc<RwLock<dyn RendererObject>>,
+        renderer_object: ArcRwLock<dyn RendererObject>,
     ) -> Result<(), String> {
         let ptr: *const dyn RendererObject = renderer_object.data_ptr();
         if self.mesh_renderer_objects_to_draw.remove(&ptr).is_some() {

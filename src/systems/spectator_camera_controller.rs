@@ -1,10 +1,8 @@
-use std::sync::Arc;
-
-use parking_lot::RwLock;
 use vek::{num_traits::Zero, Vec2, Vec3};
 
 use muleengine::{
     camera::Camera,
+    prelude::ArcRwLock,
     renderer::renderer_client::RendererClient,
     system_container::System,
     window_context::{Key, WindowContext},
@@ -12,14 +10,14 @@ use muleengine::{
 
 pub struct SpectatorCameraControllerSystem {
     camera: Camera,
-    window_context: Arc<RwLock<dyn WindowContext>>,
+    window_context: ArcRwLock<dyn WindowContext>,
     renderer_client: RendererClient,
 }
 
 impl SpectatorCameraControllerSystem {
     pub fn new(
         renderer_client: RendererClient,
-        window_context: Arc<RwLock<dyn WindowContext>>,
+        window_context: ArcRwLock<dyn WindowContext>,
     ) -> Self {
         Self {
             camera: Camera::new(),

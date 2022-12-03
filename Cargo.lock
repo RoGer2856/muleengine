@@ -488,6 +488,7 @@ version = "0.1.0"
 dependencies = [
  "assimp",
  "assimp-sys",
+ "flume",
  "image",
  "log",
  "parking_lot",

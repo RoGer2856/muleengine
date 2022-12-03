@@ -14,3 +14,4 @@ assimp-sys = "0.3.1"
 tempfile = "3"
 parking_lot = "*"
 tokio = { version = "1.20", features = ["full"] }
+flume = "0.10"

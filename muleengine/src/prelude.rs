@@ -3,6 +3,12 @@ use std::{
     sync::Arc,
 };
 
+use parking_lot::RwLock;
+
+pub use crate::result_option_inspect::*;
+
+pub type ArcRwLock<T> = Arc<RwLock<T>>;
+
 pub trait DowncastArc {
     fn downcast_arc<CastType: 'static>(&self) -> Option<Arc<CastType>>;
 }

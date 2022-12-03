@@ -5,8 +5,8 @@ use vek::Vec3;
 use muleengine::{
     image_container::ImageContainerError,
     mesh::{Material, MaterialTexture, MaterialTextureType, TextureMapMode},
+    prelude::ResultInspector,
     renderer::RendererMaterial,
-    result_option_inspect::ResultInspector,
 };
 
 use super::{

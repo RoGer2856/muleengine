@@ -1,6 +1,6 @@
-use std::sync::Arc;
-
 use parking_lot::RwLock;
+
+use crate::prelude::ArcRwLock;
 
 use super::containers::multi_type_dict::{MultiTypeDict, MultiTypeDictItem};
 
@@ -10,7 +10,7 @@ pub trait System: 'static {
 
 pub struct SystemContainer {
     systems_by_type_id: MultiTypeDict,
-    systems: Vec<Arc<RwLock<dyn System>>>,
+    systems: Vec<ArcRwLock<dyn System>>,
 }
 
 impl Default for SystemContainer {

@@ -96,7 +96,7 @@ impl Eq for TransformHandlerDestructor {}
 
 impl PartialEq for TransformHandlerDestructor {
     fn eq(&self, other: &Self) -> bool {
-        self.command_sender.same_channel(&other.command_sender)
+        self.object_pool_index == other.object_pool_index
     }
 }
 
@@ -144,7 +144,7 @@ impl Eq for MaterialHandlerDestructor {}
 
 impl PartialEq for MaterialHandlerDestructor {
     fn eq(&self, other: &Self) -> bool {
-        self.command_sender.same_channel(&other.command_sender)
+        self.object_pool_index == other.object_pool_index
     }
 }
 
@@ -192,7 +192,7 @@ impl Eq for ShaderHandlerDestructor {}
 
 impl PartialEq for ShaderHandlerDestructor {
     fn eq(&self, other: &Self) -> bool {
-        self.command_sender.same_channel(&other.command_sender)
+        self.object_pool_index == other.object_pool_index
     }
 }
 
@@ -240,7 +240,7 @@ impl Eq for MeshHandlerDestructor {}
 
 impl PartialEq for MeshHandlerDestructor {
     fn eq(&self, other: &Self) -> bool {
-        self.command_sender.same_channel(&other.command_sender)
+        self.object_pool_index == other.object_pool_index
     }
 }
 
@@ -288,7 +288,7 @@ impl Eq for RendererObjectHandlerDestructor {}
 
 impl PartialEq for RendererObjectHandlerDestructor {
     fn eq(&self, other: &Self) -> bool {
-        self.command_sender.same_channel(&other.command_sender)
+        self.object_pool_index == other.object_pool_index
     }
 }
 

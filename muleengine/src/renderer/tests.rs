@@ -11,24 +11,27 @@ use vek::{Transform, Vec3};
 
 use crate::{
     mesh::{Material, Mesh},
+    prelude::ArcRwLock,
     sendable_ptr::SendablePtr,
     system_container::System,
 };
 
 use super::{
-    renderer_client::RendererClient, renderer_impl::RendererImpl, renderer_system::Renderer,
+    renderer_client::RendererClient,
+    renderer_impl::RendererImpl,
+    renderer_system::{AsyncRenderer, SyncRenderer},
     RendererMaterial, RendererMesh, RendererObject, RendererShader, RendererTransform,
 };
 
 #[derive(Clone)]
 struct TestRendererImpl {
-    transforms: Arc<RwLock<BTreeMap<SendablePtr<dyn RendererTransform>, Transform<f32, f32, f32>>>>,
-    materials: Arc<RwLock<BTreeMap<SendablePtr<dyn RendererMaterial>, Material>>>,
-    shaders: Arc<RwLock<BTreeMap<SendablePtr<dyn RendererShader>, String>>>,
-    meshes: Arc<RwLock<BTreeMap<SendablePtr<dyn RendererMesh>, Arc<Mesh>>>>,
+    transforms: ArcRwLock<BTreeMap<SendablePtr<dyn RendererTransform>, Transform<f32, f32, f32>>>,
+    materials: ArcRwLock<BTreeMap<SendablePtr<dyn RendererMaterial>, Material>>,
+    shaders: ArcRwLock<BTreeMap<SendablePtr<dyn RendererShader>, String>>,
+    meshes: ArcRwLock<BTreeMap<SendablePtr<dyn RendererMesh>, Arc<Mesh>>>,
 
-    renderer_objects: Arc<RwLock<BTreeSet<SendablePtr<dyn RendererObject>>>>,
-    renderer_objects_to_draw: Arc<RwLock<BTreeSet<SendablePtr<dyn RendererObject>>>>,
+    renderer_objects: ArcRwLock<BTreeSet<SendablePtr<dyn RendererObject>>>,
+    renderer_objects_to_draw: ArcRwLock<BTreeSet<SendablePtr<dyn RendererObject>>>,
 }
 
 impl TestRendererImpl {
@@ -62,7 +65,7 @@ impl RendererObject for TestMeshRendererObjectImpl {}
 impl RendererImpl for TestRendererImpl {
     fn add_renderer_object(
         &mut self,
-        renderer_object: &Arc<RwLock<dyn super::RendererObject>>,
+        renderer_object: ArcRwLock<dyn super::RendererObject>,
     ) -> Result<(), String> {
         let renderer_object = *self
             .renderer_objects
@@ -81,7 +84,7 @@ impl RendererImpl for TestRendererImpl {
     fn create_transform(
         &mut self,
         transform: Transform<f32, f32, f32>,
-    ) -> Result<Arc<RwLock<dyn RendererTransform>>, String> {
+    ) -> Result<ArcRwLock<dyn RendererTransform>, String> {
         let renderer_transform = Arc::new(RwLock::new(TestRendererTransformImpl));
         self.transforms
             .write()
@@ -91,7 +94,7 @@ impl RendererImpl for TestRendererImpl {
 
     fn update_transform(
         &mut self,
-        transform: &Arc<RwLock<dyn RendererTransform>>,
+        transform: ArcRwLock<dyn RendererTransform>,
         new_transform: Transform<f32, f32, f32>,
     ) -> Result<(), String> {
         self.transforms
@@ -106,7 +109,7 @@ impl RendererImpl for TestRendererImpl {
 
     fn release_transform(
         &mut self,
-        transform: Arc<RwLock<dyn RendererTransform>>,
+        transform: ArcRwLock<dyn RendererTransform>,
     ) -> Result<(), String> {
         self.transforms
             .write()
@@ -117,7 +120,7 @@ impl RendererImpl for TestRendererImpl {
     fn create_material(
         &mut self,
         material: crate::mesh::Material,
-    ) -> Result<Arc<RwLock<dyn super::RendererMaterial>>, String> {
+    ) -> Result<ArcRwLock<dyn super::RendererMaterial>, String> {
         let renderer_material = Arc::new(RwLock::new(TestRendererMaterialImpl));
         self.materials
             .write()
@@ -127,7 +130,7 @@ impl RendererImpl for TestRendererImpl {
 
     fn release_material(
         &mut self,
-        material: Arc<RwLock<dyn RendererMaterial>>,
+        material: ArcRwLock<dyn RendererMaterial>,
     ) -> Result<(), String> {
         self.materials
             .write()
@@ -138,7 +141,7 @@ impl RendererImpl for TestRendererImpl {
     fn create_shader(
         &mut self,
         shader_name: String,
-    ) -> Result<Arc<RwLock<dyn super::RendererShader>>, String> {
+    ) -> Result<ArcRwLock<dyn super::RendererShader>, String> {
         let renderer_shader = Arc::new(RwLock::new(TestRendererShaderImpl));
         self.shaders
             .write()
@@ -146,7 +149,7 @@ impl RendererImpl for TestRendererImpl {
         Ok(renderer_shader)
     }
 
-    fn release_shader(&mut self, shader: Arc<RwLock<dyn RendererShader>>) -> Result<(), String> {
+    fn release_shader(&mut self, shader: ArcRwLock<dyn RendererShader>) -> Result<(), String> {
         self.shaders
             .write()
             .remove(&SendablePtr::new(shader.data_ptr()));
@@ -156,7 +159,7 @@ impl RendererImpl for TestRendererImpl {
     fn create_mesh(
         &mut self,
         mesh: Arc<crate::mesh::Mesh>,
-    ) -> Result<Arc<RwLock<dyn super::RendererMesh>>, String> {
+    ) -> Result<ArcRwLock<dyn super::RendererMesh>, String> {
         let renderer_mesh = Arc::new(RwLock::new(TestRendererMeshImpl));
         self.meshes
             .write()
@@ -164,7 +167,7 @@ impl RendererImpl for TestRendererImpl {
         Ok(renderer_mesh)
     }
 
-    fn release_mesh(&mut self, mesh: Arc<RwLock<dyn RendererMesh>>) -> Result<(), String> {
+    fn release_mesh(&mut self, mesh: ArcRwLock<dyn RendererMesh>) -> Result<(), String> {
         self.meshes
             .write()
             .remove(&SendablePtr::new(mesh.data_ptr()));
@@ -173,11 +176,11 @@ impl RendererImpl for TestRendererImpl {
 
     fn create_renderer_object_from_mesh(
         &mut self,
-        mesh: &Arc<RwLock<dyn super::RendererMesh>>,
-        shader: &Arc<RwLock<dyn super::RendererShader>>,
-        material: &Arc<RwLock<dyn super::RendererMaterial>>,
-        transform: &Arc<RwLock<dyn super::RendererTransform>>,
-    ) -> Result<Arc<RwLock<dyn super::RendererObject>>, String> {
+        mesh: ArcRwLock<dyn super::RendererMesh>,
+        shader: ArcRwLock<dyn super::RendererShader>,
+        material: ArcRwLock<dyn super::RendererMaterial>,
+        transform: ArcRwLock<dyn super::RendererTransform>,
+    ) -> Result<ArcRwLock<dyn super::RendererObject>, String> {
         self.shaders
             .read()
             .get(&SendablePtr::new(shader.data_ptr()))
@@ -215,7 +218,7 @@ impl RendererImpl for TestRendererImpl {
 
     fn release_renderer_object(
         &mut self,
-        renderer_object: Arc<RwLock<dyn RendererObject>>,
+        renderer_object: ArcRwLock<dyn RendererObject>,
     ) -> Result<(), String> {
         self.renderer_objects
             .write()
@@ -228,7 +231,7 @@ impl RendererImpl for TestRendererImpl {
 
     fn remove_renderer_object(
         &mut self,
-        renderer_object: &Arc<RwLock<dyn super::RendererObject>>,
+        renderer_object: ArcRwLock<dyn super::RendererObject>,
     ) -> Result<(), String> {
         if self
             .renderer_objects_to_draw
@@ -251,9 +254,14 @@ impl RendererImpl for TestRendererImpl {
     fn set_window_dimensions(&mut self, _dimensions: vek::Vec2<usize>) {}
 }
 
-struct TestLoop {
+struct TestLoopSync {
     should_run: Arc<AtomicBool>,
-    renderer_system: Renderer,
+    renderer_system: SyncRenderer,
+}
+
+struct TestLoopAsync {
+    should_run: Arc<AtomicBool>,
+    renderer_system: AsyncRenderer,
 }
 
 #[derive(Clone)]
@@ -263,14 +271,14 @@ struct TestLoopClient {
     renderer_client: RendererClient,
 }
 
-fn init_test() -> (TestLoop, TestLoopClient) {
+fn init_test_sync() -> (TestLoopSync, TestLoopClient) {
     let renderer_impl = TestRendererImpl::new();
     let should_run = Arc::new(AtomicBool::new(true));
-    let renderer_system = Renderer::new(renderer_impl.clone());
+    let renderer_system = SyncRenderer::new(renderer_impl.clone());
     let renderer_client = renderer_system.client();
 
     (
-        TestLoop {
+        TestLoopSync {
             should_run: should_run.clone(),
             renderer_system,
         },
@@ -282,7 +290,26 @@ fn init_test() -> (TestLoop, TestLoopClient) {
     )
 }
 
-impl TestLoop {
+fn init_test_async() -> (TestLoopAsync, TestLoopClient) {
+    let renderer_impl = TestRendererImpl::new();
+    let should_run = Arc::new(AtomicBool::new(true));
+    let renderer_system = AsyncRenderer::new(4, renderer_impl.clone());
+    let renderer_client = renderer_system.client();
+
+    (
+        TestLoopAsync {
+            should_run: should_run.clone(),
+            renderer_system,
+        },
+        TestLoopClient {
+            should_run,
+            renderer_impl,
+            renderer_client,
+        },
+    )
+}
+
+impl TestLoopSync {
     pub async fn block_on_main_loop(&mut self) {
         while self.should_run.fetch_and(true, Ordering::SeqCst) {
             self.renderer_system.tick(1.0 / 30.0);
@@ -293,7 +320,23 @@ impl TestLoop {
         self.renderer_system.tick(1.0 / 30.0);
     }
 
-    pub fn renderer_system(&self) -> &Renderer {
+    pub fn renderer_system(&self) -> &SyncRenderer {
+        &self.renderer_system
+    }
+}
+
+impl TestLoopAsync {
+    pub async fn block_on_main_loop(&mut self) {
+        while self.should_run.fetch_and(true, Ordering::SeqCst) {
+            self.renderer_system.tick(1.0 / 30.0);
+
+            tokio::task::yield_now().await;
+        }
+
+        self.renderer_system.tick(1.0 / 30.0);
+    }
+
+    pub fn renderer_system(&self) -> &AsyncRenderer {
         &self.renderer_system
     }
 }
@@ -314,7 +357,7 @@ impl TestLoopClient {
 
 #[tokio::test(flavor = "current_thread")]
 async fn transform_is_released_when_handlers_are_dropped() {
-    let (mut test_loop, test_client) = init_test();
+    let (mut test_loop, test_client) = init_test_sync();
 
     let test_task = {
         let test_client = test_client.clone();
@@ -335,13 +378,21 @@ async fn transform_is_released_when_handlers_are_dropped() {
 
     test_task.await.unwrap();
 
-    assert_eq!(0, test_loop.renderer_system().renderer_transforms.len());
+    assert_eq!(
+        0,
+        test_loop
+            .renderer_system()
+            .renderer_pri
+            .renderer_transforms
+            .read()
+            .len()
+    );
     assert_eq!(0, test_client.renderer_impl().transforms.read().len());
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn update_transform() {
-    let (mut test_loop, test_client) = init_test();
+    let (mut test_loop, test_client) = init_test_async();
 
     let test_task = {
         let test_client = test_client.clone();
@@ -384,7 +435,7 @@ async fn update_transform() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn shader_is_released_when_handlers_are_dropped() {
-    let (mut test_loop, test_client) = init_test();
+    let (mut test_loop, test_client) = init_test_sync();
 
     let test_task = {
         let test_client = test_client.clone();
@@ -405,13 +456,21 @@ async fn shader_is_released_when_handlers_are_dropped() {
 
     test_task.await.unwrap();
 
-    assert_eq!(0, test_loop.renderer_system().renderer_shaders.len());
+    assert_eq!(
+        0,
+        test_loop
+            .renderer_system()
+            .renderer_pri
+            .renderer_shaders
+            .read()
+            .len()
+    );
     assert_eq!(0, test_client.renderer_impl().shaders.read().len());
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn material_is_released_when_handlers_are_dropped() {
-    let (mut test_loop, test_client) = init_test();
+    let (mut test_loop, test_client) = init_test_async();
 
     let test_task = {
         let test_client = test_client.clone();
@@ -432,13 +491,21 @@ async fn material_is_released_when_handlers_are_dropped() {
 
     test_task.await.unwrap();
 
-    assert_eq!(0, test_loop.renderer_system().renderer_materials.len());
+    assert_eq!(
+        0,
+        test_loop
+            .renderer_system()
+            .renderer_pri
+            .renderer_materials
+            .read()
+            .len()
+    );
     assert_eq!(0, test_client.renderer_impl().materials.read().len());
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn mesh_is_released_when_handlers_are_dropped() {
-    let (mut test_loop, test_client) = init_test();
+    let (mut test_loop, test_client) = init_test_sync();
 
     let test_task = {
         let test_client = test_client.clone();
@@ -459,13 +526,21 @@ async fn mesh_is_released_when_handlers_are_dropped() {
 
     test_task.await.unwrap();
 
-    assert_eq!(0, test_loop.renderer_system().renderer_meshes.len());
+    assert_eq!(
+        0,
+        test_loop
+            .renderer_system()
+            .renderer_pri
+            .renderer_meshes
+            .read()
+            .len()
+    );
     assert_eq!(0, test_client.renderer_impl().meshes.read().len());
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn renderer_object_is_released_when_handlers_are_dropped() {
-    let (mut test_loop, test_client) = init_test();
+    let (mut test_loop, test_client) = init_test_async();
 
     let test_task = {
         let test_client = test_client.clone();
@@ -529,7 +604,15 @@ async fn renderer_object_is_released_when_handlers_are_dropped() {
 
     test_task.await.unwrap();
 
-    assert_eq!(0, test_loop.renderer_system().renderer_objects.len());
+    assert_eq!(
+        0,
+        test_loop
+            .renderer_system()
+            .renderer_pri
+            .renderer_objects
+            .read()
+            .len()
+    );
     assert_eq!(0, test_client.renderer_impl().renderer_objects.read().len());
     assert_eq!(
         0,

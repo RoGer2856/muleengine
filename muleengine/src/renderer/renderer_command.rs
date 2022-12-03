@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::oneshot;
 use vek::{Transform, Vec2};
 
 use crate::{
@@ -71,5 +71,5 @@ pub enum Command {
     },
 }
 
-pub type CommandSender = mpsc::UnboundedSender<Command>;
-pub type CommandReceiver = mpsc::UnboundedReceiver<Command>;
+pub type CommandSender = flume::Sender<Command>;
+pub type CommandReceiver = flume::Receiver<Command>;

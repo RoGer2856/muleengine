@@ -12,14 +12,14 @@ use muleengine::{
     asset_container::AssetContainer,
     asset_reader::AssetReader,
     image_container::ImageContainer,
-    renderer::renderer_system::Renderer,
+    renderer::renderer_system::SyncRenderer,
     scene_container::SceneContainer,
     service_container::ServiceContainer,
     system_container::SystemContainer,
     window_context::{Event, WindowContext},
 };
 use parking_lot::RwLock;
-use sdl2_opengl_muleengine::{systems::renderer, GLProfile, Sdl2GLContext};
+use sdl2_opengl_muleengine::{systems::renderer::Renderer, GLProfile, Sdl2GLContext};
 use vek::Vec2;
 
 fn main() {
@@ -70,7 +70,7 @@ async fn async_main() {
         let mut system_container = SystemContainer::new();
 
         // creating renderer system
-        let renderer_impl = renderer::Renderer::new(
+        let renderer_impl = Renderer::new(
             initial_window_dimensions,
             sdl2_gl_context.clone(),
             service_container
@@ -80,7 +80,7 @@ async fn async_main() {
                 .clone(),
         );
 
-        let renderer_system = Renderer::new(renderer_impl);
+        let renderer_system = SyncRenderer::new(renderer_impl);
         let renderer_client = renderer_system.client();
 
         service_container.insert(renderer_client.clone());
