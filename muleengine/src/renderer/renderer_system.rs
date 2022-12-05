@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use parking_lot::RwLock;
+use tokio::sync::watch;
 
 use crate::{
     containers::object_pool::ObjectPool, prelude::ArcRwLock,
@@ -20,10 +21,10 @@ pub struct SyncRenderer {
     pub(super) renderer_impl: Box<dyn RendererImpl>,
 }
 
-#[derive(Clone)]
 pub struct AsyncRenderer {
     pub(super) renderer_pri: RendererPri,
     pub(super) renderer_impl: Box<dyn RendererImplAsync>,
+    halt_sender: watch::Sender<bool>,
 }
 
 #[derive(Clone)]
@@ -58,29 +59,63 @@ impl SyncRenderer {
 impl AsyncRenderer {
     pub fn new(number_of_executors: u8, renderer_impl: impl RendererImplAsync) -> Self {
         if number_of_executors == 0 {
-            panic!("Number of executors given to Renderer::new_async(..) has to be greater than 0");
+            panic!("Number of executors given to Renderer::new_async(..) has to be more than 0");
         }
+
+        let (halt_sender, halt_receiver) = watch::channel(false);
 
         let ret = Self {
             renderer_pri: RendererPri::new(),
             renderer_impl: Box::new(renderer_impl),
+            halt_sender,
         };
 
         for _ in 0..number_of_executors {
-            todo!("RendererTransform has to be Send");
-            let renderer = ret.clone();
-            // tokio::spawn(async move {
-            //     todo!("implement some stopping mechanism (drop)");
-            //     loop {
-            //         tokio::select! {
-            //             command = renderer.renderer_pri.command_receiver.recv_async() => {
-            //                 todo!("handle panick");
-            //                 let command = command.unwrap();
-            //                 renderer.renderer_pri.execute_command(command, renderer.renderer_impl.as_renderer_impl_mut());
-            //             }
-            //         }
-            //     }
-            // });
+            let renderer_pri = ret.renderer_pri.clone();
+            let renderer_impl = ret.renderer_impl.box_clone();
+            let halt_receiver = halt_receiver.clone();
+
+            tokio::spawn(async move {
+                while {
+                    let mut renderer_pri = renderer_pri.clone();
+                    let mut renderer_impl = renderer_impl.box_clone();
+                    let mut halt_receiver = halt_receiver.clone();
+
+                    let task_result = tokio::spawn(async move {
+                        log::info!("Starting AsyncRenderer executor");
+
+                        loop {
+                            tokio::select! {
+                                command = renderer_pri.command_receiver.recv_async() => {
+                                    if let Ok(command) = command {
+                                        renderer_pri.execute_command(command, renderer_impl.as_renderer_impl_mut());
+                                    } else {
+                                        log::error!("ALl the command senders are dropped");
+                                        break;
+                                    }
+                                }
+                                should_halt = halt_receiver.changed() => {
+                                    let mut should_break = false;
+                                    if should_halt.is_err() {
+                                        log::error!("AsyncRenderer's halt_sender is closed but it did not send the halt signal");
+                                        should_break = true;
+                                    }
+
+                                    if *halt_receiver.borrow() {
+                                        should_break = true;
+                                    }
+
+                                    if should_break {
+                                        log::info!("Stopping renderer executor");
+                                    }
+                                }
+                            }
+                        }
+                    });
+
+                    task_result.await.is_err()
+                } {}
+            });
         }
 
         ret
@@ -398,5 +433,14 @@ impl System for SyncRenderer {
 impl System for AsyncRenderer {
     fn tick(&mut self, _delta_time_in_secs: f32) {
         self.render();
+    }
+}
+
+impl Drop for AsyncRenderer {
+    fn drop(&mut self) {
+        let _ = self
+            .halt_sender
+            .send(true)
+            .inspect_err(|_| log::error!("AsyncRenderer is dropped but no executors are running"));
     }
 }
