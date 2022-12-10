@@ -5,6 +5,7 @@ use std::{collections::BTreeMap, sync::Arc};
 use muleengine::{
     asset_container::AssetContainer,
     camera::Camera,
+    containers::object_pool::{ObjectPool, ObjectPoolIndex},
     mesh::{Material, Mesh},
     prelude::{ArcRwLock, OptionInspector},
     renderer::{
@@ -19,12 +20,13 @@ use vek::{Mat4, Transform, Vec2};
 use crate::{
     gl_drawable_mesh::GLDrawableMesh,
     gl_material::{GLMaterial, RendererMaterialImpl},
-    gl_mesh::RendererMeshImpl,
+    gl_mesh::GLRendererMesh,
     gl_mesh_container::GLMeshContainer,
     gl_mesh_renderer_object::GLMeshRendererObject,
     gl_mesh_shader_program::RendererShaderImpl,
     gl_shader_program_container::GLShaderProgramContainer,
     gl_texture_container::GLTextureContainer,
+    me_renderer_objects::RendererMeshImpl,
 };
 
 use super::RendererTransformImpl;
@@ -38,7 +40,7 @@ pub struct Renderer {
 
     renderer_materials: BTreeMap<*const dyn RendererMaterial, ArcRwLock<RendererMaterialImpl>>,
     renderer_shaders: BTreeMap<*const dyn RendererShader, ArcRwLock<RendererShaderImpl>>,
-    renderer_meshes: BTreeMap<*const dyn RendererMesh, ArcRwLock<RendererMeshImpl>>,
+    renderer_meshes: ObjectPool<ArcRwLock<GLRendererMesh>>,
 
     mesh_renderer_objects: BTreeMap<*const dyn RendererObject, ArcRwLock<GLMeshRendererObject>>,
     mesh_renderer_objects_to_draw:
@@ -68,7 +70,7 @@ impl Renderer {
 
             renderer_materials: BTreeMap::new(),
             renderer_shaders: BTreeMap::new(),
-            renderer_meshes: BTreeMap::new(),
+            renderer_meshes: ObjectPool::new(),
 
             mesh_renderer_objects: BTreeMap::new(),
             mesh_renderer_objects_to_draw: BTreeMap::new(),
@@ -140,6 +142,13 @@ impl Renderer {
                     observer(transform);
                 }
             });
+    }
+
+    fn get_mesh_index(&self, mesh: &ArcRwLock<dyn RendererMesh>) -> Option<ObjectPoolIndex> {
+        let mesh = mesh.read();
+        mesh.as_any()
+            .downcast_ref::<RendererMeshImpl>()
+            .map(|val| val.0)
     }
 }
 
@@ -264,18 +273,19 @@ impl RendererImpl for Renderer {
     fn create_mesh(&mut self, mesh: Arc<Mesh>) -> Result<ArcRwLock<dyn RendererMesh>, String> {
         let gl_mesh = self.gl_mesh_container.get_gl_mesh(mesh);
 
-        let renderer_mesh = Arc::new(RwLock::new(RendererMeshImpl::new(gl_mesh)));
+        let renderer_mesh = Arc::new(RwLock::new(GLRendererMesh::new(gl_mesh)));
+        let index = self.renderer_meshes.create_object(renderer_mesh);
 
-        self.renderer_meshes
-            .insert(renderer_mesh.data_ptr(), renderer_mesh.clone());
-
-        Ok(renderer_mesh)
+        Ok(Arc::new(RwLock::new(RendererMeshImpl(index))))
     }
 
     fn release_mesh(&mut self, mesh: ArcRwLock<dyn RendererMesh>) -> Result<(), String> {
-        let ptr: *const dyn RendererMesh = mesh.data_ptr();
+        let index = self
+            .get_mesh_index(&mesh)
+            .ok_or_else(|| "Releasing mesh, error = invalid RendererMesh".to_string())?;
+
         self.renderer_meshes
-            .remove(&ptr)
+            .release_object(index)
             .ok_or_else(|| "Releasing mesh, error = could not find mesh".to_string())
             .map(|_| ())
     }
@@ -302,15 +312,23 @@ impl RendererImpl for Renderer {
             "Creating renderer object from mesh, error = could not find transform".to_string()
         })?;
 
-        let ptr: *const dyn RendererMesh = mesh.data_ptr();
-        let gl_mesh = self.renderer_meshes.get(&ptr).ok_or_else(|| {
-            "Creating renderer object from mesh, error = could not find mesh".to_string()
-        })?;
+        let mesh = {
+            let mesh_index = self.get_mesh_index(&mesh).ok_or_else(|| {
+                "Creating renderer object from mesh, error = invalid RendererMesh".to_string()
+            })?;
+
+            self.renderer_meshes
+                .get_ref(mesh_index)
+                .ok_or_else(|| {
+                    "Creating renderer object from mesh, error = could not find mesh".to_string()
+                })
+                .cloned()?
+        };
 
         let mesh_renderer_object = Arc::new(RwLock::new(GLMeshRendererObject {
             transform: transform.clone(),
             gl_drawable_mesh: GLDrawableMesh::new(
-                gl_mesh.read().gl_mesh().clone(),
+                mesh.read().gl_mesh().clone(),
                 material.read().gl_material().clone(),
                 transform.read().transform,
                 shader.read().gl_mesh_shader_program().clone(),

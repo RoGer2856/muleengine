@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use vek::{Mat4, Vec4};
 
-use muleengine::{mesh::Mesh, renderer::RendererMesh};
+use muleengine::mesh::Mesh;
 
 use super::opengl_utils::{
     index_buffer_object::{IndexBufferObject, PrimitiveMode},
@@ -26,11 +26,9 @@ pub struct GLMesh {
     _bone_ids_vector: Vec<Vec4<u32>>,
 }
 
-pub struct RendererMeshImpl {
+pub struct GLRendererMesh {
     gl_mesh: Arc<GLMesh>,
 }
-
-impl RendererMesh for RendererMeshImpl {}
 
 impl GLMesh {
     pub fn new(mesh: Arc<Mesh>) -> Self {
@@ -129,7 +127,7 @@ impl GLMesh {
     }
 }
 
-impl RendererMeshImpl {
+impl GLRendererMesh {
     pub fn new(gl_mesh: Arc<GLMesh>) -> Self {
         Self { gl_mesh }
     }

@@ -14,11 +14,11 @@ mod renderer_command;
 pub mod renderer_impl;
 pub mod renderer_system;
 
-pub trait RendererTransform: AsAny + Sync + Send + 'static {}
-pub trait RendererMaterial: AsAny + Sync + Send + 'static {}
-pub trait RendererShader: AsAny + Sync + Send + 'static {}
+pub trait RendererTransform: AsAny + 'static {}
+pub trait RendererMaterial: AsAny + 'static {}
+pub trait RendererShader: AsAny + 'static {}
 pub trait RendererMesh: AsAny + Sync + Send + 'static {}
-pub trait RendererObject: AsAny + Sync + Send + 'static {}
+pub trait RendererObject: AsAny + 'static {}
 
 #[derive(Clone)]
 struct TransformHandlerDestructor {

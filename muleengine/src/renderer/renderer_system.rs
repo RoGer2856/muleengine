@@ -71,51 +71,52 @@ impl AsyncRenderer {
         };
 
         for _ in 0..number_of_executors {
-            let renderer_pri = ret.renderer_pri.clone();
-            let renderer_impl = ret.renderer_impl.box_clone();
-            let halt_receiver = halt_receiver.clone();
+            todo!();
+            // let renderer_pri = ret.renderer_pri.clone();
+            // let renderer_impl = ret.renderer_impl.box_clone();
+            // let halt_receiver = halt_receiver.clone();
 
-            tokio::spawn(async move {
-                while {
-                    let mut renderer_pri = renderer_pri.clone();
-                    let mut renderer_impl = renderer_impl.box_clone();
-                    let mut halt_receiver = halt_receiver.clone();
+            // tokio::spawn(async move {
+            //     while {
+            //         let mut renderer_pri = renderer_pri.clone();
+            //         let mut renderer_impl = renderer_impl.box_clone();
+            //         let mut halt_receiver = halt_receiver.clone();
 
-                    let task_result = tokio::spawn(async move {
-                        log::info!("Starting AsyncRenderer executor");
+            //         let task_result = tokio::spawn(async move {
+            //             log::info!("Starting AsyncRenderer executor");
 
-                        loop {
-                            tokio::select! {
-                                command = renderer_pri.command_receiver.recv_async() => {
-                                    if let Ok(command) = command {
-                                        renderer_pri.execute_command(command, renderer_impl.as_renderer_impl_mut());
-                                    } else {
-                                        log::error!("ALl the command senders are dropped");
-                                        break;
-                                    }
-                                }
-                                should_halt = halt_receiver.changed() => {
-                                    let mut should_break = false;
-                                    if should_halt.is_err() {
-                                        log::error!("AsyncRenderer's halt_sender is closed but it did not send the halt signal");
-                                        should_break = true;
-                                    }
+            //             loop {
+            //                 tokio::select! {
+            //                     command = renderer_pri.command_receiver.recv_async() => {
+            //                         if let Ok(command) = command {
+            //                             renderer_pri.execute_command(command, renderer_impl.as_renderer_impl_mut());
+            //                         } else {
+            //                             log::error!("ALl the command senders are dropped");
+            //                             break;
+            //                         }
+            //                     }
+            //                     should_halt = halt_receiver.changed() => {
+            //                         let mut should_break = false;
+            //                         if should_halt.is_err() {
+            //                             log::error!("AsyncRenderer's halt_sender is closed but it did not send the halt signal");
+            //                             should_break = true;
+            //                         }
 
-                                    if *halt_receiver.borrow() {
-                                        should_break = true;
-                                    }
+            //                         if *halt_receiver.borrow() {
+            //                             should_break = true;
+            //                         }
 
-                                    if should_break {
-                                        log::info!("Stopping renderer executor");
-                                    }
-                                }
-                            }
-                        }
-                    });
+            //                         if should_break {
+            //                             log::info!("Stopping renderer executor");
+            //                         }
+            //                     }
+            //                 }
+            //             }
+            //         });
 
-                    task_result.await.is_err()
-                } {}
-            });
+            //         task_result.await.is_err()
+            //     } {}
+            // });
         }
 
         ret
