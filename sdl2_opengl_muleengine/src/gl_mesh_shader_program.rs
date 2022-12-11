@@ -1,6 +1,6 @@
 use std::{io::Read, sync::Arc};
 
-use muleengine::{asset_reader::AssetReader, renderer::RendererShader};
+use muleengine::asset_reader::AssetReader;
 
 use super::opengl_utils::{
     shader::{Shader, ShaderCreationError, ShaderType},
@@ -50,11 +50,9 @@ pub struct GLMeshShaderProgram {
     pub(super) attributes: Attributes,
 }
 
-pub struct RendererShaderImpl {
+pub struct GLMeshRendererShaderObject {
     mesh_shader_program: Arc<GLMeshShaderProgram>,
 }
-
-impl RendererShader for RendererShaderImpl {}
 
 #[derive(Debug)]
 pub enum GLMeshShaderProgramError {
@@ -183,7 +181,7 @@ impl GLMeshShaderProgram {
     }
 }
 
-impl RendererShaderImpl {
+impl GLMeshRendererShaderObject {
     pub fn new(mesh_shader_program: Arc<GLMeshShaderProgram>) -> Self {
         Self {
             mesh_shader_program,
