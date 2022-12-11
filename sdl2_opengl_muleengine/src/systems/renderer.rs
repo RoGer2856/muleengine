@@ -19,14 +19,14 @@ use vek::{Mat4, Transform, Vec2};
 
 use crate::{
     gl_drawable_mesh::GLDrawableMesh,
-    gl_material::{GLMaterial, RendererMaterialImpl},
+    gl_material::{GLMaterial, GLRendererMaterialObject},
     gl_mesh::GLRendererMesh,
     gl_mesh_container::GLMeshContainer,
     gl_mesh_renderer_object::GLMeshRendererObject,
     gl_mesh_shader_program::GLMeshRendererShaderObject,
     gl_shader_program_container::GLShaderProgramContainer,
     gl_texture_container::GLTextureContainer,
-    me_renderer_objects::{RendererMeshImpl, RendererShaderImpl},
+    me_renderer_objects::{RendererMaterialImpl, RendererMeshImpl, RendererShaderImpl},
 };
 
 use super::RendererTransformImpl;
@@ -38,7 +38,7 @@ pub struct Renderer {
         BTreeMap<*const dyn RendererObject, Box<dyn Fn(&Transform<f32, f32, f32>)>>,
     >,
 
-    renderer_materials: BTreeMap<*const dyn RendererMaterial, ArcRwLock<RendererMaterialImpl>>,
+    renderer_materials: ObjectPool<ArcRwLock<GLRendererMaterialObject>>,
     renderer_shaders: ObjectPool<ArcRwLock<GLMeshRendererShaderObject>>,
     renderer_meshes: ObjectPool<ArcRwLock<GLRendererMesh>>,
 
@@ -68,7 +68,7 @@ impl Renderer {
             renderer_transforms: BTreeMap::new(),
             transform_update_observers: BTreeMap::new(),
 
-            renderer_materials: BTreeMap::new(),
+            renderer_materials: ObjectPool::new(),
             renderer_shaders: ObjectPool::new(),
             renderer_meshes: ObjectPool::new(),
 
@@ -142,6 +142,17 @@ impl Renderer {
                     observer(transform);
                 }
             });
+    }
+
+    fn get_material_index(
+        &self,
+        mesh: &ArcRwLock<dyn RendererMaterial>,
+    ) -> Option<ObjectPoolIndex> {
+        let material = mesh.read();
+        material
+            .as_any()
+            .downcast_ref::<RendererMaterialImpl>()
+            .map(|val| val.0)
     }
 
     fn get_shader_index(&self, mesh: &ArcRwLock<dyn RendererShader>) -> Option<ObjectPoolIndex> {
@@ -231,21 +242,22 @@ impl RendererImpl for Renderer {
     ) -> Result<ArcRwLock<dyn RendererMaterial>, String> {
         let gl_material = Arc::new(GLMaterial::new(&material, &mut self.gl_texture_container));
 
-        let material = Arc::new(RwLock::new(RendererMaterialImpl::new(gl_material)));
+        let renderer_material = Arc::new(RwLock::new(GLRendererMaterialObject::new(gl_material)));
+        let index = self.renderer_materials.create_object(renderer_material);
 
-        self.renderer_materials
-            .insert(material.data_ptr(), material.clone());
-
-        Ok(material)
+        Ok(Arc::new(RwLock::new(RendererMaterialImpl(index))))
     }
 
     fn release_material(
         &mut self,
         material: ArcRwLock<dyn RendererMaterial>,
     ) -> Result<(), String> {
-        let ptr: *const dyn RendererMaterial = material.data_ptr();
+        let index = self
+            .get_material_index(&material)
+            .ok_or_else(|| "Releasing material, error = invalid RendererMaterial".to_string())?;
+
         self.renderer_materials
-            .remove(&ptr)
+            .release_object(index)
             .ok_or_else(|| "Releasing material, error = could not find material".to_string())
             .map(|_| ())
     }
@@ -313,10 +325,19 @@ impl RendererImpl for Renderer {
             "Creating renderer object from mesh, error = could not find transform".to_string()
         })?;
 
-        let ptr: *const dyn RendererMaterial = material.data_ptr();
-        let material = self.renderer_materials.get(&ptr).ok_or_else(|| {
-            "Creating renderer object from mesh, error = could not find material".to_string()
-        })?;
+        let material = {
+            let index = self.get_material_index(&material).ok_or_else(|| {
+                "Creating renderer object from mesh, error = invalid RendererMaterial".to_string()
+            })?;
+
+            self.renderer_materials
+                .get_ref(index)
+                .ok_or_else(|| {
+                    "Creating renderer object from mesh, error = could not find materialr"
+                        .to_string()
+                })
+                .cloned()?
+        };
 
         let shader = {
             let index = self.get_shader_index(&shader).ok_or_else(|| {

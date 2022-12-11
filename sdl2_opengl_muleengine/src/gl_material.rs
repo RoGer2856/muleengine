@@ -6,7 +6,6 @@ use muleengine::{
     image_container::ImageContainerError,
     mesh::{Material, MaterialTexture, MaterialTextureType, TextureMapMode},
     prelude::ResultInspector,
-    renderer::RendererMaterial,
 };
 
 use super::{
@@ -30,11 +29,9 @@ pub struct GLMaterial {
     pub textures: Vec<GLMaterialTexture>,
 }
 
-pub struct RendererMaterialImpl {
+pub struct GLRendererMaterialObject {
     gl_material: Arc<GLMaterial>,
 }
-
-impl RendererMaterial for RendererMaterialImpl {}
 
 impl GLMaterial {
     pub fn new(material: &Material, gl_texture_container: &mut GLTextureContainer) -> Self {
@@ -81,7 +78,7 @@ impl GLMaterialTexture {
     }
 }
 
-impl RendererMaterialImpl {
+impl GLRendererMaterialObject {
     pub fn new(gl_mesh: Arc<GLMaterial>) -> Self {
         Self {
             gl_material: gl_mesh,
