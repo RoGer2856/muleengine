@@ -18,7 +18,7 @@ pub trait RendererTransform: AsAny + Sync + Send + 'static {}
 pub trait RendererMaterial: AsAny + Sync + Send + 'static {}
 pub trait RendererShader: AsAny + Sync + Send + 'static {}
 pub trait RendererMesh: AsAny + Sync + Send + 'static {}
-pub trait RendererObject: AsAny + 'static {}
+pub trait RendererObject: AsAny + Sync + Send + 'static {}
 
 #[derive(Clone)]
 struct TransformHandlerDestructor {

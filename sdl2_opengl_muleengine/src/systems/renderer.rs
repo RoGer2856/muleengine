@@ -25,7 +25,8 @@ use crate::{
     gl_shader_program_container::GLShaderProgramContainer,
     gl_texture_container::GLTextureContainer,
     me_renderer_objects::{
-        RendererMaterialImpl, RendererMeshImpl, RendererShaderImpl, RendererTransformImpl,
+        MeshRendererObjectImpl, RendererMaterialImpl, RendererMeshImpl, RendererShaderImpl,
+        RendererTransformImpl,
     },
 };
 
@@ -40,7 +41,7 @@ pub struct Renderer {
     renderer_shaders: ObjectPool<ArcRwLock<GLMeshRendererShaderObject>>,
     renderer_meshes: ObjectPool<ArcRwLock<GLRendererMesh>>,
 
-    mesh_renderer_objects: BTreeMap<*const dyn RendererObject, ArcRwLock<GLMeshRendererObject>>,
+    mesh_renderer_objects: ObjectPool<ArcRwLock<GLMeshRendererObject>>,
     mesh_renderer_objects_to_draw:
         BTreeMap<*const dyn RendererObject, ArcRwLock<GLMeshRendererObject>>,
 
@@ -69,7 +70,7 @@ impl Renderer {
             renderer_shaders: ObjectPool::new(),
             renderer_meshes: ObjectPool::new(),
 
-            mesh_renderer_objects: BTreeMap::new(),
+            mesh_renderer_objects: ObjectPool::new(),
             mesh_renderer_objects_to_draw: BTreeMap::new(),
 
             camera: Camera::new(),
@@ -175,6 +176,17 @@ impl Renderer {
         let mesh = renderer_shader.read();
         mesh.as_any()
             .downcast_ref::<RendererMeshImpl>()
+            .map(|val| val.0)
+    }
+
+    fn get_mesh_renderer_object_index(
+        &self,
+        renderer_object: &ArcRwLock<dyn RendererObject>,
+    ) -> Option<ObjectPoolIndex> {
+        let renderer_object = renderer_object.read();
+        renderer_object
+            .as_any()
+            .downcast_ref::<MeshRendererObjectImpl>()
             .map(|val| val.0)
     }
 }
@@ -391,64 +403,96 @@ impl RendererImpl for Renderer {
             ),
         }));
 
+        let index = self
+            .mesh_renderer_objects
+            .create_object(mesh_renderer_object.clone());
+
+        let ret = Arc::new(RwLock::new(MeshRendererObjectImpl(index)));
+
         {
-            let mesh_renderer_object = mesh_renderer_object.clone();
-            self.add_transform_observer(
-                &renderer_transform,
-                mesh_renderer_object.data_ptr(),
-                move |transform| {
-                    mesh_renderer_object
-                        .write()
-                        .gl_drawable_mesh
-                        .set_transform(transform)
-                },
-            )
+            let mesh_renderer_object = mesh_renderer_object;
+            self.add_transform_observer(&renderer_transform, ret.data_ptr(), move |transform| {
+                mesh_renderer_object
+                    .write()
+                    .gl_drawable_mesh
+                    .set_transform(transform)
+            })
             .map_err(|e| format!("Creating renderer object from mesh, error = {e}"))
-            .inspect_err(|e| log::error!("{e}"))?;
+            .inspect_err(|e| {
+                self.mesh_renderer_objects.release_object(ret.read().0);
+                log::error!("{e}");
+            })?;
         }
 
-        self.mesh_renderer_objects
-            .insert(&*mesh_renderer_object.read(), mesh_renderer_object.clone());
-
-        Ok(mesh_renderer_object)
+        Ok(ret)
     }
 
     fn release_renderer_object(
         &mut self,
         renderer_object: ArcRwLock<dyn RendererObject>,
     ) -> Result<(), String> {
-        let ptr: *const dyn RendererObject = renderer_object.data_ptr();
+        let index = self
+            .get_mesh_renderer_object_index(&renderer_object)
+            .ok_or_else(|| {
+                "Releasing renderer object, error = invalid RendererObject".to_string()
+            })?;
+
         self.mesh_renderer_objects
-            .remove(&ptr)
+            .release_object(index)
             .ok_or_else(|| {
                 "Releasing renderer object, error = could not find renderer object".to_string()
             })
-            .map(|renderer_object| {
+            .map(|object| {
                 let _ = self
                     .remove_transform_observer_of_renderer_object(
-                        &renderer_object.read().transform,
-                        ptr,
+                        &object.read().transform,
+                        renderer_object.data_ptr(),
                     )
                     .inspect_err(|e| log::error!("Releasing renderer object, error = {e}"));
 
-                Some(())
-            })?;
+                ()
+            })
 
-        self.mesh_renderer_objects_to_draw.remove(&ptr);
+        // let ptr: *const dyn RendererObject = renderer_object.data_ptr();
+        // self.mesh_renderer_objects
+        //     .remove(&ptr)
+        //     .ok_or_else(|| {
+        //         "Releasing renderer object, error = could not find renderer object".to_string()
+        //     })
+        //     .map(|renderer_object| {
+        //         let _ = self
+        //             .remove_transform_observer_of_renderer_object(
+        //                 &renderer_object.read().transform,
+        //                 ptr,
+        //             )
+        //             .inspect_err(|e| log::error!("Releasing renderer object, error = {e}"));
 
-        Ok(())
+        //         Some(())
+        //     })?;
+
+        // self.mesh_renderer_objects_to_draw.remove(&ptr);
+
+        // Ok(())
     }
 
     fn add_renderer_object(
         &mut self,
         renderer_object: ArcRwLock<dyn RendererObject>,
     ) -> Result<(), String> {
-        let ptr: *const dyn RendererObject = renderer_object.data_ptr();
-        let mesh = self.mesh_renderer_objects.get(&ptr).ok_or_else(|| {
-            "Adding renderer object, error = could not find renderer object".to_string()
-        })?;
+        let mesh_renderer_object = {
+            let index = self
+                .get_mesh_renderer_object_index(&renderer_object)
+                .ok_or_else(|| {
+                    "Adding renderer object, error = invalid RendererObject".to_string()
+                })?;
 
-        self.mesh_renderer_objects_to_draw.insert(ptr, mesh.clone());
+            self.mesh_renderer_objects.get_ref(index).ok_or_else(|| {
+                "Adding renderer object, error = could not find renderer object".to_string()
+            })?
+        };
+
+        self.mesh_renderer_objects_to_draw
+            .insert(renderer_object.data_ptr(), mesh_renderer_object.clone());
 
         Ok(())
     }
