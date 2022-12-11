@@ -1,10 +1,7 @@
-use muleengine::renderer::RendererTransform;
 use vek::Transform;
 
 pub mod renderer;
 
-struct RendererTransformImpl {
+struct RendererTransformObject {
     transform: Transform<f32, f32, f32>,
 }
-
-impl RendererTransform for RendererTransformImpl {}

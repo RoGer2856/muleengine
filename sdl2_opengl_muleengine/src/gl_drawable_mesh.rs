@@ -69,7 +69,7 @@ impl GLDrawableMesh {
         }
     }
 
-    pub fn render(
+    pub fn draw(
         &self,
         eye_position: &Vec3<f32>,
         projection_matrix: &Mat4<f32>,

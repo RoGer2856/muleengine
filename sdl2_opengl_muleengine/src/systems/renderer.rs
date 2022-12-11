@@ -1,5 +1,3 @@
-#![allow(clippy::type_complexity)]
-
 use std::{collections::BTreeMap, sync::Arc};
 
 use muleengine::{
@@ -7,7 +5,7 @@ use muleengine::{
     camera::Camera,
     containers::object_pool::{ObjectPool, ObjectPoolIndex},
     mesh::{Material, Mesh},
-    prelude::{ArcRwLock, OptionInspector},
+    prelude::{ArcRwLock, ResultInspector},
     renderer::{
         renderer_impl::RendererImpl, RendererMaterial, RendererMesh, RendererObject,
         RendererShader, RendererTransform,
@@ -26,18 +24,18 @@ use crate::{
     gl_mesh_shader_program::GLMeshRendererShaderObject,
     gl_shader_program_container::GLShaderProgramContainer,
     gl_texture_container::GLTextureContainer,
-    me_renderer_objects::{RendererMaterialImpl, RendererMeshImpl, RendererShaderImpl},
+    me_renderer_objects::{
+        RendererMaterialImpl, RendererMeshImpl, RendererShaderImpl, RendererTransformImpl,
+    },
 };
 
-use super::RendererTransformImpl;
+use super::RendererTransformObject;
+
+type TransformObservers =
+    BTreeMap<*const dyn RendererObject, Box<dyn Fn(&Transform<f32, f32, f32>)>>;
 
 pub struct Renderer {
-    renderer_transforms: BTreeMap<*const dyn RendererTransform, ArcRwLock<RendererTransformImpl>>,
-    transform_update_observers: BTreeMap<
-        *const dyn RendererTransform,
-        BTreeMap<*const dyn RendererObject, Box<dyn Fn(&Transform<f32, f32, f32>)>>,
-    >,
-
+    renderer_transforms: ObjectPool<(ArcRwLock<RendererTransformObject>, TransformObservers)>,
     renderer_materials: ObjectPool<ArcRwLock<GLRendererMaterialObject>>,
     renderer_shaders: ObjectPool<ArcRwLock<GLMeshRendererShaderObject>>,
     renderer_meshes: ObjectPool<ArcRwLock<GLRendererMesh>>,
@@ -65,8 +63,7 @@ impl Renderer {
         asset_container: AssetContainer,
     ) -> Self {
         let mut ret = Self {
-            renderer_transforms: BTreeMap::new(),
-            transform_update_observers: BTreeMap::new(),
+            renderer_transforms: ObjectPool::new(),
 
             renderer_materials: ObjectPool::new(),
             renderer_shaders: ObjectPool::new(),
@@ -92,79 +89,90 @@ impl Renderer {
         ret
     }
 
-    fn add_transform_update_observer(
+    fn add_transform_observer(
         &mut self,
-        renderer_transform: *const dyn RendererTransform,
+        renderer_transform: &ArcRwLock<dyn RendererTransform>,
         renderer_object: *const dyn RendererObject,
         observer_fn: impl Fn(&Transform<f32, f32, f32>) + 'static,
-    ) {
-        self.transform_update_observers
-            .entry(renderer_transform)
-            .or_insert_with(|| {
-                let mut map: BTreeMap<
-                    *const dyn RendererObject,
-                    Box<dyn Fn(&Transform<f32, f32, f32>)>,
-                > = BTreeMap::new();
-                map.insert(renderer_object, Box::new(observer_fn));
-                map
-            });
+    ) -> Result<(), String> {
+        let index = self
+            .get_transform_index(&renderer_transform)
+            .ok_or_else(|| {
+                "Add transform observer, error = invalid RendererTransform".to_string()
+            })?;
+
+        let (_transform, observers) = self.renderer_transforms.get_mut(index).ok_or_else(|| {
+            "Add transform observer, error = could not find transform".to_string()
+        })?;
+
+        observers.insert(renderer_object, Box::new(observer_fn));
+
+        Ok(())
     }
 
-    fn remove_transform_update_observers(
+    fn remove_transform_observer_of_renderer_object(
         &mut self,
-        renderer_transform: *const dyn RendererTransform,
-    ) {
-        self.transform_update_observers.remove(&renderer_transform);
-    }
-
-    fn remove_transform_update_observer_of_renderer_object(
-        &mut self,
-        renderer_transform: *const dyn RendererTransform,
+        renderer_transform: &ArcRwLock<dyn RendererTransform>,
         renderer_object: *const dyn RendererObject,
-    ) {
-        self.transform_update_observers
-            .get_mut(&renderer_transform)
-            .map(|observers| {
-                observers.remove(&renderer_object);
-                Some(())
-            });
+    ) -> Result<(), String> {
+        let index = self
+            .get_transform_index(renderer_transform)
+            .ok_or_else(|| {
+                "Remove transform observer of renderer object, error = invalid RendererTransform"
+                    .to_string()
+            })?;
+
+        let (_transform, observers) = self.renderer_transforms.get_mut(index).ok_or_else(|| {
+            "Remove transform observer of renderer object, error = could not find transform"
+                .to_string()
+        })?;
+
+        observers
+            .remove(&renderer_object)
+            .ok_or_else(|| {
+                "Remove transform observer of renderer object, error = could not find observer for renderer object".to_string()
+            })
+            .map(|_| ())
     }
 
-    fn trigger_transform_update_observer(
+    fn get_transform_index(
         &self,
-        renderer_transform: *const dyn RendererTransform,
-        transform: &Transform<f32, f32, f32>,
-    ) {
-        self.transform_update_observers
-            .get(&renderer_transform)
-            .inspect(|observers| {
-                for observer in observers.values() {
-                    observer(transform);
-                }
-            });
+        renderer_transform: &ArcRwLock<dyn RendererTransform>,
+    ) -> Option<ObjectPoolIndex> {
+        let transform = renderer_transform.read();
+        transform
+            .as_any()
+            .downcast_ref::<RendererTransformImpl>()
+            .map(|val| val.0)
     }
 
     fn get_material_index(
         &self,
-        mesh: &ArcRwLock<dyn RendererMaterial>,
+        renderer_material: &ArcRwLock<dyn RendererMaterial>,
     ) -> Option<ObjectPoolIndex> {
-        let material = mesh.read();
+        let material = renderer_material.read();
         material
             .as_any()
             .downcast_ref::<RendererMaterialImpl>()
             .map(|val| val.0)
     }
 
-    fn get_shader_index(&self, mesh: &ArcRwLock<dyn RendererShader>) -> Option<ObjectPoolIndex> {
-        let shader = mesh.read();
+    fn get_shader_index(
+        &self,
+        renderer_shader: &ArcRwLock<dyn RendererShader>,
+    ) -> Option<ObjectPoolIndex> {
+        let shader = renderer_shader.read();
         shader
             .as_any()
             .downcast_ref::<RendererShaderImpl>()
             .map(|val| val.0)
     }
 
-    fn get_mesh_index(&self, mesh: &ArcRwLock<dyn RendererMesh>) -> Option<ObjectPoolIndex> {
-        let mesh = mesh.read();
+    fn get_mesh_index(
+        &self,
+        renderer_shader: &ArcRwLock<dyn RendererMesh>,
+    ) -> Option<ObjectPoolIndex> {
+        let mesh = renderer_shader.read();
         mesh.as_any()
             .downcast_ref::<RendererMeshImpl>()
             .map(|val| val.0)
@@ -182,7 +190,7 @@ impl RendererImpl for Renderer {
 
         let view_matrix = self.camera.compute_view_matrix();
         for renderer_object in self.mesh_renderer_objects_to_draw.values() {
-            renderer_object.read().gl_drawable_mesh.render(
+            renderer_object.read().gl_drawable_mesh.draw(
                 &self.camera.transform.position,
                 &self.projection_matrix,
                 &view_matrix,
@@ -196,12 +204,12 @@ impl RendererImpl for Renderer {
         &mut self,
         transform: Transform<f32, f32, f32>,
     ) -> Result<ArcRwLock<dyn RendererTransform>, String> {
-        let transform = Arc::new(RwLock::new(RendererTransformImpl { transform }));
+        let renderer_transform = Arc::new(RwLock::new(RendererTransformObject { transform }));
+        let index = self
+            .renderer_transforms
+            .create_object((renderer_transform, BTreeMap::new()));
 
-        self.renderer_transforms
-            .insert(transform.data_ptr(), transform.clone());
-
-        Ok(transform)
+        Ok(Arc::new(RwLock::new(RendererTransformImpl(index))))
     }
 
     fn update_transform(
@@ -209,15 +217,20 @@ impl RendererImpl for Renderer {
         transform: ArcRwLock<dyn RendererTransform>,
         new_transform: Transform<f32, f32, f32>,
     ) -> Result<(), String> {
-        let ptr: *const dyn RendererTransform = transform.data_ptr();
-        let transform = self
+        let index = self
+            .get_transform_index(&transform)
+            .ok_or_else(|| "Update transform, error = invalid RendererTransform".to_string())?;
+
+        let (transform, observers) = self
             .renderer_transforms
-            .get(&ptr)
-            .ok_or_else(|| "Updating transform, error = could not find transform".to_string())?;
+            .get_mut(index)
+            .ok_or_else(|| "Update transform, error = could not find transform".to_string())?;
 
         transform.write().transform = new_transform;
 
-        self.trigger_transform_update_observer(transform.data_ptr(), &new_transform);
+        for observer in observers.values() {
+            observer(&new_transform);
+        }
 
         Ok(())
     }
@@ -226,12 +239,12 @@ impl RendererImpl for Renderer {
         &mut self,
         transform: ArcRwLock<dyn RendererTransform>,
     ) -> Result<(), String> {
-        let ptr: *const dyn RendererTransform = transform.data_ptr();
-
-        self.remove_transform_update_observers(ptr);
+        let index = self
+            .get_transform_index(&transform)
+            .ok_or_else(|| "Releasing transform, error = invalid RendererTransform".to_string())?;
 
         self.renderer_transforms
-            .remove(&ptr)
+            .release_object(index)
             .ok_or_else(|| "Releasing transform, error = could not find transform".to_string())
             .map(|_| ())
     }
@@ -318,25 +331,34 @@ impl RendererImpl for Renderer {
         mesh: ArcRwLock<dyn RendererMesh>,
         shader: ArcRwLock<dyn RendererShader>,
         material: ArcRwLock<dyn RendererMaterial>,
-        transform: ArcRwLock<dyn RendererTransform>,
+        renderer_transform: ArcRwLock<dyn RendererTransform>,
     ) -> Result<ArcRwLock<dyn RendererObject>, String> {
-        let ptr: *const dyn RendererTransform = transform.data_ptr();
-        let transform = self.renderer_transforms.get(&ptr).ok_or_else(|| {
-            "Creating renderer object from mesh, error = could not find transform".to_string()
-        })?;
+        let transform = {
+            let index = self
+                .get_transform_index(&renderer_transform)
+                .ok_or_else(|| {
+                    "Creating renderer object from mesh, error = invalid RendererTransform"
+                        .to_string()
+                })?;
+
+            &self
+                .renderer_transforms
+                .get_ref(index)
+                .ok_or_else(|| {
+                    "Creating renderer object from mesh, error = could not find transform"
+                        .to_string()
+                })?
+                .0
+        };
 
         let material = {
             let index = self.get_material_index(&material).ok_or_else(|| {
                 "Creating renderer object from mesh, error = invalid RendererMaterial".to_string()
             })?;
 
-            self.renderer_materials
-                .get_ref(index)
-                .ok_or_else(|| {
-                    "Creating renderer object from mesh, error = could not find materialr"
-                        .to_string()
-                })
-                .cloned()?
+            self.renderer_materials.get_ref(index).ok_or_else(|| {
+                "Creating renderer object from mesh, error = could not find material".to_string()
+            })?
         };
 
         let shader = {
@@ -344,12 +366,9 @@ impl RendererImpl for Renderer {
                 "Creating renderer object from mesh, error = invalid RendererShader".to_string()
             })?;
 
-            self.renderer_shaders
-                .get_ref(index)
-                .ok_or_else(|| {
-                    "Creating renderer object from mesh, error = could not find shader".to_string()
-                })
-                .cloned()?
+            self.renderer_shaders.get_ref(index).ok_or_else(|| {
+                "Creating renderer object from mesh, error = could not find shader".to_string()
+            })?
         };
 
         let mesh = {
@@ -357,16 +376,13 @@ impl RendererImpl for Renderer {
                 "Creating renderer object from mesh, error = invalid RendererMesh".to_string()
             })?;
 
-            self.renderer_meshes
-                .get_ref(index)
-                .ok_or_else(|| {
-                    "Creating renderer object from mesh, error = could not find mesh".to_string()
-                })
-                .cloned()?
+            self.renderer_meshes.get_ref(index).ok_or_else(|| {
+                "Creating renderer object from mesh, error = could not find mesh".to_string()
+            })?
         };
 
         let mesh_renderer_object = Arc::new(RwLock::new(GLMeshRendererObject {
-            transform: transform.clone(),
+            transform: renderer_transform.clone(),
             gl_drawable_mesh: GLDrawableMesh::new(
                 mesh.read().gl_mesh().clone(),
                 material.read().gl_material().clone(),
@@ -377,8 +393,8 @@ impl RendererImpl for Renderer {
 
         {
             let mesh_renderer_object = mesh_renderer_object.clone();
-            self.add_transform_update_observer(
-                transform.data_ptr(),
+            self.add_transform_observer(
+                &renderer_transform,
                 mesh_renderer_object.data_ptr(),
                 move |transform| {
                     mesh_renderer_object
@@ -386,7 +402,9 @@ impl RendererImpl for Renderer {
                         .gl_drawable_mesh
                         .set_transform(transform)
                 },
-            );
+            )
+            .map_err(|e| format!("Creating renderer object from mesh, error = {e}"))
+            .inspect_err(|e| log::error!("{e}"))?;
         }
 
         self.mesh_renderer_objects
@@ -406,10 +424,13 @@ impl RendererImpl for Renderer {
                 "Releasing renderer object, error = could not find renderer object".to_string()
             })
             .map(|renderer_object| {
-                self.remove_transform_update_observer_of_renderer_object(
-                    renderer_object.read().transform.data_ptr(),
-                    ptr,
-                );
+                let _ = self
+                    .remove_transform_observer_of_renderer_object(
+                        &renderer_object.read().transform,
+                        ptr,
+                    )
+                    .inspect_err(|e| log::error!("Releasing renderer object, error = {e}"));
+
                 Some(())
             })?;
 

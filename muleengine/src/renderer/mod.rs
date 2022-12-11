@@ -14,7 +14,7 @@ mod renderer_command;
 pub mod renderer_impl;
 pub mod renderer_system;
 
-pub trait RendererTransform: AsAny + 'static {}
+pub trait RendererTransform: AsAny + Sync + Send + 'static {}
 pub trait RendererMaterial: AsAny + Sync + Send + 'static {}
 pub trait RendererShader: AsAny + Sync + Send + 'static {}
 pub trait RendererMesh: AsAny + Sync + Send + 'static {}
