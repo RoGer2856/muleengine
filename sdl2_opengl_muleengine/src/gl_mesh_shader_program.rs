@@ -50,7 +50,7 @@ pub struct GLMeshShaderProgram {
     pub(super) attributes: Attributes,
 }
 
-pub struct GLMeshRendererShaderObject {
+pub struct MeshRendererShaderObject {
     mesh_shader_program: Arc<GLMeshShaderProgram>,
 }
 
@@ -181,7 +181,7 @@ impl GLMeshShaderProgram {
     }
 }
 
-impl GLMeshRendererShaderObject {
+impl MeshRendererShaderObject {
     pub fn new(mesh_shader_program: Arc<GLMeshShaderProgram>) -> Self {
         Self {
             mesh_shader_program,

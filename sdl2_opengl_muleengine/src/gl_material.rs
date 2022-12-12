@@ -29,7 +29,7 @@ pub struct GLMaterial {
     pub textures: Vec<GLMaterialTexture>,
 }
 
-pub struct GLRendererMaterialObject {
+pub struct RendererMaterialObject {
     gl_material: Arc<GLMaterial>,
 }
 
@@ -78,7 +78,7 @@ impl GLMaterialTexture {
     }
 }
 
-impl GLRendererMaterialObject {
+impl RendererMaterialObject {
     pub fn new(gl_mesh: Arc<GLMaterial>) -> Self {
         Self {
             gl_material: gl_mesh,

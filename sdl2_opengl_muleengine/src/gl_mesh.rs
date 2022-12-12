@@ -26,7 +26,7 @@ pub struct GLMesh {
     _bone_ids_vector: Vec<Vec4<u32>>,
 }
 
-pub struct GLRendererMesh {
+pub struct RendererMeshObject {
     gl_mesh: Arc<GLMesh>,
 }
 
@@ -127,7 +127,7 @@ impl GLMesh {
     }
 }
 
-impl GLRendererMesh {
+impl RendererMeshObject {
     pub fn new(gl_mesh: Arc<GLMesh>) -> Self {
         Self { gl_mesh }
     }
