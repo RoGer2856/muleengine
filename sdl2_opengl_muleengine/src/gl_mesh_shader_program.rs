@@ -1,12 +1,8 @@
-use std::{io::Read, sync::Arc};
+use std::sync::Arc;
 
-use muleengine::asset_reader::AssetReader;
+use crate::gl_shader_program::{GLShaderProgram, GLShaderProgramError};
 
-use super::opengl_utils::{
-    shader::{Shader, ShaderCreationError, ShaderType},
-    shader_input::{ShaderAttribute, ShaderUniform},
-    shader_program::{ShaderProgram, ShaderProgramError},
-};
+use super::opengl_utils::shader_input::{ShaderAttribute, ShaderUniform};
 
 pub(super) struct Attributes {
     pub(super) position: Option<ShaderAttribute>,
@@ -44,8 +40,7 @@ pub(super) struct Uniforms {
 }
 
 pub struct GLMeshShaderProgram {
-    shader_base_path: String,
-    pub(super) shader_program: ShaderProgram,
+    pub(super) gl_shader_program: Arc<GLShaderProgram>,
     pub(super) uniforms: Uniforms,
     pub(super) attributes: Attributes,
 }
@@ -54,130 +49,102 @@ pub struct MeshRendererShaderObject {
     mesh_shader_program: Arc<GLMeshShaderProgram>,
 }
 
-#[derive(Debug)]
-pub enum GLMeshShaderProgramError {
-    AssetNotFoundError {
-        path: String,
-    },
-    AssetReadError {
-        error: std::io::Error,
-        path: String,
-    },
-    ShaderCreationError {
-        shader_type: ShaderType,
-        shader_path: String,
-        shader_creation_error: ShaderCreationError,
-    },
-    ShaderProgramError(ShaderProgramError),
-    UniformNotFound {
-        uniform_name: String,
-    },
-}
-
 impl GLMeshShaderProgram {
-    pub fn new(
-        shader_base_path: String,
-        asset_reader: &AssetReader,
-    ) -> Result<Self, GLMeshShaderProgramError> {
-        let vertex_shader_path = shader_base_path.clone() + ".vert";
-        let fragment_shader_path = shader_base_path.clone() + ".frag";
-
-        let mut vertex_shader_source = String::new();
-        asset_reader
-            .get_reader(&vertex_shader_path)
-            .ok_or(GLMeshShaderProgramError::AssetNotFoundError {
-                path: vertex_shader_path.clone(),
-            })?
-            .read_to_string(&mut vertex_shader_source)
-            .map_err(|e| GLMeshShaderProgramError::AssetReadError {
-                error: e,
-                path: vertex_shader_source.clone(),
-            })?;
-        let mut fragment_shader_source = String::new();
-        asset_reader
-            .get_reader(&fragment_shader_path)
-            .ok_or(GLMeshShaderProgramError::AssetNotFoundError {
-                path: fragment_shader_path.clone(),
-            })?
-            .read_to_string(&mut fragment_shader_source)
-            .map_err(|e| GLMeshShaderProgramError::AssetReadError {
-                error: e,
-                path: fragment_shader_source.clone(),
-            })?;
-
-        let vertex_shader =
-            Shader::new(ShaderType::Vertex, &vertex_shader_source).map_err(|e| {
-                GLMeshShaderProgramError::ShaderCreationError {
-                    shader_type: ShaderType::Vertex,
-                    shader_path: vertex_shader_path,
-                    shader_creation_error: e,
-                }
-            })?;
-
-        let fragment_shader =
-            Shader::new(ShaderType::Fragment, &fragment_shader_source).map_err(|e| {
-                GLMeshShaderProgramError::ShaderCreationError {
-                    shader_type: ShaderType::Fragment,
-                    shader_path: fragment_shader_path,
-                    shader_creation_error: e,
-                }
-            })?;
-
-        let mut shader_program = ShaderProgram::new();
-        shader_program.attach_shader(vertex_shader);
-        shader_program.attach_shader(fragment_shader);
-        shader_program
-            .link_program()
-            .map_err(GLMeshShaderProgramError::ShaderProgramError)?;
-
+    pub fn new(gl_shader_program: Arc<GLShaderProgram>) -> Result<Self, GLShaderProgramError> {
         let attributes = Attributes {
-            position: shader_program.get_attribute_by_name("position"),
-            normal: shader_program.get_attribute_by_name("normal"),
-            tangent: shader_program.get_attribute_by_name("tangent"),
-            uv_channels: shader_program.get_attribute_by_name("uvChannels"),
-            bone_ids: shader_program.get_attribute_by_name("boneIds"),
-            bone_weights: shader_program.get_attribute_by_name("boneWeights"),
+            position: gl_shader_program
+                .shader_program
+                .get_attribute_by_name("position"),
+            normal: gl_shader_program
+                .shader_program
+                .get_attribute_by_name("normal"),
+            tangent: gl_shader_program
+                .shader_program
+                .get_attribute_by_name("tangent"),
+            uv_channels: gl_shader_program
+                .shader_program
+                .get_attribute_by_name("uvChannels"),
+            bone_ids: gl_shader_program
+                .shader_program
+                .get_attribute_by_name("boneIds"),
+            bone_weights: gl_shader_program
+                .shader_program
+                .get_attribute_by_name("boneWeights"),
         };
 
         let uniforms = Uniforms {
-            eye_position: shader_program.get_uniform_by_name("eyePosition"),
-            object_matrix: shader_program.get_uniform_by_name("objectMatrix"),
-            view_matrix: shader_program.get_uniform_by_name("viewMatrix"),
-            projection_matrix: shader_program.get_uniform_by_name("projectionMatrix"),
-            normal_matrix: shader_program.get_uniform_by_name("normalMatrix"),
-            bones: shader_program.get_uniform_by_name("bones[0]"),
+            eye_position: gl_shader_program
+                .shader_program
+                .get_uniform_by_name("eyePosition"),
+            object_matrix: gl_shader_program
+                .shader_program
+                .get_uniform_by_name("objectMatrix"),
+            view_matrix: gl_shader_program
+                .shader_program
+                .get_uniform_by_name("viewMatrix"),
+            projection_matrix: gl_shader_program
+                .shader_program
+                .get_uniform_by_name("projectionMatrix"),
+            normal_matrix: gl_shader_program
+                .shader_program
+                .get_uniform_by_name("normalMatrix"),
+            bones: gl_shader_program
+                .shader_program
+                .get_uniform_by_name("bones[0]"),
 
-            use_albedo_texture: shader_program.get_uniform_by_name("useAlbedoTexture"),
-            albedo_texture: shader_program.get_uniform_by_name("albedoTexture"),
-            albedo_texture_uv_channel_id: shader_program
+            use_albedo_texture: gl_shader_program
+                .shader_program
+                .get_uniform_by_name("useAlbedoTexture"),
+            albedo_texture: gl_shader_program
+                .shader_program
+                .get_uniform_by_name("albedoTexture"),
+            albedo_texture_uv_channel_id: gl_shader_program
+                .shader_program
                 .get_uniform_by_name("albedoTextureUvChannelId"),
 
-            use_normal_texture: shader_program.get_uniform_by_name("useNormalTexture"),
-            normal_texture: shader_program.get_uniform_by_name("normalTexture"),
-            normal_texture_uv_channel_id: shader_program
+            use_normal_texture: gl_shader_program
+                .shader_program
+                .get_uniform_by_name("useNormalTexture"),
+            normal_texture: gl_shader_program
+                .shader_program
+                .get_uniform_by_name("normalTexture"),
+            normal_texture_uv_channel_id: gl_shader_program
+                .shader_program
                 .get_uniform_by_name("normalTextureUvChannelId"),
 
-            use_displacement_texture: shader_program.get_uniform_by_name("useDisplacementTexture"),
-            displacement_texture: shader_program.get_uniform_by_name("displacementTexture"),
-            displacement_texture_uv_channel_id: shader_program
+            use_displacement_texture: gl_shader_program
+                .shader_program
+                .get_uniform_by_name("useDisplacementTexture"),
+            displacement_texture: gl_shader_program
+                .shader_program
+                .get_uniform_by_name("displacementTexture"),
+            displacement_texture_uv_channel_id: gl_shader_program
+                .shader_program
                 .get_uniform_by_name("displacementTextureUvChannelId"),
 
-            opacity: shader_program.get_uniform_by_name("opacity"),
-            albedo_color: shader_program.get_uniform_by_name("albedoColor"),
-            emissive_color: shader_program.get_uniform_by_name("emissiveColor"),
-            shininess_color: shader_program.get_uniform_by_name("shininessColor"),
+            opacity: gl_shader_program
+                .shader_program
+                .get_uniform_by_name("opacity"),
+            albedo_color: gl_shader_program
+                .shader_program
+                .get_uniform_by_name("albedoColor"),
+            emissive_color: gl_shader_program
+                .shader_program
+                .get_uniform_by_name("emissiveColor"),
+            shininess_color: gl_shader_program
+                .shader_program
+                .get_uniform_by_name("shininessColor"),
         };
 
         Ok(Self {
-            shader_base_path,
-            shader_program,
+            gl_shader_program,
             uniforms,
             attributes,
         })
     }
 
     pub fn get_shader_base_path(&self) -> &String {
-        &self.shader_base_path
+        self.gl_shader_program.get_shader_base_path()
     }
 }
 

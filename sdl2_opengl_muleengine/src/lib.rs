@@ -13,6 +13,7 @@ pub mod gl_mesh;
 pub mod gl_mesh_container;
 pub mod gl_mesh_shader_program;
 pub mod gl_scene;
+pub mod gl_shader_program;
 pub mod gl_shader_program_container;
 pub mod gl_texture_container;
 pub mod me_renderer_indices;

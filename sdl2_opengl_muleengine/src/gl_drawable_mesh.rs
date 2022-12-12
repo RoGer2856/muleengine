@@ -75,7 +75,10 @@ impl GLDrawableMesh {
         projection_matrix: &Mat4<f32>,
         view_matrix: &Mat4<f32>,
     ) {
-        self.gl_mesh_shader_program.shader_program.use_program();
+        self.gl_mesh_shader_program
+            .gl_shader_program
+            .shader_program
+            .use_program();
 
         if let Some(uniform) = &self.gl_mesh_shader_program.uniforms.eye_position {
             uniform.send_uniform_3fv(eye_position.as_slice(), 1);
