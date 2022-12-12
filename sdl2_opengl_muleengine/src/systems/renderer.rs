@@ -97,7 +97,7 @@ impl Renderer {
         observer_fn: impl Fn(&Transform<f32, f32, f32>) + 'static,
     ) -> Result<(), String> {
         let index = self
-            .get_transform_index(&renderer_transform)
+            .get_transform_index(renderer_transform)
             .ok_or_else(|| {
                 "Add transform observer, error = invalid RendererTransform".to_string()
             })?;
@@ -449,30 +449,7 @@ impl RendererImpl for Renderer {
                         renderer_object.data_ptr(),
                     )
                     .inspect_err(|e| log::error!("Releasing renderer object, error = {e}"));
-
-                ()
             })
-
-        // let ptr: *const dyn RendererObject = renderer_object.data_ptr();
-        // self.mesh_renderer_objects
-        //     .remove(&ptr)
-        //     .ok_or_else(|| {
-        //         "Releasing renderer object, error = could not find renderer object".to_string()
-        //     })
-        //     .map(|renderer_object| {
-        //         let _ = self
-        //             .remove_transform_observer_of_renderer_object(
-        //                 &renderer_object.read().transform,
-        //                 ptr,
-        //             )
-        //             .inspect_err(|e| log::error!("Releasing renderer object, error = {e}"));
-
-        //         Some(())
-        //     })?;
-
-        // self.mesh_renderer_objects_to_draw.remove(&ptr);
-
-        // Ok(())
     }
 
     fn add_renderer_object(
