@@ -32,8 +32,8 @@ impl ImageContainer {
         image_path: &str,
         asset_reader: &AssetReader,
     ) -> Result<Arc<Image>, ImageContainerError> {
-        if let Some(image_mut) = self.images.get_mut(image_path) {
-            Ok(image_mut.clone())
+        if let Some(image) = self.images.get(image_path) {
+            Ok(image.clone())
         } else if let Some(asset_reader) = asset_reader.get_reader(image_path) {
             if let Some(image) = Image::from_reader(asset_reader) {
                 let image = Arc::new(image);

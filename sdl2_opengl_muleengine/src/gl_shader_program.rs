@@ -1,4 +1,4 @@
-use std::io::Read;
+use std::{io::Read, sync::Arc};
 
 use muleengine::asset_reader::AssetReader;
 
@@ -10,6 +10,10 @@ use super::opengl_utils::{
 pub struct GLShaderProgram {
     shader_base_path: String,
     pub(super) shader_program: ShaderProgram,
+}
+
+pub struct RendererShaderObject {
+    gl_shader_program: Arc<GLShaderProgram>,
 }
 
 #[derive(Debug)]
@@ -93,5 +97,15 @@ impl GLShaderProgram {
 
     pub fn get_shader_base_path(&self) -> &String {
         &self.shader_base_path
+    }
+}
+
+impl RendererShaderObject {
+    pub fn new(gl_shader_program: Arc<GLShaderProgram>) -> Self {
+        Self { gl_shader_program }
+    }
+
+    pub fn gl_shader_program(&self) -> &Arc<GLShaderProgram> {
+        &self.gl_shader_program
     }
 }

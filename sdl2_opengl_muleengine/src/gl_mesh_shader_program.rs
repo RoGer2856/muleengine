@@ -45,10 +45,6 @@ pub struct GLMeshShaderProgram {
     pub(super) attributes: Attributes,
 }
 
-pub struct MeshRendererShaderObject {
-    mesh_shader_program: Arc<GLMeshShaderProgram>,
-}
-
 impl GLMeshShaderProgram {
     pub fn new(gl_shader_program: Arc<GLShaderProgram>) -> Result<Self, GLShaderProgramError> {
         let attributes = Attributes {
@@ -145,17 +141,5 @@ impl GLMeshShaderProgram {
 
     pub fn get_shader_base_path(&self) -> &String {
         self.gl_shader_program.get_shader_base_path()
-    }
-}
-
-impl MeshRendererShaderObject {
-    pub fn new(mesh_shader_program: Arc<GLMeshShaderProgram>) -> Self {
-        Self {
-            mesh_shader_program,
-        }
-    }
-
-    pub fn gl_mesh_shader_program(&self) -> &Arc<GLMeshShaderProgram> {
-        &self.mesh_shader_program
     }
 }

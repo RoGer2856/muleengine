@@ -20,7 +20,7 @@ use crate::{
     gl_material::{GLMaterial, RendererMaterialObject},
     gl_mesh::RendererMeshObject,
     gl_mesh_container::GLMeshContainer,
-    gl_mesh_shader_program::MeshRendererShaderObject,
+    gl_shader_program::RendererShaderObject,
     gl_shader_program_container::GLShaderProgramContainer,
     gl_texture_container::GLTextureContainer,
     me_renderer_indices::{
@@ -38,7 +38,7 @@ type TransformObservers =
 pub struct Renderer {
     renderer_transforms: ObjectPool<(ArcRwLock<RendererTransformObject>, TransformObservers)>,
     renderer_materials: ObjectPool<ArcRwLock<RendererMaterialObject>>,
-    renderer_shaders: ObjectPool<ArcRwLock<MeshRendererShaderObject>>,
+    renderer_shaders: ObjectPool<ArcRwLock<RendererShaderObject>>,
     renderer_meshes: ObjectPool<ArcRwLock<RendererMeshObject>>,
 
     mesh_renderer_objects: ObjectPool<ArcRwLock<MeshRendererObject>>,
@@ -297,17 +297,15 @@ impl RendererImpl for Renderer {
         &mut self,
         shader_name: String,
     ) -> Result<ArcRwLock<dyn RendererShader>, String> {
-        let gl_mesh_shader_program = match self
+        let gl_shader_program = match self
             .gl_shader_program_container
-            .get_mesh_shader_program(&shader_name, &self.asset_container.asset_reader().read())
+            .get_shader_program(&shader_name, &self.asset_container.asset_reader().read())
         {
             Ok(shader_program) => Ok(shader_program),
             Err(e) => Err(format!("Loading shader program, error = {e:?}")),
         }?;
 
-        let renderer_shader = Arc::new(RwLock::new(MeshRendererShaderObject::new(
-            gl_mesh_shader_program,
-        )));
+        let renderer_shader = Arc::new(RwLock::new(RendererShaderObject::new(gl_shader_program)));
         let index = self.renderer_shaders.create_object(renderer_shader);
 
         Ok(Arc::new(RwLock::new(RendererShaderIndex(index))))
@@ -382,10 +380,19 @@ impl RendererImpl for Renderer {
                 .get_shader_index(&shader)
                 .map_err(|e| format!("Creating renderer object from mesh, error = {e}"))?;
 
-            self.renderer_shaders.get_ref(index.0).ok_or_else(|| {
+            let shader = self.renderer_shaders.get_ref(index.0).ok_or_else(|| {
                 "Creating renderer object from mesh, error = could not find RendererShader"
                     .to_string()
-            })?
+            })?;
+
+            self.gl_shader_program_container
+                .get_mesh_shader_program(shader.read().gl_shader_program().clone())
+                .map_err(|e| {
+                    format!(
+                        "Creating renderer object from mesh, RendererShader error = {:?}",
+                        e
+                    )
+                })?
         };
 
         let mesh = {
@@ -405,7 +412,7 @@ impl RendererImpl for Renderer {
                 mesh.read().gl_mesh().clone(),
                 material.read().gl_material().clone(),
                 transform.read().transform,
-                shader.read().gl_mesh_shader_program().clone(),
+                shader,
             ),
         }));
 

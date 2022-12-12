@@ -44,12 +44,12 @@ impl GLMeshContainer {
     }
 
     pub fn get_gl_mesh(&mut self, mesh: Arc<Mesh>) -> Arc<GLMesh> {
-        let inner_container = self
+        let mesh = self
             .meshes
             .entry(&*mesh)
             .or_insert_with(|| Arc::new(GLMesh::new(mesh)));
 
-        inner_container.clone()
+        mesh.clone()
     }
 
     pub fn release_mesh(&mut self, mesh: Arc<Mesh>) {
