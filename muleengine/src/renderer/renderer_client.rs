@@ -193,6 +193,29 @@ impl RendererClient {
         }
     }
 
+    pub async fn remove_renderer_object_from_group(
+        &self,
+        renderer_object_handler: RendererObjectHandler,
+        renderer_group_handler: RendererGroupHandler,
+    ) -> Result<(), RendererError> {
+        let (result_sender, result_receiver) = oneshot::channel();
+        let _ = self
+            .command_sender
+            .send(Command::RemoveRendererObjectFromGroup {
+                renderer_object_handler,
+                renderer_group_handler,
+                result_sender,
+            })
+            .inspect_err(|e| log::error!("Removing renderer object from renderer, error = {e}"));
+
+        match result_receiver.await.inspect_err(|e| {
+            log::error!("Removing renderer object from renderer response, error = {e}")
+        }) {
+            Ok(ret) => ret,
+            Err(_) => unreachable!(),
+        }
+    }
+
     pub fn set_camera(&self, camera: Camera) {
         let _ = self
             .command_sender

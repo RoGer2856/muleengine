@@ -69,6 +69,11 @@ pub enum Command {
         renderer_group_handler: RendererGroupHandler,
         result_sender: oneshot::Sender<Result<(), RendererError>>,
     },
+    RemoveRendererObjectFromGroup {
+        renderer_object_handler: RendererObjectHandler,
+        renderer_group_handler: RendererGroupHandler,
+        result_sender: oneshot::Sender<Result<(), RendererError>>,
+    },
 
     SetCamera {
         camera: Camera,

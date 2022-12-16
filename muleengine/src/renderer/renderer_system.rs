@@ -451,6 +451,40 @@ impl RendererPri {
                     log::error!("AddRendererObjectToGroup response, error = {e:?}")
                 });
             }
+            Command::RemoveRendererObjectFromGroup {
+                renderer_object_handler,
+                renderer_group_handler,
+                result_sender,
+            } => {
+                // the closure helps the readability of the code by enabling the usage of the ? operator
+                let closure = || {
+                    let renderer_object = self
+                        .renderer_objects
+                        .read()
+                        .get_ref(renderer_object_handler.0.object_pool_index)
+                        .ok_or(RendererError::InvalidRendererObjectHandler(
+                            renderer_object_handler,
+                        ))?
+                        .clone();
+
+                    let renderer_group = self
+                        .renderer_groups
+                        .read()
+                        .get_ref(renderer_group_handler.0.object_pool_index)
+                        .ok_or(RendererError::InvalidRendererGroupHandler(
+                            renderer_group_handler,
+                        ))?
+                        .clone();
+
+                    renderer_impl
+                        .remove_renderer_object_from_group(renderer_object, renderer_group)
+                        .map_err(RendererError::RendererImplError)
+                };
+
+                let _ = result_sender.send(closure()).inspect_err(|e| {
+                    log::error!("RemoveRendererObjectFromGroup response, error = {e:?}")
+                });
+            }
             Command::SetCamera { camera } => {
                 renderer_impl.set_camera(camera);
             }
