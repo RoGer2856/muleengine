@@ -12,8 +12,9 @@ use super::{
     renderer_client::RendererClient,
     renderer_command::{Command, CommandReceiver, CommandSender},
     renderer_impl::{RendererImpl, RendererImplAsync},
-    MaterialHandler, MeshHandler, RendererError, RendererMaterial, RendererMesh, RendererObject,
-    RendererObjectHandler, RendererShader, RendererTransform, ShaderHandler, TransformHandler,
+    MaterialHandler, MeshHandler, RendererError, RendererGroup, RendererGroupHandler,
+    RendererMaterial, RendererMesh, RendererObject, RendererObjectHandler, RendererShader,
+    RendererTransform, ShaderHandler, TransformHandler,
 };
 
 pub struct SyncRenderer {
@@ -29,6 +30,7 @@ pub struct AsyncRenderer {
 
 #[derive(Clone)]
 pub(super) struct RendererPri {
+    pub(super) renderer_groups: ArcRwLock<ObjectPool<ArcRwLock<dyn RendererGroup>>>,
     pub(super) renderer_transforms: ArcRwLock<ObjectPool<ArcRwLock<dyn RendererTransform>>>,
     pub(super) renderer_materials: ArcRwLock<ObjectPool<ArcRwLock<dyn RendererMaterial>>>,
     pub(super) renderer_shaders: ArcRwLock<ObjectPool<ArcRwLock<dyn RendererShader>>>,
@@ -135,6 +137,7 @@ impl RendererPri {
         let (sender, receiver) = flume::unbounded();
 
         Self {
+            renderer_groups: Arc::new(RwLock::new(ObjectPool::new())),
             renderer_transforms: Arc::new(RwLock::new(ObjectPool::new())),
             renderer_materials: Arc::new(RwLock::new(ObjectPool::new())),
             renderer_shaders: Arc::new(RwLock::new(ObjectPool::new())),
@@ -154,6 +157,37 @@ impl RendererPri {
 
     fn execute_command(&mut self, command: Command, renderer_impl: &mut dyn RendererImpl) {
         match command {
+            Command::CreateRendererGroup { result_sender } => {
+                let ret = renderer_impl
+                    .create_renderer_group()
+                    .map(|transform| {
+                        RendererGroupHandler::new(
+                            self.renderer_groups
+                                .write()
+                                .create_object(transform.clone()),
+                            self.command_sender.clone(),
+                        )
+                    })
+                    .map_err(RendererError::RendererImplError);
+
+                let _ = result_sender
+                    .send(ret)
+                    .inspect_err(|e| log::error!("CreateRendererGroup response, error = {e:?}"));
+            }
+            Command::ReleaseRendererGroup { object_pool_index } => {
+                let renderer_group = self
+                    .renderer_groups
+                    .write()
+                    .release_object(object_pool_index);
+
+                if let Some(renderer_group) = renderer_group {
+                    let _ = renderer_impl
+                        .release_renderer_group(renderer_group.clone())
+                        .inspect_err(|e| log::error!("ReleaseRendererGroup, error = {e}"));
+                } else {
+                    log::error!("ReleaseRendererGroup, error = could not find renderer group");
+                }
+            }
             Command::CreateTransform {
                 transform,
                 result_sender,
@@ -383,27 +417,39 @@ impl RendererPri {
                     log::error!("ReleaseRendererObject, error = could not find renderer object");
                 }
             }
-            Command::AddRendererObject {
+            Command::AddRendererObjectToGroup {
                 renderer_object_handler,
+                renderer_group_handler,
                 result_sender,
             } => {
-                let ret = if let Some(renderer_object) = self
-                    .renderer_objects
-                    .read()
-                    .get_ref(renderer_object_handler.0.object_pool_index)
-                {
+                // the closure helps the readability of the code by enabling the usage of the ? operator
+                let closure = || {
+                    let renderer_object = self
+                        .renderer_objects
+                        .read()
+                        .get_ref(renderer_object_handler.0.object_pool_index)
+                        .ok_or(RendererError::InvalidRendererObjectHandler(
+                            renderer_object_handler,
+                        ))?
+                        .clone();
+
+                    let renderer_group = self
+                        .renderer_groups
+                        .read()
+                        .get_ref(renderer_group_handler.0.object_pool_index)
+                        .ok_or(RendererError::InvalidRendererGroupHandler(
+                            renderer_group_handler,
+                        ))?
+                        .clone();
+
                     renderer_impl
-                        .add_renderer_object(renderer_object.clone())
+                        .add_renderer_object_to_group(renderer_object, renderer_group)
                         .map_err(RendererError::RendererImplError)
-                } else {
-                    Err(RendererError::InvalidRendererObjectHandler(
-                        renderer_object_handler,
-                    ))
                 };
 
-                let _ = result_sender
-                    .send(ret)
-                    .inspect_err(|e| log::error!("AddRendererObject response, error = {e:?}"));
+                let _ = result_sender.send(closure()).inspect_err(|e| {
+                    log::error!("AddRendererObjectToGroup response, error = {e:?}")
+                });
             }
             Command::SetCamera { camera } => {
                 renderer_impl.set_camera(camera);

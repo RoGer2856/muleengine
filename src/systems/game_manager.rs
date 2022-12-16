@@ -4,7 +4,7 @@ use muleengine::{
     asset_container::AssetContainer,
     mesh::{Material, MaterialTexture, MaterialTextureType, TextureMapMode},
     mesh_creator,
-    renderer::{renderer_client::RendererClient, RendererObjectHandler},
+    renderer::{renderer_client::RendererClient, RendererGroupHandler, RendererObjectHandler},
     service_container::ServiceContainer,
     system_container::System,
 };
@@ -13,10 +13,14 @@ use vek::{Transform, Vec3};
 
 pub struct GameManager {
     first_tick: bool,
-    inner: Arc<RwLock<GameManagerPri>>,
+    service_container: ServiceContainer,
+    inner: Arc<RwLock<Option<GameManagerPri>>>,
 }
 
 struct GameManagerPri {
+    skydome_renderer_group_handler: RendererGroupHandler,
+    main_renderer_group_handler: RendererGroupHandler,
+
     renderer_object_handlers: Vec<RendererObjectHandler>,
 
     renderer_client: RendererClient,
@@ -27,13 +31,14 @@ impl GameManager {
     pub fn new(service_container: ServiceContainer) -> Self {
         Self {
             first_tick: true,
-            inner: Arc::new(RwLock::new(GameManagerPri::new(service_container))),
+            service_container,
+            inner: Arc::new(RwLock::new(None)),
         }
     }
 }
 
 impl GameManagerPri {
-    pub fn new(service_container: ServiceContainer) -> Self {
+    pub async fn new(service_container: ServiceContainer) -> Self {
         let renderer_client = service_container
             .get_service::<RendererClient>()
             .unwrap()
@@ -41,6 +46,9 @@ impl GameManagerPri {
             .clone();
 
         Self {
+            skydome_renderer_group_handler: renderer_client.create_renderer_group().await.unwrap(),
+            main_renderer_group_handler: renderer_client.create_renderer_group().await.unwrap(),
+
             renderer_object_handlers: Vec::new(),
 
             renderer_client,
@@ -89,7 +97,10 @@ impl GameManagerPri {
             self.renderer_object_handlers
                 .push(renderer_object_handler.clone());
             self.renderer_client
-                .add_renderer_object(renderer_object_handler)
+                .add_renderer_object_to_group(
+                    renderer_object_handler,
+                    self.main_renderer_group_handler.clone(),
+                )
                 .await
                 .unwrap();
 
@@ -156,7 +167,10 @@ impl GameManagerPri {
                         self.renderer_object_handlers
                             .push(renderer_object_handler.clone());
                         self.renderer_client
-                            .add_renderer_object(renderer_object_handler)
+                            .add_renderer_object_to_group(
+                                renderer_object_handler,
+                                self.main_renderer_group_handler.clone(),
+                            )
                             .await
                             .unwrap();
                     }
@@ -245,7 +259,10 @@ impl GameManagerPri {
                 self.renderer_object_handlers
                     .push(renderer_object_handler.clone());
                 self.renderer_client
-                    .add_renderer_object(renderer_object_handler)
+                    .add_renderer_object_to_group(
+                        renderer_object_handler,
+                        self.skydome_renderer_group_handler.clone(),
+                    )
                     .await
                     .unwrap();
             }
@@ -257,13 +274,13 @@ impl GameManagerPri {
 
 impl System for GameManager {
     fn tick(&mut self, _delta_time_in_secs: f32) {
-        let game_manager = self.inner.clone();
         if self.first_tick {
             self.first_tick = false;
 
+            let inner = self.inner.clone();
+            let service_container = self.service_container.clone();
             tokio::spawn(async move {
-                let mut game_manager = game_manager.write().await;
-                game_manager.populate_with_objects().await;
+                *inner.write().await = Some(GameManagerPri::new(service_container.clone()).await)
             });
         }
     }

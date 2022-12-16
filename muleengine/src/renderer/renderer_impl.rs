@@ -8,13 +8,22 @@ use crate::{
     prelude::ArcRwLock,
 };
 
-use super::{RendererMaterial, RendererMesh, RendererObject, RendererShader, RendererTransform};
+use super::{
+    RendererGroup, RendererMaterial, RendererMesh, RendererObject, RendererShader,
+    RendererTransform,
+};
 
 pub trait RendererImpl {
     fn render(&mut self);
 
     fn set_window_dimensions(&mut self, dimensions: Vec2<usize>);
     fn set_camera(&mut self, camera: Camera);
+
+    fn create_renderer_group(&mut self) -> Result<ArcRwLock<dyn RendererGroup>, String>;
+    fn release_renderer_group(
+        &mut self,
+        renderer_group: ArcRwLock<dyn RendererGroup>,
+    ) -> Result<(), String>;
 
     fn create_transform(
         &mut self,
@@ -58,13 +67,15 @@ pub trait RendererImpl {
         renderer_object: ArcRwLock<dyn RendererObject>,
     ) -> Result<(), String>;
 
-    fn add_renderer_object(
+    fn add_renderer_object_to_group(
         &mut self,
         renderer_object: ArcRwLock<dyn RendererObject>,
+        renderer_group: ArcRwLock<dyn RendererGroup>,
     ) -> Result<(), String>;
-    fn remove_renderer_object(
+    fn remove_renderer_object_from_group(
         &mut self,
         renderer_object: ArcRwLock<dyn RendererObject>,
+        renderer_group: ArcRwLock<dyn RendererGroup>,
     ) -> Result<(), String>;
 }
 

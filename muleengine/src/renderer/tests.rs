@@ -63,7 +63,7 @@ struct TestMeshRendererObjectImpl;
 impl RendererObject for TestMeshRendererObjectImpl {}
 
 impl RendererImpl for TestRendererImpl {
-    fn add_renderer_object(
+    fn add_renderer_object_to_group(
         &mut self,
         renderer_object: ArcRwLock<dyn super::RendererObject>,
     ) -> Result<(), String> {
@@ -229,7 +229,7 @@ impl RendererImpl for TestRendererImpl {
         Ok(())
     }
 
-    fn remove_renderer_object(
+    fn remove_renderer_object_from_group(
         &mut self,
         renderer_object: ArcRwLock<dyn super::RendererObject>,
     ) -> Result<(), String> {
@@ -582,7 +582,7 @@ async fn renderer_object_is_released_when_handlers_are_dropped() {
 
             test_client
                 .renderer_client()
-                .add_renderer_object(renderer_object_handler.clone())
+                .add_renderer_object_to_group(renderer_object_handler.clone())
                 .await
                 .unwrap();
 

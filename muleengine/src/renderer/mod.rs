@@ -7,6 +7,7 @@ pub mod renderer_impl;
 mod renderer_object;
 pub mod renderer_system;
 
+pub use renderer_object::renderer_group::*;
 pub use renderer_object::renderer_material::*;
 pub use renderer_object::renderer_mesh::*;
 pub use renderer_object::renderer_object::*;
@@ -20,5 +21,6 @@ pub enum RendererError {
     InvalidRendererShaderHandler(ShaderHandler),
     InvalidRendererMeshHandler(MeshHandler),
     InvalidRendererObjectHandler(RendererObjectHandler),
+    InvalidRendererGroupHandler(RendererGroupHandler),
     RendererImplError(String),
 }

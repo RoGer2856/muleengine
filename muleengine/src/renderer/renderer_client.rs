@@ -11,8 +11,8 @@ use crate::{
 
 use super::{
     renderer_command::{Command, CommandSender},
-    MaterialHandler, MeshHandler, RendererError, RendererObjectHandler, ShaderHandler,
-    TransformHandler,
+    MaterialHandler, MeshHandler, RendererError, RendererGroupHandler, RendererObjectHandler,
+    ShaderHandler, TransformHandler,
 };
 
 #[derive(Clone)]
@@ -21,6 +21,22 @@ pub struct RendererClient {
 }
 
 impl RendererClient {
+    pub async fn create_renderer_group(&self) -> Result<RendererGroupHandler, RendererError> {
+        let (result_sender, result_receiver) = oneshot::channel();
+        let _ = self
+            .command_sender
+            .send(Command::CreateRendererGroup { result_sender })
+            .inspect_err(|e| log::error!("Creating renderer group, error = {e}"));
+
+        match result_receiver
+            .await
+            .inspect_err(|e| log::error!("Creating renderer group response, error = {e}"))
+        {
+            Ok(ret) => ret,
+            Err(_) => unreachable!(),
+        }
+    }
+
     pub async fn create_transform(
         &self,
         transform: Transform<f32, f32, f32>,
@@ -154,15 +170,17 @@ impl RendererClient {
         }
     }
 
-    pub async fn add_renderer_object(
+    pub async fn add_renderer_object_to_group(
         &self,
         renderer_object_handler: RendererObjectHandler,
+        renderer_group_handler: RendererGroupHandler,
     ) -> Result<(), RendererError> {
         let (result_sender, result_receiver) = oneshot::channel();
         let _ = self
             .command_sender
-            .send(Command::AddRendererObject {
+            .send(Command::AddRendererObjectToGroup {
                 renderer_object_handler,
+                renderer_group_handler,
                 result_sender,
             })
             .inspect_err(|e| log::error!("Adding renderer object to renderer, error = {e}"));

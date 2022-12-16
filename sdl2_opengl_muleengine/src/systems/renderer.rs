@@ -7,7 +7,7 @@ use muleengine::{
     mesh::{Material, Mesh},
     prelude::{ArcRwLock, ResultInspector},
     renderer::{
-        renderer_impl::RendererImpl, RendererMaterial, RendererMesh, RendererObject,
+        renderer_impl::RendererImpl, RendererGroup, RendererMaterial, RendererMesh, RendererObject,
         RendererShader, RendererTransform,
     },
     window_context::WindowContext,
@@ -212,6 +212,17 @@ impl RendererImpl for Renderer {
         }
 
         self.window_context.read().swap_buffers();
+    }
+
+    fn create_renderer_group(&mut self) -> Result<ArcRwLock<dyn RendererGroup>, String> {
+        todo!();
+    }
+
+    fn release_renderer_group(
+        &mut self,
+        renderer_group: ArcRwLock<dyn RendererGroup>,
+    ) -> Result<(), String> {
+        todo!();
     }
 
     fn create_transform(
@@ -466,19 +477,22 @@ impl RendererImpl for Renderer {
         }
     }
 
-    fn add_renderer_object(
+    fn add_renderer_object_to_group(
         &mut self,
         renderer_object: ArcRwLock<dyn RendererObject>,
+        renderer_group: ArcRwLock<dyn RendererGroup>,
     ) -> Result<(), String> {
+        todo!();
         let mesh_renderer_object = {
             let index = self
                 .get_renderer_object_index(&renderer_object)
-                .map_err(|e| format!("Adding renderer object, error = {e}"))?;
+                .map_err(|e| format!("Adding renderer object to group, error = {e}"))?;
 
             match index {
                 RendererObjectIndex::Mesh(index) => {
                     self.mesh_renderer_objects.get_ref(index).ok_or_else(|| {
-                        "Adding renderer object, error = could not find renderer object".to_string()
+                        "Adding renderer object to group, error = could not find renderer object"
+                            .to_string()
                     })?
                 }
             }
@@ -490,10 +504,12 @@ impl RendererImpl for Renderer {
         Ok(())
     }
 
-    fn remove_renderer_object(
+    fn remove_renderer_object_from_group(
         &mut self,
         renderer_object: ArcRwLock<dyn RendererObject>,
+        renderer_group: ArcRwLock<dyn RendererGroup>,
     ) -> Result<(), String> {
+        todo!();
         let ptr: *const dyn RendererObject = renderer_object.data_ptr();
         if self.mesh_renderer_objects_to_draw.remove(&ptr).is_some() {
             Ok(())
