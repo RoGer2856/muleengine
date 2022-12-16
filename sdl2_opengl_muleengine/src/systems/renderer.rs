@@ -24,26 +24,25 @@ use crate::{
     gl_shader_program_container::GLShaderProgramContainer,
     gl_texture_container::GLTextureContainer,
     me_renderer_indices::{
-        RendererMaterialIndex, RendererMeshIndex, RendererObjectIndex, RendererShaderIndex,
-        RendererTransformIndex,
+        RendererGroupIndex, RendererMaterialIndex, RendererMeshIndex, RendererObjectIndex,
+        RendererShaderIndex, RendererTransformIndex,
     },
     mesh_renderer_object::MeshRendererObject,
 };
 
-use super::RendererTransformObject;
+use super::{renderer_group::RendererGroupObject, RendererTransformObject};
 
 type TransformObservers =
     BTreeMap<*const dyn RendererObject, Box<dyn Fn(&Transform<f32, f32, f32>)>>;
 
 pub struct Renderer {
+    renderer_groups: ObjectPool<ArcRwLock<RendererGroupObject>>,
     renderer_transforms: ObjectPool<(ArcRwLock<RendererTransformObject>, TransformObservers)>,
     renderer_materials: ObjectPool<ArcRwLock<RendererMaterialObject>>,
     renderer_shaders: ObjectPool<ArcRwLock<RendererShaderObject>>,
     renderer_meshes: ObjectPool<ArcRwLock<RendererMeshObject>>,
 
     mesh_renderer_objects: ObjectPool<ArcRwLock<MeshRendererObject>>,
-    mesh_renderer_objects_to_draw:
-        BTreeMap<*const dyn RendererObject, ArcRwLock<MeshRendererObject>>,
 
     camera: Camera,
     projection_matrix: Mat4<f32>,
@@ -64,14 +63,13 @@ impl Renderer {
         asset_container: AssetContainer,
     ) -> Self {
         let mut ret = Self {
+            renderer_groups: ObjectPool::new(),
             renderer_transforms: ObjectPool::new(),
-
             renderer_materials: ObjectPool::new(),
             renderer_shaders: ObjectPool::new(),
             renderer_meshes: ObjectPool::new(),
 
             mesh_renderer_objects: ObjectPool::new(),
-            mesh_renderer_objects_to_draw: BTreeMap::new(),
 
             camera: Camera::new(),
             projection_matrix: Mat4::identity(),
@@ -133,12 +131,24 @@ impl Renderer {
             .map(|_| ())
     }
 
+    fn get_renderer_group_index(
+        &self,
+        renderer_group: &ArcRwLock<dyn RendererGroup>,
+    ) -> Result<RendererGroupIndex, String> {
+        let renderer_group = renderer_group.read();
+        renderer_group
+            .as_any()
+            .downcast_ref::<RendererGroupIndex>()
+            .ok_or_else(|| "invalid RendererGroup provided".to_string())
+            .cloned()
+    }
+
     fn get_transform_index(
         &self,
         renderer_transform: &ArcRwLock<dyn RendererTransform>,
     ) -> Result<RendererTransformIndex, String> {
-        let transform = renderer_transform.read();
-        transform
+        let renderer_transform = renderer_transform.read();
+        renderer_transform
             .as_any()
             .downcast_ref::<RendererTransformIndex>()
             .ok_or_else(|| "invalid RendererTransform provided".to_string())
@@ -149,8 +159,8 @@ impl Renderer {
         &self,
         renderer_material: &ArcRwLock<dyn RendererMaterial>,
     ) -> Result<RendererMaterialIndex, String> {
-        let material = renderer_material.read();
-        material
+        let renderer_material = renderer_material.read();
+        renderer_material
             .as_any()
             .downcast_ref::<RendererMaterialIndex>()
             .ok_or_else(|| "invalid RendererMaterial provided".to_string())
@@ -161,8 +171,8 @@ impl Renderer {
         &self,
         renderer_shader: &ArcRwLock<dyn RendererShader>,
     ) -> Result<RendererShaderIndex, String> {
-        let shader = renderer_shader.read();
-        shader
+        let renderer_shader = renderer_shader.read();
+        renderer_shader
             .as_any()
             .downcast_ref::<RendererShaderIndex>()
             .ok_or_else(|| "invalid RendererShader provided".to_string())
@@ -171,10 +181,11 @@ impl Renderer {
 
     fn get_mesh_index(
         &self,
-        renderer_shader: &ArcRwLock<dyn RendererMesh>,
+        renderer_mesh: &ArcRwLock<dyn RendererMesh>,
     ) -> Result<RendererMeshIndex, String> {
-        let mesh = renderer_shader.read();
-        mesh.as_any()
+        let renderer_mesh = renderer_mesh.read();
+        renderer_mesh
+            .as_any()
             .downcast_ref::<RendererMeshIndex>()
             .ok_or_else(|| "invalid RendererMesh provided".to_string())
             .cloned()
@@ -203,8 +214,8 @@ impl RendererImpl for Renderer {
         }
 
         let view_matrix = self.camera.compute_view_matrix();
-        for renderer_object in self.mesh_renderer_objects_to_draw.values() {
-            renderer_object.read().gl_drawable_mesh.draw(
+        for renderer_group in self.renderer_groups.iter() {
+            renderer_group.read().draw(
                 &self.camera.transform.position,
                 &self.projection_matrix,
                 &view_matrix,
@@ -215,14 +226,26 @@ impl RendererImpl for Renderer {
     }
 
     fn create_renderer_group(&mut self) -> Result<ArcRwLock<dyn RendererGroup>, String> {
-        todo!();
+        let renderer_group = Arc::new(RwLock::new(RendererGroupObject::new()));
+        let index = self.renderer_groups.create_object(renderer_group);
+
+        Ok(Arc::new(RwLock::new(RendererGroupIndex(index))))
     }
 
     fn release_renderer_group(
         &mut self,
         renderer_group: ArcRwLock<dyn RendererGroup>,
     ) -> Result<(), String> {
-        todo!();
+        let index = self
+            .get_renderer_group_index(&renderer_group)
+            .map_err(|e| format!("Releasing renderer group, error = {e}"))?;
+
+        self.renderer_groups
+            .release_object(index.0)
+            .ok_or_else(|| {
+                "Releasing renderer group, error = could not find RendererGroup".to_string()
+            })
+            .map(|_| ())
     }
 
     fn create_transform(
@@ -482,26 +505,40 @@ impl RendererImpl for Renderer {
         renderer_object: ArcRwLock<dyn RendererObject>,
         renderer_group: ArcRwLock<dyn RendererGroup>,
     ) -> Result<(), String> {
-        todo!();
-        let mesh_renderer_object = {
+        let renderer_group = {
             let index = self
-                .get_renderer_object_index(&renderer_object)
+                .get_renderer_group_index(&renderer_group)
                 .map_err(|e| format!("Adding renderer object to group, error = {e}"))?;
 
-            match index {
-                RendererObjectIndex::Mesh(index) => {
-                    self.mesh_renderer_objects.get_ref(index).ok_or_else(|| {
-                        "Adding renderer object to group, error = could not find renderer object"
-                            .to_string()
-                    })?
-                }
-            }
+            self.renderer_groups.get_ref(index.0).ok_or_else(|| {
+                "Adding renderer object to group, error = could not find RendererGroup".to_string()
+            })?
         };
 
-        self.mesh_renderer_objects_to_draw
-            .insert(renderer_object.data_ptr(), mesh_renderer_object.clone());
+        let index = self
+            .get_renderer_object_index(&renderer_object)
+            .map_err(|e| format!("Adding renderer object to group, error = {e}"))?;
 
-        Ok(())
+        let missing_renderer_object_error_msg =
+            "Adding renderer object to group, error = could not find renderer object".to_string();
+        let adding_twice_error_msg =
+            "Adding renderer object to group, error = cannot add renderer object twice to the same group".to_string();
+        match index {
+            RendererObjectIndex::Mesh(index) => {
+                let renderer_object = self
+                    .mesh_renderer_objects
+                    .get_ref(index)
+                    .ok_or(missing_renderer_object_error_msg)?;
+                let old_value = renderer_group
+                    .write()
+                    .add_mesh_renderer_object(renderer_object.clone());
+
+                match old_value {
+                    Some(_) => Err(adding_twice_error_msg),
+                    None => Ok(()),
+                }
+            }
+        }
     }
 
     fn remove_renderer_object_from_group(
@@ -509,15 +546,39 @@ impl RendererImpl for Renderer {
         renderer_object: ArcRwLock<dyn RendererObject>,
         renderer_group: ArcRwLock<dyn RendererGroup>,
     ) -> Result<(), String> {
-        todo!();
-        let ptr: *const dyn RendererObject = renderer_object.data_ptr();
-        if self.mesh_renderer_objects_to_draw.remove(&ptr).is_some() {
-            Ok(())
-        } else {
-            Err(
-                "Removing renderer object from renderer, error = could not find renderer object"
-                    .to_string(),
-            )
+        let renderer_group = {
+            let index = self
+                .get_renderer_group_index(&renderer_group)
+                .map_err(|e| format!("Removing renderer object from group, error = {e}"))?;
+
+            self.renderer_groups.get_ref(index.0).ok_or_else(|| {
+                "Removing renderer object from group, error = could not find RendererGroup"
+                    .to_string()
+            })?
+        };
+
+        let index = self
+            .get_renderer_object_index(&renderer_object)
+            .map_err(|e| format!("Removing renderer object from group, error = {e}"))?;
+
+        let missing_renderer_object_error_msg =
+            "Removing renderer object from group, error = could not find renderer object"
+                .to_string();
+        let missing_renderer_object_in_group_error_msg =
+            "Removing renderer object from group, error = could not find renderer object in group"
+                .to_string();
+        match index {
+            RendererObjectIndex::Mesh(index) => {
+                let renderer_object = self
+                    .mesh_renderer_objects
+                    .get_ref(index)
+                    .ok_or(missing_renderer_object_error_msg)?;
+                renderer_group
+                    .write()
+                    .remove_mesh_renderer_object(renderer_object)
+                    .ok_or(missing_renderer_object_in_group_error_msg)
+                    .map(|_| ())
+            }
         }
     }
 

@@ -45,7 +45,7 @@ impl GameManagerPri {
             .read()
             .clone();
 
-        Self {
+        let mut ret = Self {
             skydome_renderer_group_handler: renderer_client.create_renderer_group().await.unwrap(),
             main_renderer_group_handler: renderer_client.create_renderer_group().await.unwrap(),
 
@@ -57,7 +57,11 @@ impl GameManagerPri {
                 .unwrap()
                 .read()
                 .clone(),
-        }
+        };
+
+        ret.populate_with_objects().await;
+
+        ret
     }
 
     async fn populate_with_objects(&mut self) {
@@ -280,7 +284,7 @@ impl System for GameManager {
             let inner = self.inner.clone();
             let service_container = self.service_container.clone();
             tokio::spawn(async move {
-                *inner.write().await = Some(GameManagerPri::new(service_container.clone()).await)
+                *inner.write().await = Some(GameManagerPri::new(service_container.clone()).await);
             });
         }
     }
