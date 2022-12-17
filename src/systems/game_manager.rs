@@ -179,7 +179,7 @@ impl GameManagerPri {
                             .unwrap();
                     }
                     Err(e) => {
-                        log::warn!("Invalid mesh in scene, path = {scene_path}, error = {e:?}")
+                        log::warn!("Invalid mesh in scene, path = {scene_path}, msg = {e:?}")
                     }
                 }
             }

@@ -26,11 +26,11 @@ impl RendererClient {
         let _ = self
             .command_sender
             .send(Command::CreateRendererGroup { result_sender })
-            .inspect_err(|e| log::error!("Creating renderer group, error = {e}"));
+            .inspect_err(|e| log::error!("Creating renderer group, msg = {e}"));
 
         match result_receiver
             .await
-            .inspect_err(|e| log::error!("Creating renderer group response, error = {e}"))
+            .inspect_err(|e| log::error!("Creating renderer group response, msg = {e}"))
         {
             Ok(ret) => ret,
             Err(_) => unreachable!(),
@@ -48,11 +48,11 @@ impl RendererClient {
                 transform,
                 result_sender,
             })
-            .inspect_err(|e| log::error!("Creating transform, error = {e}"));
+            .inspect_err(|e| log::error!("Creating transform, msg = {e}"));
 
         match result_receiver
             .await
-            .inspect_err(|e| log::error!("Creating transform response, error = {e}"))
+            .inspect_err(|e| log::error!("Creating transform response, msg = {e}"))
         {
             Ok(ret) => ret,
             Err(_) => unreachable!(),
@@ -72,11 +72,11 @@ impl RendererClient {
                 new_transform,
                 result_sender,
             })
-            .inspect_err(|e| log::error!("Updating transform, error = {e}"));
+            .inspect_err(|e| log::error!("Updating transform, msg = {e}"));
 
         match result_receiver
             .await
-            .inspect_err(|e| log::error!("Updating transform response, error = {e}"))
+            .inspect_err(|e| log::error!("Updating transform response, msg = {e}"))
         {
             Ok(ret) => ret,
             Err(_) => unreachable!(),
@@ -94,11 +94,11 @@ impl RendererClient {
                 material,
                 result_sender,
             })
-            .inspect_err(|e| log::error!("Creating material, error = {e}"));
+            .inspect_err(|e| log::error!("Creating material, msg = {e}"));
 
         match result_receiver
             .await
-            .inspect_err(|e| log::error!("Creating material response, error = {e}"))
+            .inspect_err(|e| log::error!("Creating material response, msg = {e}"))
         {
             Ok(ret) => ret,
             Err(_) => unreachable!(),
@@ -113,11 +113,11 @@ impl RendererClient {
                 shader_name,
                 result_sender,
             })
-            .inspect_err(|e| log::error!("Creating shader, error = {e}"));
+            .inspect_err(|e| log::error!("Creating shader, msg = {e}"));
 
         match result_receiver
             .await
-            .inspect_err(|e| log::error!("Creating shader response, error = {e}"))
+            .inspect_err(|e| log::error!("Creating shader response, msg = {e}"))
         {
             Ok(ret) => ret,
             Err(_) => unreachable!(),
@@ -132,11 +132,11 @@ impl RendererClient {
                 mesh,
                 result_sender,
             })
-            .inspect_err(|e| log::error!("Creating renderer mesh, error = {e}"));
+            .inspect_err(|e| log::error!("Creating renderer mesh, msg = {e}"));
 
         match result_receiver
             .await
-            .inspect_err(|e| log::error!("Creating renderer mesh response, error = {e}"))
+            .inspect_err(|e| log::error!("Creating renderer mesh response, msg = {e}"))
         {
             Ok(ret) => ret,
             Err(_) => unreachable!(),
@@ -160,11 +160,12 @@ impl RendererClient {
                 transform_handler,
                 result_sender,
             })
-            .inspect_err(|e| log::error!("Creating renderer object from mesh, error = {e}"));
+            .inspect_err(|e| log::error!("Creating renderer object from mesh, msg = {e}"));
 
-        match result_receiver.await.inspect_err(|e| {
-            log::error!("Creating renderer object from mesh response, error = {e}")
-        }) {
+        match result_receiver
+            .await
+            .inspect_err(|e| log::error!("Creating renderer object from mesh response, msg = {e}"))
+        {
             Ok(ret) => ret,
             Err(_) => unreachable!(),
         }
@@ -183,11 +184,12 @@ impl RendererClient {
                 renderer_group_handler,
                 result_sender,
             })
-            .inspect_err(|e| log::error!("Adding renderer object to renderer, error = {e}"));
+            .inspect_err(|e| log::error!("Adding renderer object to renderer, msg = {e}"));
 
-        match result_receiver.await.inspect_err(|e| {
-            log::error!("Adding renderer object to renderer response, error = {e}")
-        }) {
+        match result_receiver
+            .await
+            .inspect_err(|e| log::error!("Adding renderer object to renderer response, msg = {e}"))
+        {
             Ok(ret) => ret,
             Err(_) => unreachable!(),
         }
@@ -206,10 +208,10 @@ impl RendererClient {
                 renderer_group_handler,
                 result_sender,
             })
-            .inspect_err(|e| log::error!("Removing renderer object from renderer, error = {e}"));
+            .inspect_err(|e| log::error!("Removing renderer object from renderer, msg = {e}"));
 
         match result_receiver.await.inspect_err(|e| {
-            log::error!("Removing renderer object from renderer response, error = {e}")
+            log::error!("Removing renderer object from renderer response, msg = {e}")
         }) {
             Ok(ret) => ret,
             Err(_) => unreachable!(),
@@ -220,13 +222,13 @@ impl RendererClient {
         let _ = self
             .command_sender
             .send(Command::SetCamera { camera })
-            .inspect_err(|e| log::error!("Setting camera of renderer, error = {e}"));
+            .inspect_err(|e| log::error!("Setting camera of renderer, msg = {e}"));
     }
 
     pub fn set_window_dimensions(&self, dimensions: Vec2<usize>) {
         let _ = self
             .command_sender
             .send(Command::SetWindowDimensions { dimensions })
-            .inspect_err(|e| log::error!("Setting window dimensions of renderer, error = {e}"));
+            .inspect_err(|e| log::error!("Setting window dimensions of renderer, msg = {e}"));
     }
 }

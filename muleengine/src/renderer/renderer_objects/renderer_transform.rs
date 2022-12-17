@@ -61,6 +61,6 @@ impl Drop for TransformHandlerDestructor {
             .send(Command::ReleaseTransform {
                 object_pool_index: self.object_pool_index,
             })
-            .inspect_err(|e| log::error!("Release transform, error = {e}"));
+            .inspect_err(|e| log::error!("Release transform, msg = {e}"));
     }
 }

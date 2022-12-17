@@ -112,7 +112,7 @@ impl RendererImpl for TestRendererImpl {
         self.renderer_groups
             .write()
             .remove(&SendablePtr::new(renderer_group.data_ptr()))
-            .ok_or_else(|| "Releasing renderer group, error = could not find RendererGroup")?;
+            .ok_or_else(|| "Releasing renderer group, msg = could not find RendererGroup")?;
         Ok(())
     }
 
@@ -139,7 +139,7 @@ impl RendererImpl for TestRendererImpl {
                 *transform = new_transform;
                 Some(())
             })
-            .ok_or_else(|| "Updating transform, error = could not find transform".to_string())
+            .ok_or_else(|| "Updating transform, msg = could not find transform".to_string())
     }
 
     fn release_transform(
@@ -149,7 +149,7 @@ impl RendererImpl for TestRendererImpl {
         self.transforms
             .write()
             .remove(&SendablePtr::new(transform.data_ptr()))
-            .ok_or_else(|| "Releasing transform, error = could not find RendererTransform")?;
+            .ok_or_else(|| "Releasing transform, msg = could not find RendererTransform")?;
         Ok(())
     }
 
@@ -171,7 +171,7 @@ impl RendererImpl for TestRendererImpl {
         self.materials
             .write()
             .remove(&SendablePtr::new(material.data_ptr()))
-            .ok_or_else(|| "Releasing material, error = could not find RendererMaterial")?;
+            .ok_or_else(|| "Releasing material, msg = could not find RendererMaterial")?;
         Ok(())
     }
 
@@ -190,7 +190,7 @@ impl RendererImpl for TestRendererImpl {
         self.shaders
             .write()
             .remove(&SendablePtr::new(shader.data_ptr()))
-            .ok_or_else(|| "Releasing shader, error = could not find RendererShader")?;
+            .ok_or_else(|| "Releasing shader, msg = could not find RendererShader")?;
         Ok(())
     }
 
@@ -209,7 +209,7 @@ impl RendererImpl for TestRendererImpl {
         self.meshes
             .write()
             .remove(&SendablePtr::new(mesh.data_ptr()))
-            .ok_or_else(|| "Releasing mesh, error = could not find RendererMesh")?;
+            .ok_or_else(|| "Releasing mesh, msg = could not find RendererMesh")?;
         Ok(())
     }
 
@@ -224,28 +224,28 @@ impl RendererImpl for TestRendererImpl {
             .read()
             .get(&SendablePtr::new(shader.data_ptr()))
             .ok_or_else(|| {
-                "Creating renderer object from mesh, error = could not find shader".to_string()
+                "Creating renderer object from mesh, msg = could not find shader".to_string()
             })?;
 
         self.materials
             .read()
             .get(&SendablePtr::new(material.data_ptr()))
             .ok_or_else(|| {
-                "Creating renderer object from mesh, error = could not find material".to_string()
+                "Creating renderer object from mesh, msg = could not find material".to_string()
             })?;
 
         self.meshes
             .read()
             .get(&SendablePtr::new(mesh.data_ptr()))
             .ok_or_else(|| {
-                "Creating renderer object from mesh, error = could not find mesh".to_string()
+                "Creating renderer object from mesh, msg = could not find mesh".to_string()
             })?;
 
         self.transforms
             .read()
             .get(&SendablePtr::new(transform.data_ptr()))
             .ok_or_else(|| {
-                "Creating renderer object from mesh, error = could not find transform".to_string()
+                "Creating renderer object from mesh, msg = could not find transform".to_string()
             })?;
 
         let renderer_object = Arc::new(RwLock::new(TestRendererObjectImpl));
@@ -263,7 +263,7 @@ impl RendererImpl for TestRendererImpl {
             .write()
             .remove(&SendablePtr::new(renderer_object.data_ptr()))
             .then(|| ())
-            .ok_or_else(|| "Releasing renderer object, error = could not find RendererObject")?;
+            .ok_or_else(|| "Releasing renderer object, msg = could not find RendererObject")?;
 
         for (_, renderer_group) in self.renderer_groups.write().iter_mut() {
             renderer_group.remove_renderer_object(&renderer_object);
@@ -282,15 +282,14 @@ impl RendererImpl for TestRendererImpl {
             .contains(&SendablePtr::new(renderer_object.data_ptr()))
             .then(|| ())
             .ok_or_else(|| {
-                "Adding renderer object to group, error = could not find renderer object"
-                    .to_string()
+                "Adding renderer object to group, msg = could not find renderer object".to_string()
             })?;
 
         let mut renderer_groups = self.renderer_groups.write();
         let renderer_group = renderer_groups
             .get_mut(&SendablePtr::new(renderer_group.data_ptr()))
             .ok_or_else(|| {
-                "Adding renderer object to group, error = could not find renderer group".to_string()
+                "Adding renderer object to group, msg = could not find renderer group".to_string()
             })?;
 
         renderer_group.add_renderer_object(renderer_object);
@@ -307,13 +306,17 @@ impl RendererImpl for TestRendererImpl {
         let renderer_group = renderer_groups
             .get_mut(&SendablePtr::new(renderer_group.data_ptr()))
             .ok_or_else(|| {
-                "Removing renderer object from group, error = could not find renderer group"
+                "Removing renderer object from group, msg = could not find renderer group"
                     .to_string()
             })?;
 
-        renderer_group.remove_renderer_object(&renderer_object)
+        renderer_group
+            .remove_renderer_object(&renderer_object)
             .then(|| ())
-            .ok_or_else(|| "Removing renderer object from group, error = could not find renderer object in group".to_string())
+            .ok_or_else(|| {
+                "Removing renderer object from group, msg = could not find renderer object in group"
+                    .to_string()
+            })
     }
 
     fn render(&mut self) {}

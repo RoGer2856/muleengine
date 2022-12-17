@@ -101,11 +101,11 @@ impl Renderer {
     ) -> Result<(), String> {
         let index = self
             .get_transform_index(renderer_transform)
-            .map_err(|e| format!("Adding transform observer, error = {e}"))?;
+            .map_err(|e| format!("Adding transform observer, msg = {e}"))?;
 
         let (_transform, observers) =
             self.renderer_transforms.get_mut(index.0).ok_or_else(|| {
-                "Adding transform observer, error = could not find RendererTransform".to_string()
+                "Adding transform observer, msg = could not find RendererTransform".to_string()
             })?;
 
         observers.insert(renderer_object, Box::new(observer_fn));
@@ -120,18 +120,18 @@ impl Renderer {
     ) -> Result<(), String> {
         let index = self
             .get_transform_index(renderer_transform)
-            .map_err(|e| format!("Removing transform observer of renderer object, error = {e}"))?;
+            .map_err(|e| format!("Removing transform observer of renderer object, msg = {e}"))?;
 
         let (_transform, observers) =
             self.renderer_transforms.get_mut(index.0).ok_or_else(|| {
-                "Removing transform observer of renderer object, error = could not find RendererTransform"
+                "Removing transform observer of renderer object, msg = could not find RendererTransform"
                     .to_string()
             })?;
 
         observers
             .remove(&renderer_object)
             .ok_or_else(|| {
-                "Removing transform observer of renderer object, error = could not find observer for RendererObject".to_string()
+                "Removing transform observer of renderer object, msg = could not find observer for RendererObject".to_string()
             })
             .map(|_| ())
     }
@@ -243,12 +243,12 @@ impl RendererImpl for Renderer {
     ) -> Result<(), String> {
         let index = self
             .get_renderer_group_index(&renderer_group)
-            .map_err(|e| format!("Releasing renderer group, error = {e}"))?;
+            .map_err(|e| format!("Releasing renderer group, msg = {e}"))?;
 
         self.renderer_groups
             .release_object(index.0)
             .ok_or_else(|| {
-                "Releasing renderer group, error = could not find RendererGroup".to_string()
+                "Releasing renderer group, msg = could not find RendererGroup".to_string()
             })
             .map(|_| ())
     }
@@ -272,11 +272,11 @@ impl RendererImpl for Renderer {
     ) -> Result<(), String> {
         let index = self
             .get_transform_index(&transform)
-            .map_err(|e| format!("Updating transform, error = {e}"))?;
+            .map_err(|e| format!("Updating transform, msg = {e}"))?;
 
         let (transform, observers) =
             self.renderer_transforms.get_mut(index.0).ok_or_else(|| {
-                "Updating transform, error = could not find RendererTransform".to_string()
+                "Updating transform, msg = could not find RendererTransform".to_string()
             })?;
 
         transform.write().transform = new_transform;
@@ -294,12 +294,12 @@ impl RendererImpl for Renderer {
     ) -> Result<(), String> {
         let index = self
             .get_transform_index(&transform)
-            .map_err(|e| format!("Releasing transform, error = {e}"))?;
+            .map_err(|e| format!("Releasing transform, msg = {e}"))?;
 
         self.renderer_transforms
             .release_object(index.0)
             .ok_or_else(|| {
-                "Releasing transform, error = could not find RendererTransform".to_string()
+                "Releasing transform, msg = could not find RendererTransform".to_string()
             })
             .map(|_| ())
     }
@@ -322,13 +322,11 @@ impl RendererImpl for Renderer {
     ) -> Result<(), String> {
         let index = self
             .get_material_index(&material)
-            .map_err(|e| format!("Releasing material, error = {e}"))?;
+            .map_err(|e| format!("Releasing material, msg = {e}"))?;
 
         self.renderer_materials
             .release_object(index.0)
-            .ok_or_else(|| {
-                "Releasing material, error = could not find RendererMaterial".to_string()
-            })
+            .ok_or_else(|| "Releasing material, msg = could not find RendererMaterial".to_string())
             .map(|_| ())
     }
 
@@ -341,7 +339,7 @@ impl RendererImpl for Renderer {
             .get_shader_program(&shader_name, &self.asset_container.asset_reader().read())
         {
             Ok(shader_program) => Ok(shader_program),
-            Err(e) => Err(format!("Loading shader program, error = {e:?}")),
+            Err(e) => Err(format!("Loading shader program, msg = {e:?}")),
         }?;
 
         let renderer_shader = Arc::new(RwLock::new(RendererShaderObject::new(gl_shader_program)));
@@ -353,11 +351,11 @@ impl RendererImpl for Renderer {
     fn release_shader(&mut self, shader: ArcRwLock<dyn RendererShader>) -> Result<(), String> {
         let index = self
             .get_shader_index(&shader)
-            .map_err(|e| format!("Releasing shader, error = {e}"))?;
+            .map_err(|e| format!("Releasing shader, msg = {e}"))?;
 
         self.renderer_shaders
             .release_object(index.0)
-            .ok_or_else(|| "Releasing shader, error = could not find RendererShader".to_string())
+            .ok_or_else(|| "Releasing shader, msg = could not find RendererShader".to_string())
             .map(|_| ())
     }
 
@@ -373,11 +371,11 @@ impl RendererImpl for Renderer {
     fn release_mesh(&mut self, mesh: ArcRwLock<dyn RendererMesh>) -> Result<(), String> {
         let index = self
             .get_mesh_index(&mesh)
-            .map_err(|e| format!("Releasing mesh, error = {e}"))?;
+            .map_err(|e| format!("Releasing mesh, msg = {e}"))?;
 
         self.renderer_meshes
             .release_object(index.0)
-            .ok_or_else(|| "Releasing mesh, error = could not find RendererMesh".to_string())
+            .ok_or_else(|| "Releasing mesh, msg = could not find RendererMesh".to_string())
             .map(|_| ())
     }
 
@@ -391,13 +389,13 @@ impl RendererImpl for Renderer {
         let transform = {
             let index = self
                 .get_transform_index(&renderer_transform)
-                .map_err(|e| format!("Creating renderer object from mesh, error = {e}"))?;
+                .map_err(|e| format!("Creating renderer object from mesh, msg = {e}"))?;
 
             &self
                 .renderer_transforms
                 .get_ref(index.0)
                 .ok_or_else(|| {
-                    "Creating renderer object from mesh, error = could not find RendererTransform"
+                    "Creating renderer object from mesh, msg = could not find RendererTransform"
                         .to_string()
                 })?
                 .0
@@ -406,10 +404,10 @@ impl RendererImpl for Renderer {
         let material = {
             let index = self
                 .get_material_index(&material)
-                .map_err(|e| format!("Creating renderer object from mesh, error = {e}"))?;
+                .map_err(|e| format!("Creating renderer object from mesh, msg = {e}"))?;
 
             self.renderer_materials.get_ref(index.0).ok_or_else(|| {
-                "Creating renderer object from mesh, error = could not find RendererMaterial"
+                "Creating renderer object from mesh, msg = could not find RendererMaterial"
                     .to_string()
             })?
         };
@@ -417,10 +415,10 @@ impl RendererImpl for Renderer {
         let shader = {
             let index = self
                 .get_shader_index(&shader)
-                .map_err(|e| format!("Creating renderer object from mesh, error = {e}"))?;
+                .map_err(|e| format!("Creating renderer object from mesh, msg = {e}"))?;
 
             let shader = self.renderer_shaders.get_ref(index.0).ok_or_else(|| {
-                "Creating renderer object from mesh, error = could not find RendererShader"
+                "Creating renderer object from mesh, msg = could not find RendererShader"
                     .to_string()
             })?;
 
@@ -437,11 +435,10 @@ impl RendererImpl for Renderer {
         let mesh = {
             let index = self
                 .get_mesh_index(&mesh)
-                .map_err(|e| format!("Creating renderer object from mesh, error = {e}"))?;
+                .map_err(|e| format!("Creating renderer object from mesh, msg = {e}"))?;
 
             self.renderer_meshes.get_ref(index.0).ok_or_else(|| {
-                "Creating renderer object from mesh, error = could not find RendererMesh"
-                    .to_string()
+                "Creating renderer object from mesh, msg = could not find RendererMesh".to_string()
             })?
         };
 
@@ -470,7 +467,7 @@ impl RendererImpl for Renderer {
                     .gl_drawable_mesh
                     .set_transform(transform)
             })
-            .map_err(|e| format!("Creating renderer object from mesh, error = {e}"))
+            .map_err(|e| format!("Creating renderer object from mesh, msg = {e}"))
             .inspect_err(|e| {
                 self.mesh_renderer_objects.release_object(index);
                 log::error!("{e}");
@@ -486,14 +483,14 @@ impl RendererImpl for Renderer {
     ) -> Result<(), String> {
         let index = self
             .get_renderer_object_index(&renderer_object)
-            .map_err(|e| format!("Releasing renderer object, error = {e}"))?;
+            .map_err(|e| format!("Releasing renderer object, msg = {e}"))?;
 
         match index {
             RendererObjectIndex::Mesh(index) => self
                 .mesh_renderer_objects
                 .release_object(index)
                 .ok_or_else(|| {
-                    "Releasing renderer object, error = could not find RendererObject".to_string()
+                    "Releasing renderer object, msg = could not find RendererObject".to_string()
                 })
                 .map(|(object, group_indices)| {
                     for group_index in group_indices.0 {
@@ -512,7 +509,7 @@ impl RendererImpl for Renderer {
                             &object.read().transform,
                             renderer_object.data_ptr(),
                         )
-                        .inspect_err(|e| log::error!("Releasing renderer object, error = {e}"));
+                        .inspect_err(|e| log::error!("Releasing renderer object, msg = {e}"));
                 }),
         }
     }
@@ -524,23 +521,23 @@ impl RendererImpl for Renderer {
     ) -> Result<(), String> {
         let renderer_group_index = self
             .get_renderer_group_index(&renderer_group)
-            .map_err(|e| format!("Adding renderer object to group, error = {e}"))?;
+            .map_err(|e| format!("Adding renderer object to group, msg = {e}"))?;
 
         let renderer_group = self
             .renderer_groups
             .get_ref(renderer_group_index.0)
             .ok_or_else(|| {
-                "Adding renderer object to group, error = could not find RendererGroup".to_string()
+                "Adding renderer object to group, msg = could not find RendererGroup".to_string()
             })?;
 
         let index = self
             .get_renderer_object_index(&renderer_object)
-            .map_err(|e| format!("Adding renderer object to group, error = {e}"))?;
+            .map_err(|e| format!("Adding renderer object to group, msg = {e}"))?;
 
         let missing_renderer_object_error_msg =
-            "Adding renderer object to group, error = could not find renderer object".to_string();
+            "Adding renderer object to group, msg = could not find renderer object".to_string();
         let adding_twice_error_msg =
-            "Adding renderer object to group, error = cannot add renderer object twice to the same group".to_string();
+            "Adding renderer object to group, msg = cannot add renderer object twice to the same group".to_string();
         match index {
             RendererObjectIndex::Mesh(index) => {
                 let (renderer_object, renderer_group_indices) = self
@@ -570,25 +567,24 @@ impl RendererImpl for Renderer {
     ) -> Result<(), String> {
         let renderer_group_index = self
             .get_renderer_group_index(&renderer_group)
-            .map_err(|e| format!("Removing renderer object from group, error = {e}"))?;
+            .map_err(|e| format!("Removing renderer object from group, msg = {e}"))?;
 
         let renderer_group = self
             .renderer_groups
             .get_ref(renderer_group_index.0)
             .ok_or_else(|| {
-                "Removing renderer object from group, error = could not find RendererGroup"
+                "Removing renderer object from group, msg = could not find RendererGroup"
                     .to_string()
             })?;
 
         let index = self
             .get_renderer_object_index(&renderer_object)
-            .map_err(|e| format!("Removing renderer object from group, error = {e}"))?;
+            .map_err(|e| format!("Removing renderer object from group, msg = {e}"))?;
 
         let missing_renderer_object_error_msg =
-            "Removing renderer object from group, error = could not find renderer object"
-                .to_string();
+            "Removing renderer object from group, msg = could not find renderer object".to_string();
         let missing_renderer_object_in_group_error_msg =
-            "Removing renderer object from group, error = could not find renderer object in group"
+            "Removing renderer object from group, msg = could not find renderer object in group"
                 .to_string();
         match index {
             RendererObjectIndex::Mesh(index) => {

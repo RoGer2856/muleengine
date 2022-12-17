@@ -61,6 +61,6 @@ impl Drop for MeshHandlerDestructor {
             .send(Command::ReleaseMesh {
                 object_pool_index: self.object_pool_index,
             })
-            .inspect_err(|e| log::error!("Release mesh, error = {e}"));
+            .inspect_err(|e| log::error!("Release mesh, msg = {e}"));
     }
 }

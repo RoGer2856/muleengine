@@ -61,6 +61,6 @@ impl Drop for ShaderHandlerDestructor {
             .send(Command::ReleaseShader {
                 object_pool_index: self.object_pool_index,
             })
-            .inspect_err(|e| log::error!("Release shader, error = {e}"));
+            .inspect_err(|e| log::error!("Release shader, msg = {e}"));
     }
 }

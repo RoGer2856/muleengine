@@ -172,7 +172,7 @@ impl RendererPri {
 
                 let _ = result_sender
                     .send(ret)
-                    .inspect_err(|e| log::error!("CreateRendererGroup response, error = {e:?}"));
+                    .inspect_err(|e| log::error!("CreateRendererGroup response, msg = {e:?}"));
             }
             Command::ReleaseRendererGroup { object_pool_index } => {
                 let renderer_group = self
@@ -183,9 +183,9 @@ impl RendererPri {
                 if let Some(renderer_group) = renderer_group {
                     let _ = renderer_impl
                         .release_renderer_group(renderer_group.clone())
-                        .inspect_err(|e| log::error!("ReleaseRendererGroup, error = {e}"));
+                        .inspect_err(|e| log::error!("ReleaseRendererGroup, msg = {e}"));
                 } else {
-                    log::error!("ReleaseRendererGroup, error = could not find renderer group");
+                    log::error!("ReleaseRendererGroup, msg = could not find renderer group");
                 }
             }
             Command::CreateTransform {
@@ -206,7 +206,7 @@ impl RendererPri {
 
                 let _ = result_sender
                     .send(ret)
-                    .inspect_err(|e| log::error!("CreateTransform response, error = {e:?}"));
+                    .inspect_err(|e| log::error!("CreateTransform response, msg = {e:?}"));
             }
             Command::UpdateTransform {
                 transform_handler,
@@ -231,7 +231,7 @@ impl RendererPri {
 
                 let _ = result_sender
                     .send(closure())
-                    .inspect_err(|e| log::error!("UpdateTransform response, error = {e:?}"));
+                    .inspect_err(|e| log::error!("UpdateTransform response, msg = {e:?}"));
             }
             Command::ReleaseTransform { object_pool_index } => {
                 let transform = self
@@ -242,9 +242,9 @@ impl RendererPri {
                 if let Some(transform) = transform {
                     let _ = renderer_impl
                         .release_transform(transform.clone())
-                        .inspect_err(|e| log::error!("ReleaseTransform, error = {e}"));
+                        .inspect_err(|e| log::error!("ReleaseTransform, msg = {e}"));
                 } else {
-                    log::error!("ReleaseTransform, error = could not find transform");
+                    log::error!("ReleaseTransform, msg = could not find transform");
                 }
             }
             Command::CreateMaterial {
@@ -265,7 +265,7 @@ impl RendererPri {
 
                 let _ = result_sender
                     .send(ret)
-                    .inspect_err(|e| log::error!("CreateMaterial response, error = {e:?}"));
+                    .inspect_err(|e| log::error!("CreateMaterial response, msg = {e:?}"));
             }
             Command::ReleaseMaterial { object_pool_index } => {
                 let material = self
@@ -276,9 +276,9 @@ impl RendererPri {
                 if let Some(material) = material {
                     let _ = renderer_impl
                         .release_material(material.clone())
-                        .inspect_err(|e| log::error!("ReleaseMaterial, error = {e}"));
+                        .inspect_err(|e| log::error!("ReleaseMaterial, msg = {e}"));
                 } else {
-                    log::error!("ReleaseMaterial, error = could not find material");
+                    log::error!("ReleaseMaterial, msg = could not find material");
                 }
             }
             Command::CreateShader {
@@ -297,7 +297,7 @@ impl RendererPri {
 
                 let _ = result_sender
                     .send(ret)
-                    .inspect_err(|e| log::error!("CreateShader response, error = {e:?}"));
+                    .inspect_err(|e| log::error!("CreateShader response, msg = {e:?}"));
             }
             Command::ReleaseShader { object_pool_index } => {
                 let shader = self
@@ -308,9 +308,9 @@ impl RendererPri {
                 if let Some(shader) = shader {
                     let _ = renderer_impl
                         .release_shader(shader.clone())
-                        .inspect_err(|e| log::error!("ReleaseShader, error = {e}"));
+                        .inspect_err(|e| log::error!("ReleaseShader, msg = {e}"));
                 } else {
-                    log::error!("ReleaseShader, error = could not find shader");
+                    log::error!("ReleaseShader, msg = could not find shader");
                 }
             }
             Command::CreateMesh {
@@ -329,7 +329,7 @@ impl RendererPri {
 
                 let _ = result_sender
                     .send(ret)
-                    .inspect_err(|e| log::error!("CreateMesh response, error = {e:?}"));
+                    .inspect_err(|e| log::error!("CreateMesh response, msg = {e:?}"));
             }
             Command::ReleaseMesh { object_pool_index } => {
                 let mesh = self
@@ -340,9 +340,9 @@ impl RendererPri {
                 if let Some(mesh) = mesh {
                     let _ = renderer_impl
                         .release_mesh(mesh.clone())
-                        .inspect_err(|e| log::error!("ReleaseMesh, error = {e}"));
+                        .inspect_err(|e| log::error!("ReleaseMesh, msg = {e}"));
                 } else {
-                    log::error!("ReleaseMesh, error = could not find mesh");
+                    log::error!("ReleaseMesh, msg = could not find mesh");
                 }
             }
             Command::CreateRendererObjectFromMesh {
@@ -400,7 +400,7 @@ impl RendererPri {
                 };
 
                 let _ = result_sender.send(closure()).inspect_err(|e| {
-                    log::error!("CreateRendererObjectFromMesh response, error = {e:?}")
+                    log::error!("CreateRendererObjectFromMesh response, msg = {e:?}")
                 });
             }
             Command::ReleaseRendererObject { object_pool_index } => {
@@ -412,9 +412,9 @@ impl RendererPri {
                 if let Some(renderer_object) = mesh {
                     let _ = renderer_impl
                         .release_renderer_object(renderer_object.clone())
-                        .inspect_err(|e| log::error!("ReleaseRendererObject, error = {e}"));
+                        .inspect_err(|e| log::error!("ReleaseRendererObject, msg = {e}"));
                 } else {
-                    log::error!("ReleaseRendererObject, error = could not find renderer object");
+                    log::error!("ReleaseRendererObject, msg = could not find renderer object");
                 }
             }
             Command::AddRendererObjectToGroup {
@@ -447,9 +447,9 @@ impl RendererPri {
                         .map_err(RendererError::RendererImplError)
                 };
 
-                let _ = result_sender.send(closure()).inspect_err(|e| {
-                    log::error!("AddRendererObjectToGroup response, error = {e:?}")
-                });
+                let _ = result_sender
+                    .send(closure())
+                    .inspect_err(|e| log::error!("AddRendererObjectToGroup response, msg = {e:?}"));
             }
             Command::RemoveRendererObjectFromGroup {
                 renderer_object_handler,
@@ -482,7 +482,7 @@ impl RendererPri {
                 };
 
                 let _ = result_sender.send(closure()).inspect_err(|e| {
-                    log::error!("RemoveRendererObjectFromGroup response, error = {e:?}")
+                    log::error!("RemoveRendererObjectFromGroup response, msg = {e:?}")
                 });
             }
             Command::SetCamera { camera } => {
