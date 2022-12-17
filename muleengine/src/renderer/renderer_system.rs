@@ -2,10 +2,14 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 use tokio::sync::watch;
+use vek::Transform;
 
 use crate::{
-    containers::object_pool::ObjectPool, prelude::ArcRwLock,
-    result_option_inspect::ResultInspector, system_container::System,
+    containers::object_pool::{ObjectPool, ObjectPoolIndex},
+    mesh::{Material, Mesh},
+    prelude::ArcRwLock,
+    result_option_inspect::ResultInspector,
+    system_container::System,
 };
 
 use super::{
@@ -155,57 +159,352 @@ impl RendererPri {
         }
     }
 
+    fn create_renderer_group(
+        &mut self,
+        renderer_impl: &mut dyn RendererImpl,
+    ) -> Result<RendererGroupHandler, RendererError> {
+        renderer_impl
+            .create_renderer_group()
+            .map(|transform| {
+                RendererGroupHandler::new(
+                    self.renderer_groups
+                        .write()
+                        .create_object(transform.clone()),
+                    self.command_sender.clone(),
+                )
+            })
+            .map_err(RendererError::RendererImplError)
+    }
+
+    fn release_renderer_group(
+        &mut self,
+        object_pool_index: ObjectPoolIndex,
+        renderer_impl: &mut dyn RendererImpl,
+    ) {
+        let renderer_group = self
+            .renderer_groups
+            .write()
+            .release_object(object_pool_index);
+
+        if let Some(renderer_group) = renderer_group {
+            let _ = renderer_impl
+                .release_renderer_group(renderer_group.clone())
+                .inspect_err(|e| log::error!("ReleaseRendererGroup, msg = {e}"));
+        } else {
+            log::error!("ReleaseRendererGroup, msg = could not find renderer group");
+        }
+    }
+
+    fn create_transform(
+        &mut self,
+        transform: Transform<f32, f32, f32>,
+        renderer_impl: &mut dyn RendererImpl,
+    ) -> Result<TransformHandler, RendererError> {
+        renderer_impl
+            .create_transform(transform)
+            .map(|transform| {
+                TransformHandler::new(
+                    self.renderer_transforms
+                        .write()
+                        .create_object(transform.clone()),
+                    self.command_sender.clone(),
+                )
+            })
+            .map_err(RendererError::RendererImplError)
+    }
+
+    fn update_transform(
+        &mut self,
+        transform_handler: TransformHandler,
+        new_transform: Transform<f32, f32, f32>,
+        renderer_impl: &mut dyn RendererImpl,
+    ) -> Result<(), RendererError> {
+        let transform = self
+            .renderer_transforms
+            .read()
+            .get_ref(transform_handler.0.object_pool_index)
+            .ok_or(RendererError::InvalidRendererTransformHandler(
+                transform_handler,
+            ))?
+            .clone();
+
+        renderer_impl
+            .update_transform(transform, new_transform)
+            .map_err(RendererError::RendererImplError)
+    }
+
+    fn release_transform(
+        &mut self,
+        object_pool_index: ObjectPoolIndex,
+        renderer_impl: &mut dyn RendererImpl,
+    ) {
+        let transform = self
+            .renderer_transforms
+            .write()
+            .release_object(object_pool_index);
+
+        if let Some(transform) = transform {
+            let _ = renderer_impl
+                .release_transform(transform.clone())
+                .inspect_err(|e| log::error!("ReleaseTransform, msg = {e}"));
+        } else {
+            log::error!("ReleaseTransform, msg = could not find transform");
+        }
+    }
+
+    fn create_material(
+        &mut self,
+        material: Material,
+        renderer_impl: &mut dyn RendererImpl,
+    ) -> Result<MaterialHandler, RendererError> {
+        renderer_impl
+            .create_material(material)
+            .map(|material| {
+                MaterialHandler::new(
+                    self.renderer_materials
+                        .write()
+                        .create_object(material.clone()),
+                    self.command_sender.clone(),
+                )
+            })
+            .map_err(RendererError::RendererImplError)
+    }
+
+    fn release_material(
+        &mut self,
+        object_pool_index: ObjectPoolIndex,
+        renderer_impl: &mut dyn RendererImpl,
+    ) {
+        let material = self
+            .renderer_materials
+            .write()
+            .release_object(object_pool_index);
+
+        if let Some(material) = material {
+            let _ = renderer_impl
+                .release_material(material.clone())
+                .inspect_err(|e| log::error!("ReleaseMaterial, msg = {e}"));
+        } else {
+            log::error!("ReleaseMaterial, msg = could not find material");
+        }
+    }
+
+    fn create_shader(
+        &mut self,
+        shader_name: String,
+        renderer_impl: &mut dyn RendererImpl,
+    ) -> Result<ShaderHandler, RendererError> {
+        renderer_impl
+            .create_shader(shader_name)
+            .map(|shader| {
+                ShaderHandler::new(
+                    self.renderer_shaders.write().create_object(shader.clone()),
+                    self.command_sender.clone(),
+                )
+            })
+            .map_err(RendererError::RendererImplError)
+    }
+
+    fn release_shader(
+        &mut self,
+        object_pool_index: ObjectPoolIndex,
+        renderer_impl: &mut dyn RendererImpl,
+    ) {
+        let shader = self
+            .renderer_shaders
+            .write()
+            .release_object(object_pool_index);
+
+        if let Some(shader) = shader {
+            let _ = renderer_impl
+                .release_shader(shader.clone())
+                .inspect_err(|e| log::error!("ReleaseShader, msg = {e}"));
+        } else {
+            log::error!("ReleaseShader, msg = could not find shader");
+        }
+    }
+
+    fn create_mesh(
+        &mut self,
+        mesh: Arc<Mesh>,
+        renderer_impl: &mut dyn RendererImpl,
+    ) -> Result<MeshHandler, RendererError> {
+        renderer_impl
+            .create_mesh(mesh)
+            .map(|mesh| {
+                MeshHandler::new(
+                    self.renderer_meshes.write().create_object(mesh.clone()),
+                    self.command_sender.clone(),
+                )
+            })
+            .map_err(RendererError::RendererImplError)
+    }
+
+    fn release_mesh(
+        &mut self,
+        object_pool_index: ObjectPoolIndex,
+        renderer_impl: &mut dyn RendererImpl,
+    ) {
+        let mesh = self
+            .renderer_meshes
+            .write()
+            .release_object(object_pool_index);
+
+        if let Some(mesh) = mesh {
+            let _ = renderer_impl
+                .release_mesh(mesh.clone())
+                .inspect_err(|e| log::error!("ReleaseMesh, msg = {e}"));
+        } else {
+            log::error!("ReleaseMesh, msg = could not find mesh");
+        }
+    }
+
+    fn create_renderer_object_from_mesh(
+        &mut self,
+        mesh_handler: MeshHandler,
+        shader_handler: ShaderHandler,
+        material_handler: MaterialHandler,
+        transform_handler: TransformHandler,
+        renderer_impl: &mut dyn RendererImpl,
+    ) -> Result<RendererObjectHandler, RendererError> {
+        let mesh = self
+            .renderer_meshes
+            .read()
+            .get_ref(mesh_handler.0.object_pool_index)
+            .ok_or(RendererError::InvalidRendererMeshHandler(mesh_handler))?
+            .clone();
+
+        let shader = self
+            .renderer_shaders
+            .read()
+            .get_ref(shader_handler.0.object_pool_index)
+            .ok_or(RendererError::InvalidRendererShaderHandler(shader_handler))?
+            .clone();
+
+        let material = self
+            .renderer_materials
+            .read()
+            .get_ref(material_handler.0.object_pool_index)
+            .ok_or(RendererError::InvalidRendererMaterialHandler(
+                material_handler,
+            ))?
+            .clone();
+
+        let transform = self
+            .renderer_transforms
+            .read()
+            .get_ref(transform_handler.0.object_pool_index)
+            .ok_or(RendererError::InvalidRendererTransformHandler(
+                transform_handler,
+            ))?
+            .clone();
+
+        renderer_impl
+            .create_renderer_object_from_mesh(mesh, shader, material, transform)
+            .map(|renderer_object| {
+                RendererObjectHandler::new(
+                    self.renderer_objects
+                        .write()
+                        .create_object(renderer_object.clone()),
+                    self.command_sender.clone(),
+                )
+            })
+            .map_err(RendererError::RendererImplError)
+    }
+
+    fn release_renderer_object(
+        &mut self,
+        object_pool_index: ObjectPoolIndex,
+        renderer_impl: &mut dyn RendererImpl,
+    ) {
+        let mesh = self
+            .renderer_objects
+            .write()
+            .release_object(object_pool_index);
+
+        if let Some(renderer_object) = mesh {
+            let _ = renderer_impl
+                .release_renderer_object(renderer_object.clone())
+                .inspect_err(|e| log::error!("ReleaseRendererObject, msg = {e}"));
+        } else {
+            log::error!("ReleaseRendererObject, msg = could not find renderer object");
+        }
+    }
+
+    fn add_renderer_object_to_group(
+        &mut self,
+        renderer_object_handler: RendererObjectHandler,
+        renderer_group_handler: RendererGroupHandler,
+        renderer_impl: &mut dyn RendererImpl,
+    ) -> Result<(), RendererError> {
+        let renderer_object = self
+            .renderer_objects
+            .read()
+            .get_ref(renderer_object_handler.0.object_pool_index)
+            .ok_or(RendererError::InvalidRendererObjectHandler(
+                renderer_object_handler,
+            ))?
+            .clone();
+
+        let renderer_group = self
+            .renderer_groups
+            .read()
+            .get_ref(renderer_group_handler.0.object_pool_index)
+            .ok_or(RendererError::InvalidRendererGroupHandler(
+                renderer_group_handler,
+            ))?
+            .clone();
+
+        renderer_impl
+            .add_renderer_object_to_group(renderer_object, renderer_group)
+            .map_err(RendererError::RendererImplError)
+    }
+
+    fn remove_renderer_object_from_group(
+        &mut self,
+        renderer_object_handler: RendererObjectHandler,
+        renderer_group_handler: RendererGroupHandler,
+        renderer_impl: &mut dyn RendererImpl,
+    ) -> Result<(), RendererError> {
+        let renderer_object = self
+            .renderer_objects
+            .read()
+            .get_ref(renderer_object_handler.0.object_pool_index)
+            .ok_or(RendererError::InvalidRendererObjectHandler(
+                renderer_object_handler,
+            ))?
+            .clone();
+
+        let renderer_group = self
+            .renderer_groups
+            .read()
+            .get_ref(renderer_group_handler.0.object_pool_index)
+            .ok_or(RendererError::InvalidRendererGroupHandler(
+                renderer_group_handler,
+            ))?
+            .clone();
+
+        renderer_impl
+            .remove_renderer_object_from_group(renderer_object, renderer_group)
+            .map_err(RendererError::RendererImplError)
+    }
+
     fn execute_command(&mut self, command: Command, renderer_impl: &mut dyn RendererImpl) {
         match command {
             Command::CreateRendererGroup { result_sender } => {
-                let ret = renderer_impl
-                    .create_renderer_group()
-                    .map(|transform| {
-                        RendererGroupHandler::new(
-                            self.renderer_groups
-                                .write()
-                                .create_object(transform.clone()),
-                            self.command_sender.clone(),
-                        )
-                    })
-                    .map_err(RendererError::RendererImplError);
-
                 let _ = result_sender
-                    .send(ret)
+                    .send(self.create_renderer_group(renderer_impl))
                     .inspect_err(|e| log::error!("CreateRendererGroup response, msg = {e:?}"));
             }
             Command::ReleaseRendererGroup { object_pool_index } => {
-                let renderer_group = self
-                    .renderer_groups
-                    .write()
-                    .release_object(object_pool_index);
-
-                if let Some(renderer_group) = renderer_group {
-                    let _ = renderer_impl
-                        .release_renderer_group(renderer_group.clone())
-                        .inspect_err(|e| log::error!("ReleaseRendererGroup, msg = {e}"));
-                } else {
-                    log::error!("ReleaseRendererGroup, msg = could not find renderer group");
-                }
+                self.release_renderer_group(object_pool_index, renderer_impl);
             }
             Command::CreateTransform {
                 transform,
                 result_sender,
             } => {
-                let ret = renderer_impl
-                    .create_transform(transform)
-                    .map(|transform| {
-                        TransformHandler::new(
-                            self.renderer_transforms
-                                .write()
-                                .create_object(transform.clone()),
-                            self.command_sender.clone(),
-                        )
-                    })
-                    .map_err(RendererError::RendererImplError);
-
                 let _ = result_sender
-                    .send(ret)
+                    .send(self.create_transform(transform, renderer_impl))
                     .inspect_err(|e| log::error!("CreateTransform response, msg = {e:?}"));
             }
             Command::UpdateTransform {
@@ -213,137 +512,45 @@ impl RendererPri {
                 new_transform,
                 result_sender,
             } => {
-                // the closure helps the readability of the code by enabling the usage of the ? operator
-                let closure = || {
-                    let transform = self
-                        .renderer_transforms
-                        .read()
-                        .get_ref(transform_handler.0.object_pool_index)
-                        .ok_or(RendererError::InvalidRendererTransformHandler(
-                            transform_handler,
-                        ))?
-                        .clone();
-
-                    renderer_impl
-                        .update_transform(transform, new_transform)
-                        .map_err(RendererError::RendererImplError)
-                };
-
                 let _ = result_sender
-                    .send(closure())
+                    .send(self.update_transform(transform_handler, new_transform, renderer_impl))
                     .inspect_err(|e| log::error!("UpdateTransform response, msg = {e:?}"));
             }
             Command::ReleaseTransform { object_pool_index } => {
-                let transform = self
-                    .renderer_transforms
-                    .write()
-                    .release_object(object_pool_index);
-
-                if let Some(transform) = transform {
-                    let _ = renderer_impl
-                        .release_transform(transform.clone())
-                        .inspect_err(|e| log::error!("ReleaseTransform, msg = {e}"));
-                } else {
-                    log::error!("ReleaseTransform, msg = could not find transform");
-                }
+                self.release_transform(object_pool_index, renderer_impl);
             }
             Command::CreateMaterial {
                 material,
                 result_sender,
             } => {
-                let ret = renderer_impl
-                    .create_material(material)
-                    .map(|material| {
-                        MaterialHandler::new(
-                            self.renderer_materials
-                                .write()
-                                .create_object(material.clone()),
-                            self.command_sender.clone(),
-                        )
-                    })
-                    .map_err(RendererError::RendererImplError);
-
                 let _ = result_sender
-                    .send(ret)
+                    .send(self.create_material(material, renderer_impl))
                     .inspect_err(|e| log::error!("CreateMaterial response, msg = {e:?}"));
             }
             Command::ReleaseMaterial { object_pool_index } => {
-                let material = self
-                    .renderer_materials
-                    .write()
-                    .release_object(object_pool_index);
-
-                if let Some(material) = material {
-                    let _ = renderer_impl
-                        .release_material(material.clone())
-                        .inspect_err(|e| log::error!("ReleaseMaterial, msg = {e}"));
-                } else {
-                    log::error!("ReleaseMaterial, msg = could not find material");
-                }
+                self.release_material(object_pool_index, renderer_impl);
             }
             Command::CreateShader {
                 shader_name,
                 result_sender,
             } => {
-                let ret = renderer_impl
-                    .create_shader(shader_name)
-                    .map(|shader| {
-                        ShaderHandler::new(
-                            self.renderer_shaders.write().create_object(shader.clone()),
-                            self.command_sender.clone(),
-                        )
-                    })
-                    .map_err(RendererError::RendererImplError);
-
                 let _ = result_sender
-                    .send(ret)
+                    .send(self.create_shader(shader_name, renderer_impl))
                     .inspect_err(|e| log::error!("CreateShader response, msg = {e:?}"));
             }
             Command::ReleaseShader { object_pool_index } => {
-                let shader = self
-                    .renderer_shaders
-                    .write()
-                    .release_object(object_pool_index);
-
-                if let Some(shader) = shader {
-                    let _ = renderer_impl
-                        .release_shader(shader.clone())
-                        .inspect_err(|e| log::error!("ReleaseShader, msg = {e}"));
-                } else {
-                    log::error!("ReleaseShader, msg = could not find shader");
-                }
+                self.release_shader(object_pool_index, renderer_impl);
             }
             Command::CreateMesh {
                 mesh,
                 result_sender,
             } => {
-                let ret = renderer_impl
-                    .create_mesh(mesh)
-                    .map(|mesh| {
-                        MeshHandler::new(
-                            self.renderer_meshes.write().create_object(mesh.clone()),
-                            self.command_sender.clone(),
-                        )
-                    })
-                    .map_err(RendererError::RendererImplError);
-
                 let _ = result_sender
-                    .send(ret)
+                    .send(self.create_mesh(mesh, renderer_impl))
                     .inspect_err(|e| log::error!("CreateMesh response, msg = {e:?}"));
             }
             Command::ReleaseMesh { object_pool_index } => {
-                let mesh = self
-                    .renderer_meshes
-                    .write()
-                    .release_object(object_pool_index);
-
-                if let Some(mesh) = mesh {
-                    let _ = renderer_impl
-                        .release_mesh(mesh.clone())
-                        .inspect_err(|e| log::error!("ReleaseMesh, msg = {e}"));
-                } else {
-                    log::error!("ReleaseMesh, msg = could not find mesh");
-                }
+                self.release_mesh(object_pool_index, renderer_impl);
             }
             Command::CreateRendererObjectFromMesh {
                 mesh_handler,
@@ -352,103 +559,32 @@ impl RendererPri {
                 transform_handler,
                 result_sender,
             } => {
-                // the closure helps the readability of the code by enabling the usage of the ? operator
-                let closure = || {
-                    let mesh = self
-                        .renderer_meshes
-                        .read()
-                        .get_ref(mesh_handler.0.object_pool_index)
-                        .ok_or(RendererError::InvalidRendererMeshHandler(mesh_handler))?
-                        .clone();
-
-                    let shader = self
-                        .renderer_shaders
-                        .read()
-                        .get_ref(shader_handler.0.object_pool_index)
-                        .ok_or(RendererError::InvalidRendererShaderHandler(shader_handler))?
-                        .clone();
-
-                    let material = self
-                        .renderer_materials
-                        .read()
-                        .get_ref(material_handler.0.object_pool_index)
-                        .ok_or(RendererError::InvalidRendererMaterialHandler(
-                            material_handler,
-                        ))?
-                        .clone();
-
-                    let transform = self
-                        .renderer_transforms
-                        .read()
-                        .get_ref(transform_handler.0.object_pool_index)
-                        .ok_or(RendererError::InvalidRendererTransformHandler(
-                            transform_handler,
-                        ))?
-                        .clone();
-
-                    renderer_impl
-                        .create_renderer_object_from_mesh(mesh, shader, material, transform)
-                        .map(|renderer_object| {
-                            RendererObjectHandler::new(
-                                self.renderer_objects
-                                    .write()
-                                    .create_object(renderer_object.clone()),
-                                self.command_sender.clone(),
-                            )
-                        })
-                        .map_err(RendererError::RendererImplError)
-                };
-
-                let _ = result_sender.send(closure()).inspect_err(|e| {
-                    log::error!("CreateRendererObjectFromMesh response, msg = {e:?}")
-                });
+                let _ = result_sender
+                    .send(self.create_renderer_object_from_mesh(
+                        mesh_handler,
+                        shader_handler,
+                        material_handler,
+                        transform_handler,
+                        renderer_impl,
+                    ))
+                    .inspect_err(|e| {
+                        log::error!("CreateRendererObjectFromMesh response, msg = {e:?}")
+                    });
             }
             Command::ReleaseRendererObject { object_pool_index } => {
-                let mesh = self
-                    .renderer_objects
-                    .write()
-                    .release_object(object_pool_index);
-
-                if let Some(renderer_object) = mesh {
-                    let _ = renderer_impl
-                        .release_renderer_object(renderer_object.clone())
-                        .inspect_err(|e| log::error!("ReleaseRendererObject, msg = {e}"));
-                } else {
-                    log::error!("ReleaseRendererObject, msg = could not find renderer object");
-                }
+                self.release_renderer_object(object_pool_index, renderer_impl);
             }
             Command::AddRendererObjectToGroup {
                 renderer_object_handler,
                 renderer_group_handler,
                 result_sender,
             } => {
-                // the closure helps the readability of the code by enabling the usage of the ? operator
-                let closure = || {
-                    let renderer_object = self
-                        .renderer_objects
-                        .read()
-                        .get_ref(renderer_object_handler.0.object_pool_index)
-                        .ok_or(RendererError::InvalidRendererObjectHandler(
-                            renderer_object_handler,
-                        ))?
-                        .clone();
-
-                    let renderer_group = self
-                        .renderer_groups
-                        .read()
-                        .get_ref(renderer_group_handler.0.object_pool_index)
-                        .ok_or(RendererError::InvalidRendererGroupHandler(
-                            renderer_group_handler,
-                        ))?
-                        .clone();
-
-                    renderer_impl
-                        .add_renderer_object_to_group(renderer_object, renderer_group)
-                        .map_err(RendererError::RendererImplError)
-                };
-
                 let _ = result_sender
-                    .send(closure())
+                    .send(self.add_renderer_object_to_group(
+                        renderer_object_handler,
+                        renderer_group_handler,
+                        renderer_impl,
+                    ))
                     .inspect_err(|e| log::error!("AddRendererObjectToGroup response, msg = {e:?}"));
             }
             Command::RemoveRendererObjectFromGroup {
@@ -456,34 +592,15 @@ impl RendererPri {
                 renderer_group_handler,
                 result_sender,
             } => {
-                // the closure helps the readability of the code by enabling the usage of the ? operator
-                let closure = || {
-                    let renderer_object = self
-                        .renderer_objects
-                        .read()
-                        .get_ref(renderer_object_handler.0.object_pool_index)
-                        .ok_or(RendererError::InvalidRendererObjectHandler(
-                            renderer_object_handler,
-                        ))?
-                        .clone();
-
-                    let renderer_group = self
-                        .renderer_groups
-                        .read()
-                        .get_ref(renderer_group_handler.0.object_pool_index)
-                        .ok_or(RendererError::InvalidRendererGroupHandler(
-                            renderer_group_handler,
-                        ))?
-                        .clone();
-
-                    renderer_impl
-                        .remove_renderer_object_from_group(renderer_object, renderer_group)
-                        .map_err(RendererError::RendererImplError)
-                };
-
-                let _ = result_sender.send(closure()).inspect_err(|e| {
-                    log::error!("RemoveRendererObjectFromGroup response, msg = {e:?}")
-                });
+                let _ = result_sender
+                    .send(self.remove_renderer_object_from_group(
+                        renderer_object_handler,
+                        renderer_group_handler,
+                        renderer_impl,
+                    ))
+                    .inspect_err(|e| {
+                        log::error!("RemoveRendererObjectFromGroup response, msg = {e:?}")
+                    });
             }
             Command::SetCamera { camera } => {
                 renderer_impl.set_camera(camera);
