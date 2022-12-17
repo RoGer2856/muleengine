@@ -5,19 +5,17 @@ use vek::{Mat4, Vec3};
 
 use crate::mesh_renderer_object::MeshRendererObject;
 
-pub struct RendererGroup {
+pub struct RendererGroupObject {
     mesh_renderer_objects: BTreeMap<*const MeshRendererObject, ArcRwLock<MeshRendererObject>>,
 }
 
-pub type RendererGroupObject = RendererGroup;
-
-impl Default for RendererGroup {
+impl Default for RendererGroupObject {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl RendererGroup {
+impl RendererGroupObject {
     pub fn new() -> Self {
         Self {
             mesh_renderer_objects: BTreeMap::new(),

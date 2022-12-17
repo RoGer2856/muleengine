@@ -7,11 +7,13 @@ use std::{
 };
 
 use parking_lot::RwLock;
+use tokio::sync::RwLock as AsyncRwLock;
 use vek::{Transform, Vec3};
 
 use crate::{
     mesh::{Material, Mesh},
     prelude::ArcRwLock,
+    renderer::RendererGroupHandler,
     sendable_ptr::SendablePtr,
     system_container::System,
 };
@@ -20,30 +22,61 @@ use super::{
     renderer_client::RendererClient,
     renderer_impl::RendererImpl,
     renderer_system::{AsyncRenderer, SyncRenderer},
-    RendererMaterial, RendererMesh, RendererObject, RendererShader, RendererTransform,
+    RendererGroup, RendererMaterial, RendererMesh, RendererObject, RendererShader,
+    RendererTransform,
 };
 
 #[derive(Clone)]
 struct TestRendererImpl {
+    renderer_groups: ArcRwLock<BTreeMap<SendablePtr<dyn RendererGroup>, TestRendererGroupImpl>>,
     transforms: ArcRwLock<BTreeMap<SendablePtr<dyn RendererTransform>, Transform<f32, f32, f32>>>,
     materials: ArcRwLock<BTreeMap<SendablePtr<dyn RendererMaterial>, Material>>,
     shaders: ArcRwLock<BTreeMap<SendablePtr<dyn RendererShader>, String>>,
     meshes: ArcRwLock<BTreeMap<SendablePtr<dyn RendererMesh>, Arc<Mesh>>>,
 
     renderer_objects: ArcRwLock<BTreeSet<SendablePtr<dyn RendererObject>>>,
-    renderer_objects_to_draw: ArcRwLock<BTreeSet<SendablePtr<dyn RendererObject>>>,
 }
 
 impl TestRendererImpl {
     pub fn new() -> Self {
         Self {
+            renderer_groups: Arc::new(RwLock::new(BTreeMap::new())),
             transforms: Arc::new(RwLock::new(BTreeMap::new())),
             materials: Arc::new(RwLock::new(BTreeMap::new())),
             shaders: Arc::new(RwLock::new(BTreeMap::new())),
             meshes: Arc::new(RwLock::new(BTreeMap::new())),
             renderer_objects: Arc::new(RwLock::new(BTreeSet::new())),
-            renderer_objects_to_draw: Arc::new(RwLock::new(BTreeSet::new())),
         }
+    }
+}
+
+#[derive(Clone)]
+struct TestRendererGroupImpl {
+    renderer_objects: ArcRwLock<BTreeSet<SendablePtr<dyn RendererObject>>>,
+}
+
+impl RendererGroup for TestRendererGroupImpl {}
+
+impl TestRendererGroupImpl {
+    pub fn new() -> Self {
+        Self {
+            renderer_objects: Arc::new(RwLock::new(BTreeSet::new())),
+        }
+    }
+
+    pub fn add_renderer_object(&mut self, renderer_object: ArcRwLock<dyn RendererObject>) -> bool {
+        self.renderer_objects
+            .write()
+            .insert(SendablePtr::new(renderer_object.data_ptr()))
+    }
+
+    pub fn remove_renderer_object(
+        &mut self,
+        renderer_object: &ArcRwLock<dyn RendererObject>,
+    ) -> bool {
+        self.renderer_objects
+            .write()
+            .remove(&SendablePtr::new(renderer_object.data_ptr()))
     }
 }
 
@@ -59,25 +92,27 @@ impl RendererShader for TestRendererShaderImpl {}
 struct TestRendererMeshImpl;
 impl RendererMesh for TestRendererMeshImpl {}
 
-struct TestMeshRendererObjectImpl;
-impl RendererObject for TestMeshRendererObjectImpl {}
+struct TestRendererObjectImpl;
+impl RendererObject for TestRendererObjectImpl {}
 
 impl RendererImpl for TestRendererImpl {
-    fn add_renderer_object_to_group(
-        &mut self,
-        renderer_object: ArcRwLock<dyn super::RendererObject>,
-    ) -> Result<(), String> {
-        let renderer_object = *self
-            .renderer_objects
-            .read()
-            .get(&SendablePtr::new(renderer_object.data_ptr()))
-            .ok_or_else(|| {
-                "Adding renderer object, error = could not find renderer object".to_string()
-            })?;
-        self.renderer_objects_to_draw
-            .write()
-            .insert(renderer_object);
+    fn create_renderer_group(&mut self) -> Result<ArcRwLock<dyn RendererGroup>, String> {
+        let renderer_group = Arc::new(RwLock::new(TestRendererGroupImpl::new()));
+        self.renderer_groups.write().insert(
+            SendablePtr::new(renderer_group.data_ptr()),
+            renderer_group.read().clone(),
+        );
+        Ok(renderer_group)
+    }
 
+    fn release_renderer_group(
+        &mut self,
+        renderer_group: ArcRwLock<dyn RendererGroup>,
+    ) -> Result<(), String> {
+        self.renderer_groups
+            .write()
+            .remove(&SendablePtr::new(renderer_group.data_ptr()))
+            .ok_or_else(|| "Releasing renderer group, error = could not find RendererGroup")?;
         Ok(())
     }
 
@@ -113,14 +148,15 @@ impl RendererImpl for TestRendererImpl {
     ) -> Result<(), String> {
         self.transforms
             .write()
-            .remove(&SendablePtr::new(transform.data_ptr()));
+            .remove(&SendablePtr::new(transform.data_ptr()))
+            .ok_or_else(|| "Releasing transform, error = could not find RendererTransform")?;
         Ok(())
     }
 
     fn create_material(
         &mut self,
         material: crate::mesh::Material,
-    ) -> Result<ArcRwLock<dyn super::RendererMaterial>, String> {
+    ) -> Result<ArcRwLock<dyn RendererMaterial>, String> {
         let renderer_material = Arc::new(RwLock::new(TestRendererMaterialImpl));
         self.materials
             .write()
@@ -134,14 +170,15 @@ impl RendererImpl for TestRendererImpl {
     ) -> Result<(), String> {
         self.materials
             .write()
-            .remove(&SendablePtr::new(material.data_ptr()));
+            .remove(&SendablePtr::new(material.data_ptr()))
+            .ok_or_else(|| "Releasing material, error = could not find RendererMaterial")?;
         Ok(())
     }
 
     fn create_shader(
         &mut self,
         shader_name: String,
-    ) -> Result<ArcRwLock<dyn super::RendererShader>, String> {
+    ) -> Result<ArcRwLock<dyn RendererShader>, String> {
         let renderer_shader = Arc::new(RwLock::new(TestRendererShaderImpl));
         self.shaders
             .write()
@@ -152,14 +189,15 @@ impl RendererImpl for TestRendererImpl {
     fn release_shader(&mut self, shader: ArcRwLock<dyn RendererShader>) -> Result<(), String> {
         self.shaders
             .write()
-            .remove(&SendablePtr::new(shader.data_ptr()));
+            .remove(&SendablePtr::new(shader.data_ptr()))
+            .ok_or_else(|| "Releasing shader, error = could not find RendererShader")?;
         Ok(())
     }
 
     fn create_mesh(
         &mut self,
         mesh: Arc<crate::mesh::Mesh>,
-    ) -> Result<ArcRwLock<dyn super::RendererMesh>, String> {
+    ) -> Result<ArcRwLock<dyn RendererMesh>, String> {
         let renderer_mesh = Arc::new(RwLock::new(TestRendererMeshImpl));
         self.meshes
             .write()
@@ -170,17 +208,18 @@ impl RendererImpl for TestRendererImpl {
     fn release_mesh(&mut self, mesh: ArcRwLock<dyn RendererMesh>) -> Result<(), String> {
         self.meshes
             .write()
-            .remove(&SendablePtr::new(mesh.data_ptr()));
+            .remove(&SendablePtr::new(mesh.data_ptr()))
+            .ok_or_else(|| "Releasing mesh, error = could not find RendererMesh")?;
         Ok(())
     }
 
     fn create_renderer_object_from_mesh(
         &mut self,
-        mesh: ArcRwLock<dyn super::RendererMesh>,
-        shader: ArcRwLock<dyn super::RendererShader>,
-        material: ArcRwLock<dyn super::RendererMaterial>,
-        transform: ArcRwLock<dyn super::RendererTransform>,
-    ) -> Result<ArcRwLock<dyn super::RendererObject>, String> {
+        mesh: ArcRwLock<dyn RendererMesh>,
+        shader: ArcRwLock<dyn RendererShader>,
+        material: ArcRwLock<dyn RendererMaterial>,
+        transform: ArcRwLock<dyn RendererTransform>,
+    ) -> Result<ArcRwLock<dyn RendererObject>, String> {
         self.shaders
             .read()
             .get(&SendablePtr::new(shader.data_ptr()))
@@ -209,7 +248,7 @@ impl RendererImpl for TestRendererImpl {
                 "Creating renderer object from mesh, error = could not find transform".to_string()
             })?;
 
-        let renderer_object = Arc::new(RwLock::new(TestMeshRendererObjectImpl));
+        let renderer_object = Arc::new(RwLock::new(TestRendererObjectImpl));
         self.renderer_objects
             .write()
             .insert(SendablePtr::new(renderer_object.data_ptr()));
@@ -222,29 +261,59 @@ impl RendererImpl for TestRendererImpl {
     ) -> Result<(), String> {
         self.renderer_objects
             .write()
-            .remove(&SendablePtr::new(renderer_object.data_ptr()));
-        self.renderer_objects_to_draw
-            .write()
-            .remove(&SendablePtr::new(renderer_object.data_ptr()));
+            .remove(&SendablePtr::new(renderer_object.data_ptr()))
+            .then(|| ())
+            .ok_or_else(|| "Releasing renderer object, error = could not find RendererObject")?;
+
+        for (_, renderer_group) in self.renderer_groups.write().iter_mut() {
+            renderer_group.remove_renderer_object(&renderer_object);
+        }
+
+        Ok(())
+    }
+
+    fn add_renderer_object_to_group(
+        &mut self,
+        renderer_object: ArcRwLock<dyn RendererObject>,
+        renderer_group: ArcRwLock<dyn RendererGroup>,
+    ) -> Result<(), String> {
+        self.renderer_objects
+            .read()
+            .contains(&SendablePtr::new(renderer_object.data_ptr()))
+            .then(|| ())
+            .ok_or_else(|| {
+                "Adding renderer object to group, error = could not find renderer object"
+                    .to_string()
+            })?;
+
+        let mut renderer_groups = self.renderer_groups.write();
+        let renderer_group = renderer_groups
+            .get_mut(&SendablePtr::new(renderer_group.data_ptr()))
+            .ok_or_else(|| {
+                "Adding renderer object to group, error = could not find renderer group".to_string()
+            })?;
+
+        renderer_group.add_renderer_object(renderer_object);
+
         Ok(())
     }
 
     fn remove_renderer_object_from_group(
         &mut self,
-        renderer_object: ArcRwLock<dyn super::RendererObject>,
+        renderer_object: ArcRwLock<dyn RendererObject>,
+        renderer_group: ArcRwLock<dyn RendererGroup>,
     ) -> Result<(), String> {
-        if self
-            .renderer_objects_to_draw
-            .write()
-            .remove(&SendablePtr::new(renderer_object.data_ptr()))
-        {
-            Ok(())
-        } else {
-            Err(
-                "Removing renderer object from renderer, error = could not find renderer object"
-                    .to_string(),
-            )
-        }
+        let mut renderer_groups = self.renderer_groups.write();
+        let renderer_group = renderer_groups
+            .get_mut(&SendablePtr::new(renderer_group.data_ptr()))
+            .ok_or_else(|| {
+                "Removing renderer object from group, error = could not find renderer group"
+                    .to_string()
+            })?;
+
+        renderer_group.remove_renderer_object(&renderer_object)
+            .then(|| ())
+            .ok_or_else(|| "Removing renderer object from group, error = could not find renderer object in group".to_string())
     }
 
     fn render(&mut self) {}
@@ -542,8 +611,12 @@ async fn mesh_is_released_when_handlers_are_dropped() {
 async fn renderer_object_is_released_when_handlers_are_dropped() {
     let (mut test_loop, test_client) = init_test_async();
 
+    let renderer_group_handler: Arc<AsyncRwLock<Option<RendererGroupHandler>>> =
+        Arc::new(AsyncRwLock::new(None));
+
     let test_task = {
         let test_client = test_client.clone();
+        let renderer_group_handler = renderer_group_handler.clone();
         tokio::spawn(async move {
             let transform_handler = test_client
                 .renderer_client()
@@ -580,21 +653,29 @@ async fn renderer_object_is_released_when_handlers_are_dropped() {
                 .await
                 .unwrap();
 
+            *renderer_group_handler.write().await = Some(
+                test_client
+                    .renderer_client()
+                    .create_renderer_group()
+                    .await
+                    .unwrap(),
+            );
+
             test_client
                 .renderer_client()
-                .add_renderer_object_to_group(renderer_object_handler.clone())
+                .add_renderer_object_to_group(
+                    renderer_object_handler.clone(),
+                    renderer_group_handler.read().await.clone().unwrap(),
+                )
                 .await
                 .unwrap();
 
             assert_eq!(1, test_client.renderer_impl().renderer_objects.read().len());
-            assert_eq!(
-                1,
-                test_client
-                    .renderer_impl()
-                    .renderer_objects_to_draw
-                    .read()
-                    .len()
-            );
+
+            let renderer_groups = test_client.renderer_impl().renderer_groups.read();
+            assert_eq!(1, renderer_groups.len());
+            let renderer_group = renderer_groups.iter().next().unwrap().1;
+            assert_eq!(1, renderer_group.renderer_objects.read().len());
 
             test_client.stop_main_loop();
         })
@@ -614,12 +695,9 @@ async fn renderer_object_is_released_when_handlers_are_dropped() {
             .len()
     );
     assert_eq!(0, test_client.renderer_impl().renderer_objects.read().len());
-    assert_eq!(
-        0,
-        test_client
-            .renderer_impl()
-            .renderer_objects_to_draw
-            .read()
-            .len()
-    );
+
+    let renderer_groups = test_client.renderer_impl().renderer_groups.read();
+    assert_eq!(1, renderer_groups.len());
+    let renderer_group = renderer_groups.iter().next().unwrap().1;
+    assert_eq!(0, renderer_group.renderer_objects.read().len());
 }

@@ -30,7 +30,7 @@ use crate::{
     mesh_renderer_object::MeshRendererObject,
 };
 
-use super::{renderer_group::RendererGroupObject, RendererTransformObject};
+use super::{renderer_group_object::RendererGroupObject, RendererTransformObject};
 
 type TransformObservers =
     BTreeMap<*const dyn RendererObject, Box<dyn Fn(&Transform<f32, f32, f32>)>>;
