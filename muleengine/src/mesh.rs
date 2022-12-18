@@ -562,7 +562,7 @@ impl Mesh {
         uv_channels: Vec<Vec2<f32>>,
         vertex_bone_weight: VertexBoneWeight,
     ) {
-        let number_of_vertices = self.number_of_vertices() as usize;
+        let number_of_vertices = self.number_of_vertices();
 
         self.vertex_bone_weights.push(vertex_bone_weight);
 
@@ -618,7 +618,7 @@ impl Mesh {
     }
 
     pub fn compute_tangents(&mut self, uv_channel_id: usize) {
-        if uv_channel_id < self.uv_channels.len() as usize {
+        if uv_channel_id < self.uv_channels.len() {
             let faces = self.faces.as_slice();
             let uv_channel = self.uv_channels.as_slice()[uv_channel_id].as_slice();
             let positions = self.positions.as_slice();
@@ -638,7 +638,7 @@ impl Mesh {
             let mut bitangent_vectors: Vec<Vec<vek::Vec3<f32>>> =
                 (0..positions.len()).map(|_| Vec::new()).collect();
 
-            for i in (0..faces.len() as usize).step_by(3) {
+            for i in (0..faces.len()).step_by(3) {
                 let index_a = faces[i + 0] as usize;
                 let index_b = faces[i + 1] as usize;
                 let index_c = faces[i + 2] as usize;

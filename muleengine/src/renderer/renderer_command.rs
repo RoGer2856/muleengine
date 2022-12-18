@@ -70,6 +70,16 @@ pub enum Command {
     ReleaseRendererObject {
         object_pool_index: ObjectPoolIndex,
     },
+    AddRendererGroupToLayer {
+        renderer_group_handler: RendererGroupHandler,
+        renderer_layer_handler: RendererLayerHandler,
+        result_sender: oneshot::Sender<Result<(), RendererError>>,
+    },
+    RemoveRendererGroupFromLayer {
+        renderer_group_handler: RendererGroupHandler,
+        renderer_layer_handler: RendererLayerHandler,
+        result_sender: oneshot::Sender<Result<(), RendererError>>,
+    },
     AddRendererObjectToGroup {
         renderer_object_handler: RendererObjectHandler,
         renderer_group_handler: RendererGroupHandler,

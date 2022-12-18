@@ -580,6 +580,85 @@ impl RendererPri {
         }
     }
 
+    fn add_renderer_group_to_layer(
+        &mut self,
+        renderer_group_handler: RendererGroupHandler,
+        renderer_layer_handler: RendererLayerHandler,
+        renderer_impl: &mut dyn RendererImpl,
+    ) -> Result<(), RendererError> {
+        let mut renderer_groups = self.renderer_groups.write();
+        let renderer_group_data = renderer_groups
+            .get_mut(renderer_group_handler.0.object_pool_index)
+            .ok_or_else(|| {
+                RendererError::InvalidRendererGroupHandler(renderer_group_handler.clone())
+            })?;
+
+        let mut renderer_layers = self.renderer_layers.write();
+        let renderer_layer_data = renderer_layers
+            .get_mut(renderer_layer_handler.0.object_pool_index)
+            .ok_or_else(|| {
+                RendererError::InvalidRendererLayerHandler(renderer_layer_handler.clone())
+            })?;
+
+        renderer_impl
+            .add_renderer_group_to_layer(
+                renderer_group_data.renderer_group.clone(),
+                renderer_layer_data.renderer_layer.clone(),
+            )
+            .map(|_| {
+                renderer_group_data
+                    .contained_by_renderer_layers
+                    .insert(renderer_layer_handler.0.object_pool_index);
+                renderer_layer_data
+                    .added_renderer_groups
+                    .insert(renderer_group_handler.0.object_pool_index);
+            })
+            .map_err(RendererError::RendererImplError)
+    }
+
+    fn remove_renderer_group_from_layer(
+        &mut self,
+        renderer_group_handler: RendererGroupHandler,
+        renderer_layer_handler: RendererLayerHandler,
+        renderer_impl: &mut dyn RendererImpl,
+    ) -> Result<(), RendererError> {
+        let mut renderer_groups = self.renderer_groups.write();
+        let renderer_group_data = renderer_groups
+            .get_mut(renderer_group_handler.0.object_pool_index)
+            .ok_or_else(|| {
+                RendererError::InvalidRendererGroupHandler(renderer_group_handler.clone())
+            })?;
+
+        let mut renderer_layers = self.renderer_layers.write();
+        let renderer_layer_data = renderer_layers
+            .get_mut(renderer_layer_handler.0.object_pool_index)
+            .ok_or_else(|| {
+                RendererError::InvalidRendererLayerHandler(renderer_layer_handler.clone())
+            })?;
+
+        renderer_impl
+            .remove_renderer_group_from_layer(
+                renderer_group_data.renderer_group.clone(),
+                renderer_layer_data.renderer_layer.clone(),
+            )
+            .map(|_| {
+                if !renderer_group_data
+                    .contained_by_renderer_layers
+                    .remove(&renderer_layer_handler.0.object_pool_index)
+                {
+                    log::warn!("RemoveRendererGroupFromLayer, msg = inconsistent state");
+                }
+
+                if !renderer_layer_data
+                    .added_renderer_groups
+                    .remove(&renderer_group_handler.0.object_pool_index)
+                {
+                    log::warn!("RemoveRendererGroupFromLayer, msg = inconsistent state with renderer layer");
+                }
+            })
+            .map_err(RendererError::RendererImplError)
+    }
+
     fn add_renderer_object_to_group(
         &mut self,
         renderer_object_handler: RendererObjectHandler,
@@ -751,6 +830,34 @@ impl RendererPri {
             }
             Command::ReleaseRendererObject { object_pool_index } => {
                 self.release_renderer_object(object_pool_index, renderer_impl);
+            }
+            Command::AddRendererGroupToLayer {
+                renderer_group_handler,
+                renderer_layer_handler,
+                result_sender,
+            } => {
+                let _ = result_sender
+                    .send(self.add_renderer_group_to_layer(
+                        renderer_group_handler,
+                        renderer_layer_handler,
+                        renderer_impl,
+                    ))
+                    .inspect_err(|e| log::error!("AddRendererGroupToLayer response, msg = {e:?}"));
+            }
+            Command::RemoveRendererGroupFromLayer {
+                renderer_group_handler,
+                renderer_layer_handler,
+                result_sender,
+            } => {
+                let _ = result_sender
+                    .send(self.remove_renderer_group_from_layer(
+                        renderer_group_handler,
+                        renderer_layer_handler,
+                        renderer_impl,
+                    ))
+                    .inspect_err(|e| {
+                        log::error!("RemoveRendererGroupFromLayer response, msg = {e:?}")
+                    });
             }
             Command::AddRendererObjectToGroup {
                 renderer_object_handler,

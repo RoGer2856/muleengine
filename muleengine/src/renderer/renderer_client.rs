@@ -11,8 +11,8 @@ use crate::{
 
 use super::{
     renderer_command::{Command, CommandSender},
-    MaterialHandler, MeshHandler, RendererError, RendererGroupHandler, RendererObjectHandler,
-    ShaderHandler, TransformHandler,
+    MaterialHandler, MeshHandler, RendererError, RendererGroupHandler, RendererLayerHandler,
+    RendererObjectHandler, ShaderHandler, TransformHandler,
 };
 
 #[derive(Clone)]
@@ -21,6 +21,22 @@ pub struct RendererClient {
 }
 
 impl RendererClient {
+    pub async fn create_renderer_layer(&self) -> Result<RendererLayerHandler, RendererError> {
+        let (result_sender, result_receiver) = oneshot::channel();
+        let _ = self
+            .command_sender
+            .send(Command::CreateRendererLayer { result_sender })
+            .inspect_err(|e| log::error!("Creating renderer group, msg = {e}"));
+
+        match result_receiver
+            .await
+            .inspect_err(|e| log::error!("Creating renderer group response, msg = {e}"))
+        {
+            Ok(ret) => ret,
+            Err(_) => unreachable!(),
+        }
+    }
+
     pub async fn create_renderer_group(&self) -> Result<RendererGroupHandler, RendererError> {
         let (result_sender, result_receiver) = oneshot::channel();
         let _ = self
@@ -165,6 +181,54 @@ impl RendererClient {
         match result_receiver
             .await
             .inspect_err(|e| log::error!("Creating renderer object from mesh response, msg = {e}"))
+        {
+            Ok(ret) => ret,
+            Err(_) => unreachable!(),
+        }
+    }
+
+    pub async fn add_renderer_group_to_layer(
+        &mut self,
+        renderer_group_handler: RendererGroupHandler,
+        renderer_layer_handler: RendererLayerHandler,
+    ) -> Result<(), RendererError> {
+        let (result_sender, result_receiver) = oneshot::channel();
+        let _ = self
+            .command_sender
+            .send(Command::AddRendererGroupToLayer {
+                renderer_group_handler,
+                renderer_layer_handler,
+                result_sender,
+            })
+            .inspect_err(|e| log::error!("Adding renderer group to layer, msg = {e}"));
+
+        match result_receiver
+            .await
+            .inspect_err(|e| log::error!("Adding renderer group to layer response, msg = {e}"))
+        {
+            Ok(ret) => ret,
+            Err(_) => unreachable!(),
+        }
+    }
+
+    pub async fn remove_renderer_group_from_layer(
+        &mut self,
+        renderer_group_handler: RendererGroupHandler,
+        renderer_layer_handler: RendererLayerHandler,
+    ) -> Result<(), RendererError> {
+        let (result_sender, result_receiver) = oneshot::channel();
+        let _ = self
+            .command_sender
+            .send(Command::RemoveRendererGroupFromLayer {
+                renderer_group_handler,
+                renderer_layer_handler,
+                result_sender,
+            })
+            .inspect_err(|e| log::error!("Removing renderer group from layer, msg = {e}"));
+
+        match result_receiver
+            .await
+            .inspect_err(|e| log::error!("Removing renderer group from layer response, msg = {e}"))
         {
             Ok(ret) => ret,
             Err(_) => unreachable!(),
