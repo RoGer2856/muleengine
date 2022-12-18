@@ -24,18 +24,22 @@ use crate::{
     gl_shader_program_container::GLShaderProgramContainer,
     gl_texture_container::GLTextureContainer,
     me_renderer_indices::{
-        RendererGroupIndex, RendererMaterialIndex, RendererMeshIndex, RendererObjectIndex,
-        RendererShaderIndex, RendererTransformIndex,
+        RendererGroupIndex, RendererLayerIndex, RendererMaterialIndex, RendererMeshIndex,
+        RendererObjectIndex, RendererShaderIndex, RendererTransformIndex,
     },
     mesh_renderer_object::MeshRendererObject,
 };
 
-use super::{renderer_group_object::RendererGroupObject, RendererTransformObject};
+use super::{
+    renderer_group_object::RendererGroupObject, renderer_layer_object::RendererLayerObject,
+    RendererTransformObject,
+};
 
 type TransformObservers =
     BTreeMap<*const dyn RendererObject, Box<dyn Fn(&Transform<f32, f32, f32>)>>;
 
 pub struct Renderer {
+    renderer_layers: ObjectPool<ArcRwLock<RendererLayerObject>>,
     renderer_groups: ObjectPool<ArcRwLock<RendererGroupObject>>,
     renderer_transforms: ObjectPool<(ArcRwLock<RendererTransformObject>, TransformObservers)>,
     renderer_materials: ObjectPool<ArcRwLock<RendererMaterialObject>>,
@@ -63,6 +67,7 @@ impl Renderer {
         asset_container: AssetContainer,
     ) -> Self {
         let mut ret = Self {
+            renderer_layers: ObjectPool::new(),
             renderer_groups: ObjectPool::new(),
             renderer_transforms: ObjectPool::new(),
             renderer_materials: ObjectPool::new(),
@@ -129,6 +134,18 @@ impl Renderer {
                 "Removing transform observer of renderer object, msg = could not find observer for RendererObject".to_string()
             })
             .map(|_| ())
+    }
+
+    fn get_renderer_layer_index(
+        &self,
+        renderer_layer: &ArcRwLock<dyn RendererLayer>,
+    ) -> Result<RendererLayerIndex, String> {
+        let renderer_layer = renderer_layer.read();
+        renderer_layer
+            .as_any()
+            .downcast_ref::<RendererLayerIndex>()
+            .ok_or_else(|| "invalid RendererLayer provided".to_string())
+            .cloned()
     }
 
     fn get_renderer_group_index(
@@ -226,18 +243,26 @@ impl RendererImpl for Renderer {
     }
 
     fn create_renderer_layer(&mut self) -> Result<ArcRwLock<dyn RendererLayer>, String> {
-        todo!();
-        // let renderer_layer = Arc::new(RwLock::new(RendererLayerObject::new()));
-        // let index = self.renderer_layers.create_object(renderer_layer);
+        let renderer_layer = Arc::new(RwLock::new(RendererLayerObject::new()));
+        let index = self.renderer_layers.create_object(renderer_layer);
 
-        // Ok(Arc::new(RwLock::new(RendererLayerIndex(index))))
+        Ok(Arc::new(RwLock::new(RendererLayerIndex(index))))
     }
 
     fn release_renderer_layer(
         &mut self,
         renderer_layer: ArcRwLock<dyn RendererLayer>,
     ) -> Result<(), String> {
-        todo!();
+        let index = self
+            .get_renderer_layer_index(&renderer_layer)
+            .map_err(|e| format!("Releasing renderer layer, msg = {e}"))?;
+
+        self.renderer_layers
+            .release_object(index.0)
+            .ok_or_else(|| {
+                "Releasing renderer layer, msg = could not find RendererLayer".to_string()
+            })
+            .map(|_| ())
     }
 
     fn add_renderer_group_to_layer(
@@ -245,7 +270,36 @@ impl RendererImpl for Renderer {
         renderer_group: ArcRwLock<dyn RendererGroup>,
         renderer_layer: ArcRwLock<dyn RendererLayer>,
     ) -> Result<(), String> {
-        todo!();
+        let renderer_group_index = self
+            .get_renderer_group_index(&renderer_group)
+            .map_err(|e| format!("Adding renderer group to layer, msg = {e}"))?;
+
+        let renderer_group = self
+            .renderer_groups
+            .get_ref(renderer_group_index.0)
+            .ok_or_else(|| {
+                "Adding renderer group to layer, msg = could not find RendererGroup".to_string()
+            })?;
+
+        let renderer_layer_index = self
+            .get_renderer_layer_index(&renderer_layer)
+            .map_err(|e| format!("Adding renderer group to layer, msg = {e}"))?;
+
+        let renderer_layer = self
+            .renderer_layers
+            .get_ref(renderer_layer_index.0)
+            .ok_or_else(|| {
+                "Adding renderer group to layer, msg = could not find RendererLayer".to_string()
+            })?;
+
+        renderer_layer
+            .write()
+            .add_renderer_group(renderer_group.clone())
+            .ok_or_else(|| {
+                "Adding renderer object to group, msg = cannot add renderer object twice to the same group".to_string()
+            })?;
+
+        Ok(())
     }
 
     fn remove_renderer_group_from_layer(
@@ -253,7 +307,40 @@ impl RendererImpl for Renderer {
         renderer_group: ArcRwLock<dyn RendererGroup>,
         renderer_layer: ArcRwLock<dyn RendererLayer>,
     ) -> Result<(), String> {
-        todo!();
+        let renderer_group_index = self
+            .get_renderer_group_index(&renderer_group)
+            .map_err(|e| format!("Removing renderer group from layer, msg = {e}"))?;
+
+        let renderer_group = self
+            .renderer_groups
+            .get_ref(renderer_group_index.0)
+            .ok_or_else(|| {
+                "Removing renderer group from layer, msg = could not find RendererGroup".to_string()
+            })?;
+
+        let renderer_layer_index = self
+            .get_renderer_layer_index(&renderer_layer)
+            .map_err(|e| format!("Removing renderer group from layer, msg = {e}"))?;
+
+        let renderer_layer = self
+            .renderer_layers
+            .get_ref(renderer_layer_index.0)
+            .ok_or_else(|| {
+                "Removing renderer group from layer, msg = could not find RendererLayer".to_string()
+            })?;
+
+        if renderer_layer
+            .write()
+            .remove_renderer_group(renderer_group)
+            .is_none()
+        {
+            Err(
+                "Removing renderer group from layer, msg = could not find renderer group in layer"
+                    .to_string(),
+            )
+        } else {
+            Ok(())
+        }
     }
 
     fn create_renderer_group(&mut self) -> Result<ArcRwLock<dyn RendererGroup>, String> {
