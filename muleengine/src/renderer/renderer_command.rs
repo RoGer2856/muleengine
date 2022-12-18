@@ -10,11 +10,17 @@ use crate::{
 };
 
 use super::{
-    MaterialHandler, MeshHandler, RendererError, RendererGroupHandler, RendererObjectHandler,
-    ShaderHandler, TransformHandler,
+    renderer_objects::renderer_layer::RendererLayerHandler, MaterialHandler, MeshHandler,
+    RendererError, RendererGroupHandler, RendererObjectHandler, ShaderHandler, TransformHandler,
 };
 
 pub enum Command {
+    CreateRendererLayer {
+        result_sender: oneshot::Sender<Result<RendererLayerHandler, RendererError>>,
+    },
+    ReleaseRendererLayer {
+        object_pool_index: ObjectPoolIndex,
+    },
     CreateRendererGroup {
         result_sender: oneshot::Sender<Result<RendererGroupHandler, RendererError>>,
     },

@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::BTreeSet, sync::Arc};
 
 use parking_lot::RwLock;
 use tokio::sync::watch;
@@ -7,7 +7,7 @@ use vek::Transform;
 use crate::{
     containers::object_pool::{ObjectPool, ObjectPoolIndex},
     mesh::{Material, Mesh},
-    prelude::ArcRwLock,
+    prelude::{ArcRwLock, OptionInspector},
     result_option_inspect::ResultInspector,
     system_container::System,
 };
@@ -16,6 +16,7 @@ use super::{
     renderer_client::RendererClient,
     renderer_command::{Command, CommandReceiver, CommandSender},
     renderer_impl::{RendererImpl, RendererImplAsync},
+    renderer_objects::renderer_layer::{RendererLayer, RendererLayerHandler},
     MaterialHandler, MeshHandler, RendererError, RendererGroup, RendererGroupHandler,
     RendererMaterial, RendererMesh, RendererObject, RendererObjectHandler, RendererShader,
     RendererTransform, ShaderHandler, TransformHandler,
@@ -32,14 +33,31 @@ pub struct AsyncRenderer {
     halt_sender: watch::Sender<bool>,
 }
 
+pub(super) struct RendererLayerData {
+    pub(super) renderer_layer: ArcRwLock<dyn RendererLayer>,
+    pub(super) added_renderer_groups: BTreeSet<ObjectPoolIndex>,
+}
+
+pub(super) struct RendererGroupData {
+    pub(super) renderer_group: ArcRwLock<dyn RendererGroup>,
+    pub(super) added_renderer_objects: BTreeSet<ObjectPoolIndex>,
+    pub(super) contained_by_renderer_layers: BTreeSet<ObjectPoolIndex>,
+}
+
+pub(super) struct RendererObjectData {
+    pub(super) renderer_object: ArcRwLock<dyn RendererObject>,
+    pub(super) contained_by_renderer_groups: BTreeSet<ObjectPoolIndex>,
+}
+
 #[derive(Clone)]
 pub(super) struct RendererPri {
-    pub(super) renderer_groups: ArcRwLock<ObjectPool<ArcRwLock<dyn RendererGroup>>>,
+    pub(super) renderer_layers: ArcRwLock<ObjectPool<RendererLayerData>>,
+    pub(super) renderer_groups: ArcRwLock<ObjectPool<RendererGroupData>>,
     pub(super) renderer_transforms: ArcRwLock<ObjectPool<ArcRwLock<dyn RendererTransform>>>,
     pub(super) renderer_materials: ArcRwLock<ObjectPool<ArcRwLock<dyn RendererMaterial>>>,
     pub(super) renderer_shaders: ArcRwLock<ObjectPool<ArcRwLock<dyn RendererShader>>>,
     pub(super) renderer_meshes: ArcRwLock<ObjectPool<ArcRwLock<dyn RendererMesh>>>,
-    pub(super) renderer_objects: ArcRwLock<ObjectPool<ArcRwLock<dyn RendererObject>>>,
+    pub(super) renderer_objects: ArcRwLock<ObjectPool<RendererObjectData>>,
 
     pub(super) command_receiver: CommandReceiver,
     pub(super) command_sender: CommandSender,
@@ -141,6 +159,7 @@ impl RendererPri {
         let (sender, receiver) = flume::unbounded();
 
         Self {
+            renderer_layers: Arc::new(RwLock::new(ObjectPool::new())),
             renderer_groups: Arc::new(RwLock::new(ObjectPool::new())),
             renderer_transforms: Arc::new(RwLock::new(ObjectPool::new())),
             renderer_materials: Arc::new(RwLock::new(ObjectPool::new())),
@@ -159,17 +178,81 @@ impl RendererPri {
         }
     }
 
+    fn create_renderer_layer(
+        &mut self,
+        renderer_impl: &mut dyn RendererImpl,
+    ) -> Result<RendererLayerHandler, RendererError> {
+        renderer_impl
+            .create_renderer_layer()
+            .map(|renderer_layer| {
+                RendererLayerHandler::new(
+                    self.renderer_layers
+                        .write()
+                        .create_object(RendererLayerData {
+                            renderer_layer,
+                            added_renderer_groups: BTreeSet::new(),
+                        }),
+                    self.command_sender.clone(),
+                )
+            })
+            .map_err(RendererError::RendererImplError)
+    }
+
+    fn release_renderer_layer(
+        &mut self,
+        object_pool_index: ObjectPoolIndex,
+        renderer_impl: &mut dyn RendererImpl,
+    ) {
+        let renderer_layer_data = self
+            .renderer_layers
+            .write()
+            .release_object(object_pool_index);
+
+        if let Some(renderer_layer_data) = renderer_layer_data {
+            for renderer_group_index in renderer_layer_data.added_renderer_groups {
+                self.renderer_groups
+                    .write()
+                    .get_mut(renderer_group_index)
+                    .inspect_none(|| log::warn!("ReleaseRendererLayer, msg = found invalid renderer group index"))
+                    .map(|renderer_group_data| {
+                        let _ = renderer_impl.remove_renderer_group_from_layer(
+                            renderer_group_data.renderer_group.clone(),
+                            renderer_layer_data.renderer_layer.clone()
+                        ).inspect_err(|e| {
+                            log::warn!("ReleaseRendererLayer, removing group from layer, msg = {e}");
+                        });
+
+                        if !renderer_group_data.contained_by_renderer_layers.remove(&object_pool_index) {
+                            log::warn!("ReleaseRendererLayer, msg = inconsistent state with renderer group");
+                        }
+
+                        renderer_group_data
+                    });
+            }
+
+            let _ = renderer_impl
+                .release_renderer_layer(renderer_layer_data.renderer_layer.clone())
+                .inspect_err(|e| log::error!("ReleaseRendererLayer, msg = {e}"));
+        } else {
+            log::error!("ReleaseRendererLayer, msg = could not find renderer layer");
+        }
+    }
+
     fn create_renderer_group(
         &mut self,
         renderer_impl: &mut dyn RendererImpl,
     ) -> Result<RendererGroupHandler, RendererError> {
         renderer_impl
             .create_renderer_group()
-            .map(|transform| {
+            .map(|renderer_group| {
                 RendererGroupHandler::new(
                     self.renderer_groups
                         .write()
-                        .create_object(transform.clone()),
+                        .create_object(RendererGroupData {
+                            renderer_group,
+                            added_renderer_objects: BTreeSet::new(),
+                            contained_by_renderer_layers: BTreeSet::new(),
+                        }),
                     self.command_sender.clone(),
                 )
             })
@@ -181,14 +264,56 @@ impl RendererPri {
         object_pool_index: ObjectPoolIndex,
         renderer_impl: &mut dyn RendererImpl,
     ) {
-        let renderer_group = self
+        let renderer_group_data = self
             .renderer_groups
             .write()
             .release_object(object_pool_index);
 
-        if let Some(renderer_group) = renderer_group {
+        if let Some(renderer_group_data) = renderer_group_data {
+            for renderer_object_index in renderer_group_data.added_renderer_objects {
+                self.renderer_objects
+                    .write()
+                    .get_mut(renderer_object_index)
+                    .inspect_none(|| log::warn!("ReleaseRendererGroup, msg = found invalid renderer object index"))
+                    .map(|renderer_object_data| {
+                        let _ = renderer_impl.remove_renderer_object_from_group(
+                            renderer_object_data.renderer_object.clone(),
+                            renderer_group_data.renderer_group.clone(),
+                        ).inspect_err(|e| {
+                            log::warn!("ReleaseRendererGroup, removing object from group, msg = {e}");
+                        });
+
+                        if !renderer_object_data.contained_by_renderer_groups.remove(&object_pool_index) {
+                            log::warn!("ReleaseRendererGroup, msg = inconsistent state with renderer object");
+                        }
+
+                        renderer_object_data
+                    });
+            }
+
+            for renderer_layer_index in renderer_group_data.contained_by_renderer_layers {
+                self.renderer_layers
+                    .write()
+                    .get_mut(renderer_layer_index)
+                    .inspect_none(|| log::warn!("ReleaseRendererGroup, msg = found invalid renderer layer index"))
+                    .map(|renderer_layer_data| {
+                        let _ = renderer_impl.remove_renderer_group_from_layer(
+                            renderer_group_data.renderer_group.clone(),
+                            renderer_layer_data.renderer_layer.clone(),
+                        ).inspect_err(|e| {
+                            log::warn!("ReleaseRendererGroup, removing group from layer, msg = {e}");
+                        });
+
+                        if !renderer_layer_data.added_renderer_groups.remove(&object_pool_index) {
+                            log::warn!("ReleaseRendererGroup, msg = inconsistent state with renderer layer");
+                        }
+
+                        renderer_layer_data
+                    });
+            }
+
             let _ = renderer_impl
-                .release_renderer_group(renderer_group.clone())
+                .release_renderer_group(renderer_group_data.renderer_group.clone())
                 .inspect_err(|e| log::error!("ReleaseRendererGroup, msg = {e}"));
         } else {
             log::error!("ReleaseRendererGroup, msg = could not find renderer group");
@@ -405,7 +530,10 @@ impl RendererPri {
                 RendererObjectHandler::new(
                     self.renderer_objects
                         .write()
-                        .create_object(renderer_object.clone()),
+                        .create_object(RendererObjectData {
+                            renderer_object,
+                            contained_by_renderer_groups: BTreeSet::new(),
+                        }),
                     self.command_sender.clone(),
                 )
             })
@@ -417,14 +545,35 @@ impl RendererPri {
         object_pool_index: ObjectPoolIndex,
         renderer_impl: &mut dyn RendererImpl,
     ) {
-        let mesh = self
+        let renderer_object_data = self
             .renderer_objects
             .write()
             .release_object(object_pool_index);
 
-        if let Some(renderer_object) = mesh {
+        if let Some(renderer_object_data) = renderer_object_data {
+            for renderer_group_index in renderer_object_data.contained_by_renderer_groups {
+                self.renderer_groups
+                    .write()
+                    .get_mut(renderer_group_index)
+                    .inspect_none(|| log::warn!("ReleaseRendererObject, msg = found invalid renderer group index"))
+                    .map(|renderer_group_data| {
+                        let _ = renderer_impl.remove_renderer_object_from_group(
+                            renderer_object_data.renderer_object.clone(),
+                            renderer_group_data.renderer_group.clone()
+                        ).inspect_err(|e| {
+                            log::warn!("ReleaseRendererObject, removing object from group, msg = {e}");
+                        });
+
+                        if !renderer_group_data.added_renderer_objects.remove(&object_pool_index) {
+                            log::warn!("ReleaseRendererObject, msg = inconsistent state with renderer group");
+                        }
+
+                        renderer_group_data
+                    });
+            }
+
             let _ = renderer_impl
-                .release_renderer_object(renderer_object.clone())
+                .release_renderer_object(renderer_object_data.renderer_object.clone())
                 .inspect_err(|e| log::error!("ReleaseRendererObject, msg = {e}"));
         } else {
             log::error!("ReleaseRendererObject, msg = could not find renderer object");
@@ -437,26 +586,33 @@ impl RendererPri {
         renderer_group_handler: RendererGroupHandler,
         renderer_impl: &mut dyn RendererImpl,
     ) -> Result<(), RendererError> {
-        let renderer_object = self
-            .renderer_objects
-            .read()
-            .get_ref(renderer_object_handler.0.object_pool_index)
-            .ok_or(RendererError::InvalidRendererObjectHandler(
-                renderer_object_handler,
-            ))?
-            .clone();
+        let mut renderer_objects = self.renderer_objects.write();
+        let renderer_object_data = renderer_objects
+            .get_mut(renderer_object_handler.0.object_pool_index)
+            .ok_or_else(|| {
+                RendererError::InvalidRendererObjectHandler(renderer_object_handler.clone())
+            })?;
 
-        let renderer_group = self
-            .renderer_groups
-            .read()
-            .get_ref(renderer_group_handler.0.object_pool_index)
-            .ok_or(RendererError::InvalidRendererGroupHandler(
-                renderer_group_handler,
-            ))?
-            .clone();
+        let mut renderer_groups = self.renderer_groups.write();
+        let renderer_group_data = renderer_groups
+            .get_mut(renderer_group_handler.0.object_pool_index)
+            .ok_or_else(|| {
+                RendererError::InvalidRendererGroupHandler(renderer_group_handler.clone())
+            })?;
 
         renderer_impl
-            .add_renderer_object_to_group(renderer_object, renderer_group)
+            .add_renderer_object_to_group(
+                renderer_object_data.renderer_object.clone(),
+                renderer_group_data.renderer_group.clone(),
+            )
+            .map(|_| {
+                renderer_object_data
+                    .contained_by_renderer_groups
+                    .insert(renderer_group_handler.0.object_pool_index);
+                renderer_group_data
+                    .added_renderer_objects
+                    .insert(renderer_object_handler.0.object_pool_index);
+            })
             .map_err(RendererError::RendererImplError)
     }
 
@@ -466,31 +622,53 @@ impl RendererPri {
         renderer_group_handler: RendererGroupHandler,
         renderer_impl: &mut dyn RendererImpl,
     ) -> Result<(), RendererError> {
-        let renderer_object = self
-            .renderer_objects
-            .read()
-            .get_ref(renderer_object_handler.0.object_pool_index)
-            .ok_or(RendererError::InvalidRendererObjectHandler(
-                renderer_object_handler,
-            ))?
-            .clone();
+        let mut renderer_objects = self.renderer_objects.write();
+        let renderer_object_data = renderer_objects
+            .get_mut(renderer_object_handler.0.object_pool_index)
+            .ok_or_else(|| {
+                RendererError::InvalidRendererObjectHandler(renderer_object_handler.clone())
+            })?;
 
-        let renderer_group = self
-            .renderer_groups
-            .read()
-            .get_ref(renderer_group_handler.0.object_pool_index)
-            .ok_or(RendererError::InvalidRendererGroupHandler(
-                renderer_group_handler,
-            ))?
-            .clone();
+        let mut renderer_groups = self.renderer_groups.write();
+        let renderer_group_data = renderer_groups
+            .get_mut(renderer_group_handler.0.object_pool_index)
+            .ok_or_else(|| {
+                RendererError::InvalidRendererGroupHandler(renderer_group_handler.clone())
+            })?;
 
         renderer_impl
-            .remove_renderer_object_from_group(renderer_object, renderer_group)
+            .remove_renderer_object_from_group(
+                renderer_object_data.renderer_object.clone(),
+                renderer_group_data.renderer_group.clone(),
+            )
+            .map(|_| {
+                if !renderer_object_data
+                    .contained_by_renderer_groups
+                    .remove(&renderer_group_handler.0.object_pool_index)
+                {
+                    log::warn!("RemoveRendererObjectFromGroup, msg = inconsistent state with renderer object");
+                }
+
+                if !renderer_group_data
+                    .added_renderer_objects
+                    .remove(&renderer_object_handler.0.object_pool_index)
+                {
+                    log::warn!("RemoveRendererObjectFromGroup, msg = inconsistent state");
+                }
+            })
             .map_err(RendererError::RendererImplError)
     }
 
     fn execute_command(&mut self, command: Command, renderer_impl: &mut dyn RendererImpl) {
         match command {
+            Command::CreateRendererLayer { result_sender } => {
+                let _ = result_sender
+                    .send(self.create_renderer_layer(renderer_impl))
+                    .inspect_err(|e| log::error!("CreateRendererLayer response, msg = {e:?}"));
+            }
+            Command::ReleaseRendererLayer { object_pool_index } => {
+                self.release_renderer_layer(object_pool_index, renderer_impl);
+            }
             Command::CreateRendererGroup { result_sender } => {
                 let _ = result_sender
                     .send(self.create_renderer_group(renderer_impl))

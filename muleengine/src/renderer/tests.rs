@@ -22,7 +22,7 @@ use super::{
     renderer_client::RendererClient,
     renderer_impl::RendererImpl,
     renderer_system::{AsyncRenderer, SyncRenderer},
-    RendererGroup, RendererMaterial, RendererMesh, RendererObject, RendererShader,
+    RendererGroup, RendererLayer, RendererMaterial, RendererMesh, RendererObject, RendererShader,
     RendererTransform,
 };
 
@@ -96,6 +96,33 @@ struct TestRendererObjectImpl;
 impl RendererObject for TestRendererObjectImpl {}
 
 impl RendererImpl for TestRendererImpl {
+    fn create_renderer_layer(&mut self) -> Result<ArcRwLock<dyn RendererLayer>, String> {
+        todo!();
+    }
+
+    fn release_renderer_layer(
+        &mut self,
+        renderer_layer: ArcRwLock<dyn RendererLayer>,
+    ) -> Result<(), String> {
+        todo!();
+    }
+
+    fn add_renderer_group_to_layer(
+        &mut self,
+        renderer_group: ArcRwLock<dyn RendererGroup>,
+        renderer_layer: ArcRwLock<dyn RendererLayer>,
+    ) -> Result<(), String> {
+        todo!();
+    }
+
+    fn remove_renderer_group_from_layer(
+        &mut self,
+        renderer_group: ArcRwLock<dyn RendererGroup>,
+        renderer_layer: ArcRwLock<dyn RendererLayer>,
+    ) -> Result<(), String> {
+        todo!();
+    }
+
     fn create_renderer_group(&mut self) -> Result<ArcRwLock<dyn RendererGroup>, String> {
         let renderer_group = Arc::new(RwLock::new(TestRendererGroupImpl::new()));
         self.renderer_groups.write().insert(

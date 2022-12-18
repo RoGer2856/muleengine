@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeMap,
     sync::Arc,
 };
 
@@ -8,10 +8,10 @@ use muleengine::{
     camera::Camera,
     containers::object_pool::ObjectPool,
     mesh::{Material, Mesh},
-    prelude::{ArcRwLock, OptionInspector, ResultInspector},
+    prelude::{ArcRwLock, ResultInspector},
     renderer::{
-        renderer_impl::RendererImpl, RendererGroup, RendererMaterial, RendererMesh, RendererObject,
-        RendererShader, RendererTransform,
+        renderer_impl::RendererImpl, RendererGroup, RendererLayer, RendererMaterial, RendererMesh,
+        RendererObject, RendererShader, RendererTransform,
     },
     window_context::WindowContext,
 };
@@ -38,8 +38,6 @@ use super::{renderer_group_object::RendererGroupObject, RendererTransformObject}
 type TransformObservers =
     BTreeMap<*const dyn RendererObject, Box<dyn Fn(&Transform<f32, f32, f32>)>>;
 
-struct RendererGroupIndices(BTreeSet<RendererGroupIndex>);
-
 pub struct Renderer {
     renderer_groups: ObjectPool<ArcRwLock<RendererGroupObject>>,
     renderer_transforms: ObjectPool<(ArcRwLock<RendererTransformObject>, TransformObservers)>,
@@ -47,7 +45,7 @@ pub struct Renderer {
     renderer_shaders: ObjectPool<ArcRwLock<RendererShaderObject>>,
     renderer_meshes: ObjectPool<ArcRwLock<RendererMeshObject>>,
 
-    mesh_renderer_objects: ObjectPool<(ArcRwLock<MeshRendererObject>, RendererGroupIndices)>,
+    mesh_renderer_objects: ObjectPool<ArcRwLock<MeshRendererObject>>,
 
     camera: Camera,
     projection_matrix: Mat4<f32>,
@@ -228,6 +226,37 @@ impl RendererImpl for Renderer {
         }
 
         self.window_context.read().swap_buffers();
+    }
+
+    fn create_renderer_layer(&mut self) -> Result<ArcRwLock<dyn RendererLayer>, String> {
+        todo!();
+        // let renderer_layer = Arc::new(RwLock::new(RendererLayerObject::new()));
+        // let index = self.renderer_layers.create_object(renderer_layer);
+
+        // Ok(Arc::new(RwLock::new(RendererLayerIndex(index))))
+    }
+
+    fn release_renderer_layer(
+        &mut self,
+        renderer_layer: ArcRwLock<dyn RendererLayer>,
+    ) -> Result<(), String> {
+        todo!();
+    }
+
+    fn add_renderer_group_to_layer(
+        &mut self,
+        renderer_group: ArcRwLock<dyn RendererGroup>,
+        renderer_layer: ArcRwLock<dyn RendererLayer>,
+    ) -> Result<(), String> {
+        todo!();
+    }
+
+    fn remove_renderer_group_from_layer(
+        &mut self,
+        renderer_group: ArcRwLock<dyn RendererGroup>,
+        renderer_layer: ArcRwLock<dyn RendererLayer>,
+    ) -> Result<(), String> {
+        todo!();
     }
 
     fn create_renderer_group(&mut self) -> Result<ArcRwLock<dyn RendererGroup>, String> {
@@ -452,10 +481,9 @@ impl RendererImpl for Renderer {
             ),
         }));
 
-        let index = self.mesh_renderer_objects.create_object((
-            mesh_renderer_object.clone(),
-            RendererGroupIndices(BTreeSet::new()),
-        ));
+        let index = self
+            .mesh_renderer_objects
+            .create_object(mesh_renderer_object.clone());
 
         let ret = Arc::new(RwLock::new(RendererObjectIndex::Mesh(index)));
 
@@ -492,18 +520,7 @@ impl RendererImpl for Renderer {
                 .ok_or_else(|| {
                     "Releasing renderer object, msg = could not find RendererObject".to_string()
                 })
-                .map(|(object, group_indices)| {
-                    for group_index in group_indices.0 {
-                        self.renderer_groups
-                            .get_mut(group_index.0)
-                            .inspect_none(|| {
-                                log::warn!("Releasing renderer object, msg = ");
-                            })
-                            .and_then(|renderer_group| {
-                                renderer_group.write().remove_mesh_renderer_object(&object)
-                            });
-                    }
-
+                .map(|object| {
                     let _ = self
                         .remove_transform_observer_of_renderer_object(
                             &object.read().transform,
@@ -519,16 +536,15 @@ impl RendererImpl for Renderer {
         renderer_object: ArcRwLock<dyn RendererObject>,
         renderer_group: ArcRwLock<dyn RendererGroup>,
     ) -> Result<(), String> {
-        let renderer_group_index = self
-            .get_renderer_group_index(&renderer_group)
-            .map_err(|e| format!("Adding renderer object to group, msg = {e}"))?;
+        let renderer_group = {
+            let index = self
+                .get_renderer_group_index(&renderer_group)
+                .map_err(|e| format!("Adding renderer object to group, msg = {e}"))?;
 
-        let renderer_group = self
-            .renderer_groups
-            .get_ref(renderer_group_index.0)
-            .ok_or_else(|| {
+            self.renderer_groups.get_ref(index.0).ok_or_else(|| {
                 "Adding renderer object to group, msg = could not find RendererGroup".to_string()
-            })?;
+            })?
+        };
 
         let index = self
             .get_renderer_object_index(&renderer_object)
@@ -540,7 +556,7 @@ impl RendererImpl for Renderer {
             "Adding renderer object to group, msg = cannot add renderer object twice to the same group".to_string();
         match index {
             RendererObjectIndex::Mesh(index) => {
-                let (renderer_object, renderer_group_indices) = self
+                let renderer_object = self
                     .mesh_renderer_objects
                     .get_mut(index)
                     .ok_or(missing_renderer_object_error_msg)?;
@@ -553,8 +569,6 @@ impl RendererImpl for Renderer {
                     None => Ok(()),
                 }?;
 
-                renderer_group_indices.0.insert(renderer_group_index);
-
                 Ok(())
             }
         }
@@ -565,17 +579,16 @@ impl RendererImpl for Renderer {
         renderer_object: ArcRwLock<dyn RendererObject>,
         renderer_group: ArcRwLock<dyn RendererGroup>,
     ) -> Result<(), String> {
-        let renderer_group_index = self
-            .get_renderer_group_index(&renderer_group)
-            .map_err(|e| format!("Removing renderer object from group, msg = {e}"))?;
+        let renderer_group = {
+            let index = self
+                .get_renderer_group_index(&renderer_group)
+                .map_err(|e| format!("Removing renderer object from group, msg = {e}"))?;
 
-        let renderer_group = self
-            .renderer_groups
-            .get_ref(renderer_group_index.0)
-            .ok_or_else(|| {
+            self.renderer_groups.get_ref(index.0).ok_or_else(|| {
                 "Removing renderer object from group, msg = could not find RendererGroup"
                     .to_string()
-            })?;
+            })?
+        };
 
         let index = self
             .get_renderer_object_index(&renderer_object)
@@ -588,14 +601,10 @@ impl RendererImpl for Renderer {
                 .to_string();
         match index {
             RendererObjectIndex::Mesh(index) => {
-                let (renderer_object, renderer_group_indices) = self
+                let renderer_object = self
                     .mesh_renderer_objects
                     .get_mut(index)
                     .ok_or(missing_renderer_object_error_msg)?;
-
-                if !renderer_group_indices.0.remove(&renderer_group_index) {
-                    log::warn!("Removing renderer object from group, msg = RendererGroup index was not stored for renderer object");
-                }
 
                 renderer_group
                     .write()
