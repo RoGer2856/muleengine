@@ -96,6 +96,13 @@ struct TestRendererObjectImpl;
 impl RendererObject for TestRendererObjectImpl {}
 
 impl RendererImpl for TestRendererImpl {
+    fn set_renderer_pipeline(
+        &mut self,
+        steps: Vec<super::renderer_pipeline_step_impl::RendererPipelineStepImpl>,
+    ) -> Result<(), String> {
+        todo!();
+    }
+
     fn create_renderer_layer(&mut self) -> Result<ArcRwLock<dyn RendererLayer>, String> {
         todo!();
     }

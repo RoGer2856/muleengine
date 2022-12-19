@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use muleengine::prelude::ArcRwLock;
+use vek::{Mat4, Vec3};
 
 use super::renderer_group_object::RendererGroupObject;
 
@@ -35,5 +36,18 @@ impl RendererLayerObject {
     ) -> Option<ArcRwLock<RendererGroupObject>> {
         let ptr: *const RendererGroupObject = renderer_group.data_ptr();
         self.renderer_groups.remove(&ptr)
+    }
+
+    pub fn draw(
+        &self,
+        eye_position: &Vec3<f32>,
+        projection_matrix: &Mat4<f32>,
+        view_matrix: &Mat4<f32>,
+    ) {
+        for renderer_group in self.renderer_groups.values() {
+            renderer_group
+                .read()
+                .draw(eye_position, projection_matrix, view_matrix);
+        }
     }
 }

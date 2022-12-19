@@ -4,12 +4,16 @@ use muleengine::{
     asset_container::AssetContainer,
     mesh::{Material, MaterialTexture, MaterialTextureType, TextureMapMode},
     mesh_creator,
-    renderer::{renderer_client::RendererClient, RendererGroupHandler, RendererObjectHandler},
+    prelude::ResultInspector,
+    renderer::{
+        renderer_client::RendererClient, renderer_pipeline_step::RendererPipelineStep,
+        RendererGroupHandler, RendererLayerHandler, RendererObjectHandler,
+    },
     service_container::ServiceContainer,
     system_container::System,
 };
 use tokio::sync::RwLock;
-use vek::{Transform, Vec3};
+use vek::{Transform, Vec2, Vec3};
 
 pub struct GameManager {
     first_tick: bool,
@@ -18,6 +22,9 @@ pub struct GameManager {
 }
 
 struct GameManagerPri {
+    _skydome_renderer_layer_handler: RendererLayerHandler,
+    _main_renderer_layer_handler: RendererLayerHandler,
+
     skydome_renderer_group_handler: RendererGroupHandler,
     main_renderer_group_handler: RendererGroupHandler,
 
@@ -45,9 +52,64 @@ impl GameManagerPri {
             .read()
             .clone();
 
+        let skydome_renderer_layer_handler = renderer_client.create_renderer_layer().await.unwrap();
+        let main_renderer_layer_handler = renderer_client.create_renderer_layer().await.unwrap();
+
+        let skydome_renderer_group_handler = renderer_client.create_renderer_group().await.unwrap();
+        renderer_client
+            .add_renderer_group_to_layer(
+                skydome_renderer_group_handler.clone(),
+                skydome_renderer_layer_handler.clone(),
+            )
+            .await
+            .unwrap();
+
+        let main_renderer_group_handler = renderer_client.create_renderer_group().await.unwrap();
+        renderer_client
+            .add_renderer_group_to_layer(
+                main_renderer_group_handler.clone(),
+                main_renderer_layer_handler.clone(),
+            )
+            .await
+            .unwrap();
+
+        renderer_client
+            .set_renderer_pipeline(vec![
+                RendererPipelineStep::Clear {
+                    depth: true,
+                    color: true,
+
+                    viewport_start_ndc: Vec2::broadcast(0.0),
+                    viewport_end_ndc: Vec2::broadcast(1.0),
+                },
+                RendererPipelineStep::Draw {
+                    renderer_layer_handler: skydome_renderer_layer_handler.clone(),
+
+                    viewport_start_ndc: Vec2::broadcast(0.0),
+                    viewport_end_ndc: Vec2::broadcast(1.0),
+                },
+                RendererPipelineStep::Clear {
+                    viewport_start_ndc: Vec2::broadcast(0.0),
+                    viewport_end_ndc: Vec2::broadcast(1.0),
+                    depth: true,
+                    color: false,
+                },
+                RendererPipelineStep::Draw {
+                    renderer_layer_handler: main_renderer_layer_handler.clone(),
+
+                    viewport_start_ndc: Vec2::broadcast(0.0),
+                    viewport_end_ndc: Vec2::broadcast(1.0),
+                },
+            ])
+            .await
+            .unwrap();
+
         let mut ret = Self {
-            skydome_renderer_group_handler: renderer_client.create_renderer_group().await.unwrap(),
-            main_renderer_group_handler: renderer_client.create_renderer_group().await.unwrap(),
+            _skydome_renderer_layer_handler: skydome_renderer_layer_handler,
+            _main_renderer_layer_handler: main_renderer_layer_handler,
+
+            skydome_renderer_group_handler,
+            main_renderer_group_handler,
 
             renderer_object_handlers: Vec::new(),
 
@@ -284,7 +346,15 @@ impl System for GameManager {
             let inner = self.inner.clone();
             let service_container = self.service_container.clone();
             tokio::spawn(async move {
-                *inner.write().await = Some(GameManagerPri::new(service_container.clone()).await);
+                tokio::spawn(async move {
+                    *inner.write().await =
+                        Some(GameManagerPri::new(service_container.clone()).await);
+                })
+                .await
+                .inspect_err(|e| {
+                    log::error!("Error during initialization of GameManager, msg = {e}")
+                })
+                .unwrap();
             });
         }
     }

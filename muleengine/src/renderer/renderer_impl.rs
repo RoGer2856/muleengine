@@ -9,8 +9,9 @@ use crate::{
 };
 
 use super::{
-    renderer_objects::renderer_layer::RendererLayer, RendererGroup, RendererMaterial, RendererMesh,
-    RendererObject, RendererShader, RendererTransform,
+    renderer_objects::renderer_layer::RendererLayer,
+    renderer_pipeline_step_impl::RendererPipelineStepImpl, RendererGroup, RendererMaterial,
+    RendererMesh, RendererObject, RendererShader, RendererTransform,
 };
 
 pub trait RendererImpl {
@@ -18,6 +19,9 @@ pub trait RendererImpl {
 
     fn set_window_dimensions(&mut self, dimensions: Vec2<usize>);
     fn set_camera(&mut self, camera: Camera);
+
+    fn set_renderer_pipeline(&mut self, steps: Vec<RendererPipelineStepImpl>)
+        -> Result<(), String>;
 
     fn create_renderer_layer(&mut self) -> Result<ArcRwLock<dyn RendererLayer>, String>;
     fn release_renderer_layer(

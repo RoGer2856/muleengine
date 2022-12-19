@@ -11,6 +11,7 @@ use crate::{
 
 use super::{
     renderer_command::{Command, CommandSender},
+    renderer_pipeline_step::RendererPipelineStep,
     MaterialHandler, MeshHandler, RendererError, RendererGroupHandler, RendererLayerHandler,
     RendererObjectHandler, ShaderHandler, TransformHandler,
 };
@@ -21,6 +22,28 @@ pub struct RendererClient {
 }
 
 impl RendererClient {
+    pub async fn set_renderer_pipeline(
+        &self,
+        steps: Vec<RendererPipelineStep>,
+    ) -> Result<(), RendererError> {
+        let (result_sender, result_receiver) = oneshot::channel();
+        let _ = self
+            .command_sender
+            .send(Command::SetRendererPipeline {
+                steps,
+                result_sender,
+            })
+            .inspect_err(|e| log::error!("Setting renderer pipeline, msg = {e}"));
+
+        match result_receiver
+            .await
+            .inspect_err(|e| log::error!("Setting renderer pipeline response, msg = {e}"))
+        {
+            Ok(ret) => ret,
+            Err(_) => unreachable!(),
+        }
+    }
+
     pub async fn create_renderer_layer(&self) -> Result<RendererLayerHandler, RendererError> {
         let (result_sender, result_receiver) = oneshot::channel();
         let _ = self
@@ -188,7 +211,7 @@ impl RendererClient {
     }
 
     pub async fn add_renderer_group_to_layer(
-        &mut self,
+        &self,
         renderer_group_handler: RendererGroupHandler,
         renderer_layer_handler: RendererLayerHandler,
     ) -> Result<(), RendererError> {
@@ -212,7 +235,7 @@ impl RendererClient {
     }
 
     pub async fn remove_renderer_group_from_layer(
-        &mut self,
+        &self,
         renderer_group_handler: RendererGroupHandler,
         renderer_layer_handler: RendererLayerHandler,
     ) -> Result<(), RendererError> {

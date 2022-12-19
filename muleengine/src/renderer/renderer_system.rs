@@ -17,6 +17,8 @@ use super::{
     renderer_command::{Command, CommandReceiver, CommandSender},
     renderer_impl::{RendererImpl, RendererImplAsync},
     renderer_objects::renderer_layer::{RendererLayer, RendererLayerHandler},
+    renderer_pipeline_step::RendererPipelineStep,
+    renderer_pipeline_step_impl::RendererPipelineStepImpl,
     MaterialHandler, MeshHandler, RendererError, RendererGroup, RendererGroupHandler,
     RendererMaterial, RendererMesh, RendererObject, RendererObjectHandler, RendererShader,
     RendererTransform, ShaderHandler, TransformHandler,
@@ -176,6 +178,56 @@ impl RendererPri {
         RendererClient {
             command_sender: self.command_sender.clone(),
         }
+    }
+
+    fn set_renderer_pipeline(
+        &mut self,
+        steps: Vec<RendererPipelineStep>,
+        renderer_impl: &mut dyn RendererImpl,
+    ) -> Result<(), RendererError> {
+        let mut steps_impl = Vec::with_capacity(steps.capacity());
+        for step in steps {
+            let step_impl = match step {
+                RendererPipelineStep::Clear {
+                    depth,
+                    color,
+                    viewport_start_ndc,
+                    viewport_end_ndc,
+                } => RendererPipelineStepImpl::Clear {
+                    depth,
+                    color,
+                    viewport_start_ndc,
+                    viewport_end_ndc,
+                },
+                RendererPipelineStep::Draw {
+                    renderer_layer_handler,
+                    viewport_start_ndc,
+                    viewport_end_ndc,
+                } => {
+                    let renderer_layer = self
+                        .renderer_layers
+                        .read()
+                        .get_ref(renderer_layer_handler.0.object_pool_index)
+                        .ok_or_else(|| {
+                            RendererError::InvalidRendererLayerHandler(renderer_layer_handler)
+                        })?
+                        .renderer_layer
+                        .clone();
+
+                    RendererPipelineStepImpl::Draw {
+                        renderer_layer,
+                        viewport_start_ndc,
+                        viewport_end_ndc,
+                    }
+                }
+            };
+
+            steps_impl.push(step_impl);
+        }
+
+        renderer_impl
+            .set_renderer_pipeline(steps_impl)
+            .map_err(RendererError::RendererImplError)
     }
 
     fn create_renderer_layer(
@@ -740,6 +792,14 @@ impl RendererPri {
 
     fn execute_command(&mut self, command: Command, renderer_impl: &mut dyn RendererImpl) {
         match command {
+            Command::SetRendererPipeline {
+                steps,
+                result_sender,
+            } => {
+                let _ = result_sender
+                    .send(self.set_renderer_pipeline(steps, renderer_impl))
+                    .inspect_err(|e| log::error!("SetRendererPipeline response, msg = {e:?}"));
+            }
             Command::CreateRendererLayer { result_sender } => {
                 let _ = result_sender
                     .send(self.create_renderer_layer(renderer_impl))

@@ -10,11 +10,16 @@ use crate::{
 };
 
 use super::{
-    renderer_objects::renderer_layer::RendererLayerHandler, MaterialHandler, MeshHandler,
-    RendererError, RendererGroupHandler, RendererObjectHandler, ShaderHandler, TransformHandler,
+    renderer_objects::renderer_layer::RendererLayerHandler,
+    renderer_pipeline_step::RendererPipelineStep, MaterialHandler, MeshHandler, RendererError,
+    RendererGroupHandler, RendererObjectHandler, ShaderHandler, TransformHandler,
 };
 
 pub enum Command {
+    SetRendererPipeline {
+        steps: Vec<RendererPipelineStep>,
+        result_sender: oneshot::Sender<Result<(), RendererError>>,
+    },
     CreateRendererLayer {
         result_sender: oneshot::Sender<Result<RendererLayerHandler, RendererError>>,
     },

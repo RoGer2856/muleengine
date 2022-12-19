@@ -7,8 +7,9 @@ use muleengine::{
     mesh::{Material, Mesh},
     prelude::{ArcRwLock, ResultInspector},
     renderer::{
-        renderer_impl::RendererImpl, RendererGroup, RendererLayer, RendererMaterial, RendererMesh,
-        RendererObject, RendererShader, RendererTransform,
+        renderer_impl::RendererImpl, renderer_pipeline_step_impl::RendererPipelineStepImpl,
+        RendererGroup, RendererLayer, RendererMaterial, RendererMesh, RendererObject,
+        RendererShader, RendererTransform,
     },
     window_context::WindowContext,
 };
@@ -32,13 +33,15 @@ use crate::{
 
 use super::{
     renderer_group_object::RendererGroupObject, renderer_layer_object::RendererLayerObject,
-    RendererTransformObject,
+    renderer_pipeline_step_object::RendererPipelineStepObject, RendererTransformObject,
 };
 
 type TransformObservers =
     BTreeMap<*const dyn RendererObject, Box<dyn Fn(&Transform<f32, f32, f32>)>>;
 
 pub struct Renderer {
+    renderer_pipeline_steps: Vec<RendererPipelineStepObject>,
+
     renderer_layers: ObjectPool<ArcRwLock<RendererLayerObject>>,
     renderer_groups: ObjectPool<ArcRwLock<RendererGroupObject>>,
     renderer_transforms: ObjectPool<(ArcRwLock<RendererTransformObject>, TransformObservers)>,
@@ -67,6 +70,8 @@ impl Renderer {
         asset_container: AssetContainer,
     ) -> Self {
         let mut ret = Self {
+            renderer_pipeline_steps: Vec::new(),
+
             renderer_layers: ObjectPool::new(),
             renderer_groups: ObjectPool::new(),
             renderer_transforms: ObjectPool::new(),
@@ -219,27 +224,130 @@ impl Renderer {
             .ok_or_else(|| "invalid RendererObject provided".to_string())
             .cloned()
     }
+
+    fn ndc_to_ssc(&self, ndc: &Vec2<f32>) -> Vec2<f32> {
+        Vec2::new(
+            ndc.x * self.window_dimensions.x as f32,
+            ndc.y * self.window_dimensions.y as f32,
+        )
+    }
+
+    fn set_gl_viewport(&self, viewport_start_ndc: &Vec2<f32>, viewport_dimensions_ndc: &Vec2<f32>) {
+        let viewport_start_ssc = self.ndc_to_ssc(viewport_start_ndc);
+        let viewport_dimensions_ssc = self.ndc_to_ssc(viewport_dimensions_ndc);
+        unsafe {
+            gl::Viewport(
+                viewport_start_ssc.x as i32,
+                viewport_start_ssc.y as i32,
+                viewport_dimensions_ssc.x as i32,
+                viewport_dimensions_ssc.y as i32,
+            );
+        }
+    }
 }
 
 impl RendererImpl for Renderer {
     fn render(&mut self) {
         unsafe {
+            // todo!();
             gl::ClearColor(0.2, 0.2, 0.2, 1.0);
             gl::Enable(gl::DEPTH_TEST);
-
-            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
         }
 
         let view_matrix = self.camera.compute_view_matrix();
-        for renderer_group in self.renderer_groups.iter() {
-            renderer_group.read().draw(
-                &self.camera.transform.position,
-                &self.projection_matrix,
-                &view_matrix,
-            );
+
+        for step in self.renderer_pipeline_steps.iter() {
+            match step {
+                RendererPipelineStepObject::Clear {
+                    depth,
+                    color,
+                    viewport_start_ndc,
+                    viewport_end_ndc: viewport_dimensions_ndc,
+                } => {
+                    self.set_gl_viewport(viewport_start_ndc, viewport_dimensions_ndc);
+
+                    if *depth && *color {
+                        unsafe {
+                            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
+                        }
+                    } else if *depth {
+                        unsafe {
+                            gl::Clear(gl::DEPTH_BUFFER_BIT);
+                        }
+                    } else if *color {
+                        unsafe {
+                            gl::Clear(gl::COLOR_BUFFER_BIT);
+                        }
+                    }
+                }
+                RendererPipelineStepObject::Draw {
+                    renderer_layer: renderer_layer_object,
+                    viewport_start_ndc,
+                    viewport_end_ndc: viewport_dimensions_ndc,
+                } => {
+                    self.set_gl_viewport(viewport_start_ndc, viewport_dimensions_ndc);
+
+                    renderer_layer_object.read().draw(
+                        &self.camera.transform.position,
+                        &self.projection_matrix,
+                        &view_matrix,
+                    );
+                }
+            }
         }
 
         self.window_context.read().swap_buffers();
+    }
+
+    fn set_renderer_pipeline(
+        &mut self,
+        steps: Vec<RendererPipelineStepImpl>,
+    ) -> Result<(), String> {
+        self.renderer_pipeline_steps = Vec::with_capacity(steps.capacity());
+        for step in steps {
+            let step_object = match step {
+                RendererPipelineStepImpl::Clear {
+                    depth,
+                    color,
+                    viewport_start_ndc,
+                    viewport_end_ndc,
+                } => RendererPipelineStepObject::Clear {
+                    depth,
+                    color,
+                    viewport_start_ndc,
+                    viewport_end_ndc,
+                },
+                RendererPipelineStepImpl::Draw {
+                    renderer_layer,
+                    viewport_start_ndc,
+                    viewport_end_ndc,
+                } => {
+                    let renderer_layer = {
+                        let index = self
+                            .get_renderer_layer_index(&renderer_layer)
+                            .map_err(|e| format!("Setting renderer pipeline, msg = {e}"))?;
+
+                        self.renderer_layers
+                            .get_ref(index.0)
+                            .ok_or_else(|| {
+                                "Setting renderer pipeline, msg = could not find RendererLayer"
+                                    .to_string()
+                            })?
+                            .clone()
+                    };
+
+                    RendererPipelineStepObject::Draw {
+                        renderer_layer,
+                        viewport_start_ndc,
+                        viewport_end_ndc,
+                    }
+                }
+            };
+
+            self.renderer_pipeline_steps.push(step_object);
+        }
+
+        Ok(())
     }
 
     fn create_renderer_layer(&mut self) -> Result<ArcRwLock<dyn RendererLayer>, String> {
@@ -292,14 +400,15 @@ impl RendererImpl for Renderer {
                 "Adding renderer group to layer, msg = could not find RendererLayer".to_string()
             })?;
 
-        renderer_layer
+        if renderer_layer
             .write()
             .add_renderer_group(renderer_group.clone())
-            .ok_or_else(|| {
-                "Adding renderer object to group, msg = cannot add renderer object twice to the same group".to_string()
-            })?;
-
-        Ok(())
+            .is_some()
+        {
+            Err("Adding renderer object to group, msg = cannot add renderer object twice to the same group".to_string())
+        } else {
+            Ok(())
+        }
     }
 
     fn remove_renderer_group_from_layer(
