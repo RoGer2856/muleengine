@@ -12,8 +12,6 @@ pub enum ShaderProgramError {
     LinkErrorToString(FromUtf8Error),
     LinkError { error_msg: String },
     ValidateError { error_msg: String },
-    AttributeNotFound { attribute_name: String },
-    UniformNotFound { uniform_name: String },
 }
 
 pub struct ShaderProgram {
