@@ -10,9 +10,10 @@ use crate::{
 };
 
 use super::{
-    renderer_objects::renderer_layer::RendererLayerHandler,
-    renderer_pipeline_step::RendererPipelineStep, MaterialHandler, MeshHandler, RendererError,
-    RendererGroupHandler, RendererObjectHandler, ShaderHandler, TransformHandler,
+    renderer_objects::{renderer_camera::CameraHandler, renderer_layer::RendererLayerHandler},
+    renderer_pipeline_step::RendererPipelineStep,
+    MaterialHandler, MeshHandler, RendererError, RendererGroupHandler, RendererObjectHandler,
+    ShaderHandler, TransformHandler,
 };
 
 pub enum Command {
@@ -94,6 +95,13 @@ pub enum Command {
         renderer_object_handler: RendererObjectHandler,
         renderer_group_handler: RendererGroupHandler,
         result_sender: oneshot::Sender<Result<(), RendererError>>,
+    },
+    CreateCamera {
+        transform_handler: TransformHandler,
+        result_sender: oneshot::Sender<Result<CameraHandler, RendererError>>,
+    },
+    ReleaseCamera {
+        object_pool_index: ObjectPoolIndex,
     },
 
     SetCamera {

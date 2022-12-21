@@ -9,6 +9,7 @@ pub mod renderer_pipeline_step;
 pub mod renderer_pipeline_step_impl;
 pub mod renderer_system;
 
+pub use renderer_objects::renderer_camera::*;
 pub use renderer_objects::renderer_group::*;
 pub use renderer_objects::renderer_layer::*;
 pub use renderer_objects::renderer_material::*;

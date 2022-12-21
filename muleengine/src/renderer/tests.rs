@@ -22,8 +22,8 @@ use super::{
     renderer_client::RendererClient,
     renderer_impl::RendererImpl,
     renderer_system::{AsyncRenderer, SyncRenderer},
-    RendererGroup, RendererLayer, RendererMaterial, RendererMesh, RendererObject, RendererShader,
-    RendererTransform,
+    RendererCamera, RendererGroup, RendererLayer, RendererMaterial, RendererMesh, RendererObject,
+    RendererShader, RendererTransform,
 };
 
 #[derive(Clone)]
@@ -351,6 +351,17 @@ impl RendererImpl for TestRendererImpl {
                 "Removing renderer object from group, msg = could not find renderer object in group"
                     .to_string()
             })
+    }
+
+    fn create_camera(
+        &mut self,
+        transform: ArcRwLock<dyn RendererTransform>,
+    ) -> Result<ArcRwLock<dyn RendererCamera>, String> {
+        todo!();
+    }
+
+    fn release_camera(&mut self, camera: ArcRwLock<dyn RendererCamera>) -> Result<(), String> {
+        todo!();
     }
 
     fn render(&mut self) {}

@@ -8,8 +8,8 @@ use muleengine::{
     prelude::{ArcRwLock, ResultInspector},
     renderer::{
         renderer_impl::RendererImpl, renderer_pipeline_step_impl::RendererPipelineStepImpl,
-        RendererGroup, RendererLayer, RendererMaterial, RendererMesh, RendererObject,
-        RendererShader, RendererTransform,
+        RendererCamera, RendererGroup, RendererLayer, RendererMaterial, RendererMesh,
+        RendererObject, RendererShader, RendererTransform,
     },
     window_context::WindowContext,
 };
@@ -25,15 +25,16 @@ use crate::{
     gl_shader_program_container::GLShaderProgramContainer,
     gl_texture_container::GLTextureContainer,
     me_renderer_indices::{
-        RendererGroupIndex, RendererLayerIndex, RendererMaterialIndex, RendererMeshIndex,
-        RendererObjectIndex, RendererShaderIndex, RendererTransformIndex,
+        RendererCameraIndex, RendererGroupIndex, RendererLayerIndex, RendererMaterialIndex,
+        RendererMeshIndex, RendererObjectIndex, RendererShaderIndex, RendererTransformIndex,
     },
     mesh_renderer_object::MeshRendererObject,
 };
 
 use super::{
     renderer_group_object::RendererGroupObject, renderer_layer_object::RendererLayerObject,
-    renderer_pipeline_step_object::RendererPipelineStepObject, RendererTransformObject,
+    renderer_pipeline_step_object::RendererPipelineStepObject, RendererCameraObject,
+    RendererTransformObject,
 };
 
 type TransformObservers =
@@ -42,6 +43,7 @@ type TransformObservers =
 pub struct Renderer {
     renderer_pipeline_steps: Vec<RendererPipelineStepObject>,
 
+    renderer_cameras: ObjectPool<ArcRwLock<RendererCameraObject>>,
     renderer_layers: ObjectPool<ArcRwLock<RendererLayerObject>>,
     renderer_groups: ObjectPool<ArcRwLock<RendererGroupObject>>,
     renderer_transforms: ObjectPool<(ArcRwLock<RendererTransformObject>, TransformObservers)>,
@@ -72,6 +74,7 @@ impl Renderer {
         let mut ret = Self {
             renderer_pipeline_steps: Vec::new(),
 
+            renderer_cameras: ObjectPool::new(),
             renderer_layers: ObjectPool::new(),
             renderer_groups: ObjectPool::new(),
             renderer_transforms: ObjectPool::new(),
@@ -222,6 +225,18 @@ impl Renderer {
             .as_any()
             .downcast_ref::<RendererObjectIndex>()
             .ok_or_else(|| "invalid RendererObject provided".to_string())
+            .cloned()
+    }
+
+    fn get_camera_index(
+        &self,
+        renderer_camera: &ArcRwLock<dyn RendererCamera>,
+    ) -> Result<RendererCameraIndex, String> {
+        let renderer_camera = renderer_camera.read();
+        renderer_camera
+            .as_any()
+            .downcast_ref::<RendererCameraIndex>()
+            .ok_or_else(|| "invalid RendererCamera provided".to_string())
             .cloned()
     }
 
@@ -806,6 +821,56 @@ impl RendererImpl for Renderer {
                     .map(|_| ())
             }
         }
+    }
+
+    fn create_camera(
+        &mut self,
+        renderer_transform: ArcRwLock<dyn RendererTransform>,
+    ) -> Result<ArcRwLock<dyn RendererCamera>, String> {
+        todo!();
+        // let transform = {
+        //     let index = self
+        //         .get_transform_index(&renderer_transform)
+        //         .map_err(|e| format!("Creating renderer object from mesh, msg = {e}"))?;
+
+        //     &self
+        //         .renderer_transforms
+        //         .get_ref(index.0)
+        //         .ok_or_else(|| {
+        //             "Creating renderer object from mesh, msg = could not find RendererTransform"
+        //                 .to_string()
+        //         })?
+        //         .0
+        // };
+
+        // let camera = Arc::new(RwLock::new(RendererCameraObject {
+        //     transform: transform.read().transform,
+        // }));
+
+        // self.add_transform_observer(&renderer_transform, ret.data_ptr(), move |transform| {
+        //     mesh_renderer_object
+        //         .write()
+        //         .gl_drawable_mesh
+        //         .set_transform(transform)
+        // })
+        // .map_err(|e| format!("Creating renderer object from mesh, msg = {e}"))
+        // .inspect_err(|e| {
+        //     self.mesh_renderer_objects.release_object(index);
+        //     log::error!("{e}");
+        // })?;
+
+        // Ok(RendererCameraIndex())
+    }
+
+    fn release_camera(&mut self, camera: ArcRwLock<dyn RendererCamera>) -> Result<(), String> {
+        let index = self
+            .get_camera_index(&camera)
+            .map_err(|e| format!("Releasing camera, msg = {e}"))?;
+
+        self.renderer_cameras
+            .release_object(index.0)
+            .ok_or_else(|| "Releasing camera, msg = could not find RendererCamera".to_string())
+            .map(|_| ())
     }
 
     fn set_camera(&mut self, camera: Camera) {

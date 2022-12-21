@@ -16,12 +16,15 @@ use super::{
     renderer_client::RendererClient,
     renderer_command::{Command, CommandReceiver, CommandSender},
     renderer_impl::{RendererImpl, RendererImplAsync},
-    renderer_objects::renderer_layer::{RendererLayer, RendererLayerHandler},
+    renderer_objects::{
+        renderer_camera::CameraHandler,
+        renderer_layer::{RendererLayer, RendererLayerHandler},
+    },
     renderer_pipeline_step::RendererPipelineStep,
     renderer_pipeline_step_impl::RendererPipelineStepImpl,
-    MaterialHandler, MeshHandler, RendererError, RendererGroup, RendererGroupHandler,
-    RendererMaterial, RendererMesh, RendererObject, RendererObjectHandler, RendererShader,
-    RendererTransform, ShaderHandler, TransformHandler,
+    MaterialHandler, MeshHandler, RendererCamera, RendererError, RendererGroup,
+    RendererGroupHandler, RendererMaterial, RendererMesh, RendererObject, RendererObjectHandler,
+    RendererShader, RendererTransform, ShaderHandler, TransformHandler,
 };
 
 pub struct SyncRenderer {
@@ -53,6 +56,7 @@ pub(super) struct RendererObjectData {
 
 #[derive(Clone)]
 pub(super) struct RendererPri {
+    pub(super) renderer_cameras: ArcRwLock<ObjectPool<ArcRwLock<dyn RendererCamera>>>,
     pub(super) renderer_layers: ArcRwLock<ObjectPool<RendererLayerData>>,
     pub(super) renderer_groups: ArcRwLock<ObjectPool<RendererGroupData>>,
     pub(super) renderer_transforms: ArcRwLock<ObjectPool<ArcRwLock<dyn RendererTransform>>>,
@@ -161,6 +165,7 @@ impl RendererPri {
         let (sender, receiver) = flume::unbounded();
 
         Self {
+            renderer_cameras: Arc::new(RwLock::new(ObjectPool::new())),
             renderer_layers: Arc::new(RwLock::new(ObjectPool::new())),
             renderer_groups: Arc::new(RwLock::new(ObjectPool::new())),
             renderer_transforms: Arc::new(RwLock::new(ObjectPool::new())),
@@ -381,9 +386,7 @@ impl RendererPri {
             .create_transform(transform)
             .map(|transform| {
                 TransformHandler::new(
-                    self.renderer_transforms
-                        .write()
-                        .create_object(transform.clone()),
+                    self.renderer_transforms.write().create_object(transform),
                     self.command_sender.clone(),
                 )
             })
@@ -422,7 +425,7 @@ impl RendererPri {
 
         if let Some(transform) = transform {
             let _ = renderer_impl
-                .release_transform(transform.clone())
+                .release_transform(transform)
                 .inspect_err(|e| log::error!("ReleaseTransform, msg = {e}"));
         } else {
             log::error!("ReleaseTransform, msg = could not find transform");
@@ -438,9 +441,7 @@ impl RendererPri {
             .create_material(material)
             .map(|material| {
                 MaterialHandler::new(
-                    self.renderer_materials
-                        .write()
-                        .create_object(material.clone()),
+                    self.renderer_materials.write().create_object(material),
                     self.command_sender.clone(),
                 )
             })
@@ -459,7 +460,7 @@ impl RendererPri {
 
         if let Some(material) = material {
             let _ = renderer_impl
-                .release_material(material.clone())
+                .release_material(material)
                 .inspect_err(|e| log::error!("ReleaseMaterial, msg = {e}"));
         } else {
             log::error!("ReleaseMaterial, msg = could not find material");
@@ -475,7 +476,7 @@ impl RendererPri {
             .create_shader(shader_name)
             .map(|shader| {
                 ShaderHandler::new(
-                    self.renderer_shaders.write().create_object(shader.clone()),
+                    self.renderer_shaders.write().create_object(shader),
                     self.command_sender.clone(),
                 )
             })
@@ -494,7 +495,7 @@ impl RendererPri {
 
         if let Some(shader) = shader {
             let _ = renderer_impl
-                .release_shader(shader.clone())
+                .release_shader(shader)
                 .inspect_err(|e| log::error!("ReleaseShader, msg = {e}"));
         } else {
             log::error!("ReleaseShader, msg = could not find shader");
@@ -510,7 +511,7 @@ impl RendererPri {
             .create_mesh(mesh)
             .map(|mesh| {
                 MeshHandler::new(
-                    self.renderer_meshes.write().create_object(mesh.clone()),
+                    self.renderer_meshes.write().create_object(mesh),
                     self.command_sender.clone(),
                 )
             })
@@ -529,7 +530,7 @@ impl RendererPri {
 
         if let Some(mesh) = mesh {
             let _ = renderer_impl
-                .release_mesh(mesh.clone())
+                .release_mesh(mesh)
                 .inspect_err(|e| log::error!("ReleaseMesh, msg = {e}"));
         } else {
             log::error!("ReleaseMesh, msg = could not find mesh");
@@ -790,6 +791,50 @@ impl RendererPri {
             .map_err(RendererError::RendererImplError)
     }
 
+    fn create_camera(
+        &mut self,
+        transform_handler: TransformHandler,
+        renderer_impl: &mut dyn RendererImpl,
+    ) -> Result<CameraHandler, RendererError> {
+        let transform = self
+            .renderer_transforms
+            .read()
+            .get_ref(transform_handler.0.object_pool_index)
+            .ok_or(RendererError::InvalidRendererTransformHandler(
+                transform_handler,
+            ))?
+            .clone();
+
+        renderer_impl
+            .create_camera(transform)
+            .map(|camera| {
+                CameraHandler::new(
+                    self.renderer_cameras.write().create_object(camera),
+                    self.command_sender.clone(),
+                )
+            })
+            .map_err(RendererError::RendererImplError)
+    }
+
+    fn release_camera(
+        &mut self,
+        object_pool_index: ObjectPoolIndex,
+        renderer_impl: &mut dyn RendererImpl,
+    ) {
+        let camera = self
+            .renderer_cameras
+            .write()
+            .release_object(object_pool_index);
+
+        if let Some(camera) = camera {
+            let _ = renderer_impl
+                .release_camera(camera)
+                .inspect_err(|e| log::error!("ReleaseCamera, msg = {e}"));
+        } else {
+            log::error!("ReleaseCamera, msg = could not find camera");
+        }
+    }
+
     fn execute_command(&mut self, command: Command, renderer_impl: &mut dyn RendererImpl) {
         match command {
             Command::SetRendererPipeline {
@@ -946,6 +991,17 @@ impl RendererPri {
                     .inspect_err(|e| {
                         log::error!("RemoveRendererObjectFromGroup response, msg = {e:?}")
                     });
+            }
+            Command::CreateCamera {
+                transform_handler,
+                result_sender,
+            } => {
+                let _ = result_sender
+                    .send(self.create_camera(transform_handler, renderer_impl))
+                    .inspect_err(|e| log::error!("CreateCamera response, msg = {e:?}"));
+            }
+            Command::ReleaseCamera { object_pool_index } => {
+                self.release_camera(object_pool_index, renderer_impl);
             }
             Command::SetCamera { camera } => {
                 renderer_impl.set_camera(camera);

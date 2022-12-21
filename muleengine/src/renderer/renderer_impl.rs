@@ -9,9 +9,10 @@ use crate::{
 };
 
 use super::{
-    renderer_objects::renderer_layer::RendererLayer,
-    renderer_pipeline_step_impl::RendererPipelineStepImpl, RendererGroup, RendererMaterial,
-    RendererMesh, RendererObject, RendererShader, RendererTransform,
+    renderer_objects::{renderer_camera::RendererCamera, renderer_layer::RendererLayer},
+    renderer_pipeline_step_impl::RendererPipelineStepImpl,
+    RendererGroup, RendererMaterial, RendererMesh, RendererObject, RendererShader,
+    RendererTransform,
 };
 
 pub trait RendererImpl {
@@ -98,6 +99,12 @@ pub trait RendererImpl {
         renderer_object: ArcRwLock<dyn RendererObject>,
         renderer_group: ArcRwLock<dyn RendererGroup>,
     ) -> Result<(), String>;
+
+    fn create_camera(
+        &mut self,
+        transform: ArcRwLock<dyn RendererTransform>,
+    ) -> Result<ArcRwLock<dyn RendererCamera>, String>;
+    fn release_camera(&mut self, camera: ArcRwLock<dyn RendererCamera>) -> Result<(), String>;
 }
 
 pub trait AsRendererImpl {

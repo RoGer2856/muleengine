@@ -1,8 +1,8 @@
 use muleengine::{
     containers::object_pool::ObjectPoolIndex,
     renderer::{
-        RendererGroup, RendererLayer, RendererMaterial, RendererMesh, RendererObject,
-        RendererShader, RendererTransform,
+        RendererCamera, RendererGroup, RendererLayer, RendererMaterial, RendererMesh,
+        RendererObject, RendererShader, RendererTransform,
     },
 };
 
@@ -22,6 +22,8 @@ pub struct RendererMeshIndex(pub(super) ObjectPoolIndex);
 pub enum RendererObjectIndex {
     Mesh(ObjectPoolIndex),
 }
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct RendererCameraIndex(pub(super) ObjectPoolIndex);
 
 impl RendererLayer for RendererLayerIndex {}
 impl RendererGroup for RendererGroupIndex {}
@@ -30,3 +32,4 @@ impl RendererMaterial for RendererMaterialIndex {}
 impl RendererShader for RendererShaderIndex {}
 impl RendererMesh for RendererMeshIndex {}
 impl RendererObject for RendererObjectIndex {}
+impl RendererCamera for RendererCameraIndex {}

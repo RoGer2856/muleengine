@@ -1,3 +1,4 @@
+pub mod renderer_camera;
 pub mod renderer_group;
 pub mod renderer_layer;
 pub mod renderer_material;

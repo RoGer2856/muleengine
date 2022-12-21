@@ -11,6 +11,7 @@ use crate::{
 
 use super::{
     renderer_command::{Command, CommandSender},
+    renderer_objects::renderer_camera::CameraHandler,
     renderer_pipeline_step::RendererPipelineStep,
     MaterialHandler, MeshHandler, RendererError, RendererGroupHandler, RendererLayerHandler,
     RendererObjectHandler, ShaderHandler, TransformHandler,
@@ -271,11 +272,11 @@ impl RendererClient {
                 renderer_group_handler,
                 result_sender,
             })
-            .inspect_err(|e| log::error!("Adding renderer object to renderer, msg = {e}"));
+            .inspect_err(|e| log::error!("Adding renderer object to group, msg = {e}"));
 
         match result_receiver
             .await
-            .inspect_err(|e| log::error!("Adding renderer object to renderer response, msg = {e}"))
+            .inspect_err(|e| log::error!("Adding renderer object to group response, msg = {e}"))
         {
             Ok(ret) => ret,
             Err(_) => unreachable!(),
@@ -295,7 +296,29 @@ impl RendererClient {
                 renderer_group_handler,
                 result_sender,
             })
-            .inspect_err(|e| log::error!("Removing renderer object from renderer, msg = {e}"));
+            .inspect_err(|e| log::error!("Removing renderer object from group, msg = {e}"));
+
+        match result_receiver
+            .await
+            .inspect_err(|e| log::error!("Removing renderer object from group response, msg = {e}"))
+        {
+            Ok(ret) => ret,
+            Err(_) => unreachable!(),
+        }
+    }
+
+    pub async fn create_camera(
+        &self,
+        transform_handler: TransformHandler,
+    ) -> Result<CameraHandler, RendererError> {
+        let (result_sender, result_receiver) = oneshot::channel();
+        let _ = self
+            .command_sender
+            .send(Command::CreateCamera {
+                transform_handler,
+                result_sender,
+            })
+            .inspect_err(|e| log::error!("Removing camera from renderer, msg = {e}"));
 
         match result_receiver.await.inspect_err(|e| {
             log::error!("Removing renderer object from renderer response, msg = {e}")
