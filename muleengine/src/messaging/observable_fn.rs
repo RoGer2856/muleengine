@@ -74,6 +74,14 @@ impl<T> Observable<T> {
     }
 }
 
+impl<T> Deref for Observable<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
+}
+
 impl<T> Drop for Observer<T> {
     fn drop(&mut self) {
         self.to_be_deleted_observers
