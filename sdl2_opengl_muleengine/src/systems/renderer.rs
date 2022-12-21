@@ -43,7 +43,7 @@ type TransformObserver = Observer<RendererTransformObject>;
 pub struct Renderer {
     renderer_pipeline_steps: Vec<RendererPipelineStepObject>,
 
-    renderer_cameras: ObjectPool<ArcRwLock<RendererCameraObject>>,
+    renderer_cameras: ObjectPool<(ArcRwLock<RendererCameraObject>, TransformObserver)>,
     renderer_layers: ObjectPool<ArcRwLock<RendererLayerObject>>,
     renderer_groups: ObjectPool<ArcRwLock<RendererGroupObject>>,
     renderer_transforms: ObjectPool<ArcRwLock<Observable<RendererTransformObject>>>,
@@ -758,27 +758,29 @@ impl RendererImpl for Renderer {
         &mut self,
         renderer_transform: ArcRwLock<dyn RendererTransform>,
     ) -> Result<ArcRwLock<dyn RendererCamera>, String> {
-        todo!();
-        // let transform = {
-        //     let index = self
-        //         .get_transform_index(&renderer_transform)
-        //         .map_err(|e| format!("Creating renderer object from mesh, msg = {e}"))?;
+        let transform = {
+            let index = self
+                .get_transform_index(&renderer_transform)
+                .map_err(|e| format!("Creating renderer object from mesh, msg = {e}"))?;
 
-        //     &self
-        //         .renderer_transforms
-        //         .get_ref(index.0)
-        //         .ok_or_else(|| {
-        //             "Creating renderer object from mesh, msg = could not find RendererTransform"
-        //                 .to_string()
-        //         })?
-        //         .0
-        // };
+            self.renderer_transforms.get_ref(index.0).ok_or_else(|| {
+                "Creating renderer object from mesh, msg = could not find RendererTransform"
+                    .to_string()
+            })?
+        };
 
-        // let camera = Arc::new(RwLock::new(RendererCameraObject {
-        //     transform: transform.read().transform,
-        // }));
+        let camera = Arc::new(RwLock::new(RendererCameraObject {
+            transform: transform.read().transform,
+        }));
 
-        // Ok(RendererCameraIndex())
+        let index = self.renderer_cameras.create_object((
+            camera.clone(),
+            transform.write().observe(move |transform| {
+                camera.write().transform = transform.transform;
+            }),
+        ));
+
+        Ok(Arc::new(RwLock::new(RendererCameraIndex(index))))
     }
 
     fn release_camera(&mut self, camera: ArcRwLock<dyn RendererCamera>) -> Result<(), String> {
