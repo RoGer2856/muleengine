@@ -3,7 +3,6 @@ use std::sync::Arc;
 use vek::{Transform, Vec2};
 
 use crate::{
-    camera::Camera,
     mesh::{Material, Mesh},
     prelude::ArcRwLock,
 };
@@ -19,12 +18,14 @@ pub trait RendererImpl {
     fn render(&mut self);
 
     fn set_window_dimensions(&mut self, dimensions: Vec2<usize>);
-    fn set_camera(&mut self, camera: Camera);
 
     fn set_renderer_pipeline(&mut self, steps: Vec<RendererPipelineStepImpl>)
         -> Result<(), String>;
 
-    fn create_renderer_layer(&mut self) -> Result<ArcRwLock<dyn RendererLayer>, String>;
+    fn create_renderer_layer(
+        &mut self,
+        camera: ArcRwLock<dyn RendererCamera>,
+    ) -> Result<ArcRwLock<dyn RendererLayer>, String>;
     fn release_renderer_layer(
         &mut self,
         renderer_layer: ArcRwLock<dyn RendererLayer>,

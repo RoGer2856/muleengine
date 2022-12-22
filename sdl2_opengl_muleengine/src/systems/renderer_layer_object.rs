@@ -1,23 +1,19 @@
 use std::collections::BTreeMap;
 
 use muleengine::prelude::ArcRwLock;
-use vek::{Mat4, Vec3};
+use vek::Mat4;
 
-use super::renderer_group_object::RendererGroupObject;
+use super::{renderer_group_object::RendererGroupObject, RendererCameraObject};
 
-pub struct RendererLayerObject {
+pub(crate) struct RendererLayerObject {
+    camera: ArcRwLock<RendererCameraObject>,
     renderer_groups: BTreeMap<*const RendererGroupObject, ArcRwLock<RendererGroupObject>>,
 }
 
-impl Default for RendererLayerObject {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl RendererLayerObject {
-    pub fn new() -> Self {
+    pub fn new(camera: ArcRwLock<RendererCameraObject>) -> Self {
         Self {
+            camera,
             renderer_groups: BTreeMap::new(),
         }
     }
@@ -38,16 +34,15 @@ impl RendererLayerObject {
         self.renderer_groups.remove(&ptr)
     }
 
-    pub fn draw(
-        &self,
-        eye_position: &Vec3<f32>,
-        projection_matrix: &Mat4<f32>,
-        view_matrix: &Mat4<f32>,
-    ) {
+    pub fn draw(&self, projection_matrix: &Mat4<f32>) {
+        let camera = self.camera.read();
+
+        let view_matrix = camera.compute_view_matrix();
+
         for renderer_group in self.renderer_groups.values() {
             renderer_group
                 .read()
-                .draw(eye_position, projection_matrix, view_matrix);
+                .draw(&camera.transform.position, projection_matrix, &view_matrix);
         }
     }
 }

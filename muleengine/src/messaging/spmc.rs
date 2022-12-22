@@ -153,6 +153,15 @@ where
     }
 }
 
+impl<T> Clone for Receiver<T>
+where
+    T: Clone,
+{
+    fn clone(&self) -> Self {
+        self.create_receiver()
+    }
+}
+
 impl<T> Drop for Receiver<T>
 where
     T: Clone,

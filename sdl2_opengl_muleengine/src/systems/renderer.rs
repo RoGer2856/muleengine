@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use muleengine::{
     asset_container::AssetContainer,
-    camera::Camera,
     containers::object_pool::ObjectPool,
     mesh::{Material, Mesh},
     messaging::observable_fn::{Observable, Observer},
@@ -53,7 +52,6 @@ pub struct Renderer {
 
     mesh_renderer_objects: ObjectPool<(ArcRwLock<MeshRendererObject>, TransformObserver)>,
 
-    camera: Camera,
     projection_matrix: Mat4<f32>,
     window_dimensions: Vec2<usize>,
     window_context: ArcRwLock<dyn WindowContext>,
@@ -84,7 +82,6 @@ impl Renderer {
 
             mesh_renderer_objects: ObjectPool::new(),
 
-            camera: Camera::new(),
             projection_matrix: Mat4::identity(),
             window_dimensions: Vec2::zero(),
             window_context,
@@ -226,8 +223,6 @@ impl RendererImpl for Renderer {
             gl::Enable(gl::DEPTH_TEST);
         }
 
-        let view_matrix = self.camera.compute_view_matrix();
-
         for step in self.renderer_pipeline_steps.iter() {
             match step {
                 RendererPipelineStepObject::Clear {
@@ -259,11 +254,7 @@ impl RendererImpl for Renderer {
                 } => {
                     self.set_gl_viewport(viewport_start_ndc, viewport_dimensions_ndc);
 
-                    renderer_layer_object.read().draw(
-                        &self.camera.transform.position,
-                        &self.projection_matrix,
-                        &view_matrix,
-                    );
+                    renderer_layer_object.read().draw(&self.projection_matrix);
                 }
             }
         }
@@ -322,8 +313,25 @@ impl RendererImpl for Renderer {
         Ok(())
     }
 
-    fn create_renderer_layer(&mut self) -> Result<ArcRwLock<dyn RendererLayer>, String> {
-        let renderer_layer = Arc::new(RwLock::new(RendererLayerObject::new()));
+    fn create_renderer_layer(
+        &mut self,
+        camera: ArcRwLock<dyn RendererCamera>,
+    ) -> Result<ArcRwLock<dyn RendererLayer>, String> {
+        let camera = {
+            let index = self
+                .get_camera_index(&camera)
+                .map_err(|e| format!("Creating renderer layer, msg = {e}"))?;
+
+            &self
+                .renderer_cameras
+                .get_ref(index.0)
+                .ok_or_else(|| {
+                    "Creating renderer layer, msg = could not find RendererCamera".to_string()
+                })?
+                .0
+        };
+
+        let renderer_layer = Arc::new(RwLock::new(RendererLayerObject::new(camera.clone())));
         let index = self.renderer_layers.create_object(renderer_layer);
 
         Ok(Arc::new(RwLock::new(RendererLayerIndex(index))))
@@ -792,10 +800,6 @@ impl RendererImpl for Renderer {
             .release_object(index.0)
             .ok_or_else(|| "Releasing camera, msg = could not find RendererCamera".to_string())
             .map(|_| ())
-    }
-
-    fn set_camera(&mut self, camera: Camera) {
-        self.camera = camera;
     }
 
     fn set_window_dimensions(&mut self, window_dimensions: Vec2<usize>) {

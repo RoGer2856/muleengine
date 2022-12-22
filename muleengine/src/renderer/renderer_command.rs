@@ -4,7 +4,6 @@ use tokio::sync::oneshot;
 use vek::{Transform, Vec2};
 
 use crate::{
-    camera::Camera,
     containers::object_pool::ObjectPoolIndex,
     mesh::{Material, Mesh},
 };
@@ -22,6 +21,7 @@ pub enum Command {
         result_sender: oneshot::Sender<Result<(), RendererError>>,
     },
     CreateRendererLayer {
+        camera_handler: CameraHandler,
         result_sender: oneshot::Sender<Result<RendererLayerHandler, RendererError>>,
     },
     ReleaseRendererLayer {
@@ -104,9 +104,6 @@ pub enum Command {
         object_pool_index: ObjectPoolIndex,
     },
 
-    SetCamera {
-        camera: Camera,
-    },
     SetWindowDimensions {
         dimensions: Vec2<usize>,
     },

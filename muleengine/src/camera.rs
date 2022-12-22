@@ -1,4 +1,4 @@
-use vek::{Mat4, Quaternion, Transform, Vec3};
+use vek::{Quaternion, Transform, Vec3};
 
 #[derive(Clone)]
 pub struct Camera {
@@ -76,13 +76,5 @@ impl Camera {
         self.transform
             .orientation
             .rotate_3d(angle_radians, self.transform.orientation * Vec3::unit_z());
-    }
-
-    pub fn compute_view_matrix(&self) -> Mat4<f32> {
-        let mut transform_matrix = Into::<Mat4<f32>>::into(self.transform);
-
-        transform_matrix.invert_affine_transform_no_scale();
-
-        transform_matrix
     }
 }

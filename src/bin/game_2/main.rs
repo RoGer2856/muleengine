@@ -4,9 +4,7 @@ use std::sync::Arc;
 
 use game_2::{
     main_loop::MainLoop,
-    systems::{
-        game_manager::GameManager, spectator_camera_controller::SpectatorCameraControllerSystem,
-    },
+    systems::{game_manager::GameManager, spectator_camera_controller::SpectatorCameraInputSystem},
 };
 use muleengine::{
     asset_container::AssetContainer,
@@ -85,11 +83,12 @@ async fn async_main() {
 
         service_container.insert(renderer_client.clone());
 
-        system_container.add_system(GameManager::new(service_container));
-        system_container.add_system(SpectatorCameraControllerSystem::new(
-            renderer_client.clone(),
-            sdl2_gl_context.clone(),
-        ));
+        let spectator_camera_input_system =
+            SpectatorCameraInputSystem::new(sdl2_gl_context.clone());
+        let spectator_camera_input = spectator_camera_input_system.data().clone();
+        system_container.add_system(spectator_camera_input_system);
+
+        system_container.add_system(GameManager::new(service_container, spectator_camera_input));
 
         // adding renderer system as the last system
         system_container.add_system(renderer_system);

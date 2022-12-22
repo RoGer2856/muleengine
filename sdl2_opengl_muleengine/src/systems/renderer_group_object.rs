@@ -5,7 +5,7 @@ use vek::{Mat4, Vec3};
 
 use crate::mesh_renderer_object::MeshRendererObject;
 
-pub struct RendererGroupObject {
+pub(crate) struct RendererGroupObject {
     mesh_renderer_objects: BTreeMap<*const MeshRendererObject, ArcRwLock<MeshRendererObject>>,
 }
 

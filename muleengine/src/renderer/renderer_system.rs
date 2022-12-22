@@ -237,10 +237,18 @@ impl RendererPri {
 
     fn create_renderer_layer(
         &mut self,
+        camera_handler: CameraHandler,
         renderer_impl: &mut dyn RendererImpl,
     ) -> Result<RendererLayerHandler, RendererError> {
+        let camera = self
+            .renderer_cameras
+            .read()
+            .get_ref(camera_handler.0.object_pool_index)
+            .ok_or(RendererError::InvalidRendererCameraHandler(camera_handler))?
+            .clone();
+
         renderer_impl
-            .create_renderer_layer()
+            .create_renderer_layer(camera)
             .map(|renderer_layer| {
                 RendererLayerHandler::new(
                     self.renderer_layers
@@ -845,9 +853,12 @@ impl RendererPri {
                     .send(self.set_renderer_pipeline(steps, renderer_impl))
                     .inspect_err(|e| log::error!("SetRendererPipeline response, msg = {e:?}"));
             }
-            Command::CreateRendererLayer { result_sender } => {
+            Command::CreateRendererLayer {
+                camera_handler,
+                result_sender,
+            } => {
                 let _ = result_sender
-                    .send(self.create_renderer_layer(renderer_impl))
+                    .send(self.create_renderer_layer(camera_handler, renderer_impl))
                     .inspect_err(|e| log::error!("CreateRendererLayer response, msg = {e:?}"));
             }
             Command::ReleaseRendererLayer { object_pool_index } => {
@@ -1002,9 +1013,6 @@ impl RendererPri {
             }
             Command::ReleaseCamera { object_pool_index } => {
                 self.release_camera(object_pool_index, renderer_impl);
-            }
-            Command::SetCamera { camera } => {
-                renderer_impl.set_camera(camera);
             }
             Command::SetWindowDimensions { dimensions } => {
                 renderer_impl.set_window_dimensions(dimensions);

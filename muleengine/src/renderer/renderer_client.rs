@@ -4,7 +4,6 @@ use tokio::sync::oneshot;
 use vek::{Transform, Vec2};
 
 use crate::{
-    camera::Camera,
     mesh::{Material, Mesh},
     result_option_inspect::ResultInspector,
 };
@@ -45,11 +44,17 @@ impl RendererClient {
         }
     }
 
-    pub async fn create_renderer_layer(&self) -> Result<RendererLayerHandler, RendererError> {
+    pub async fn create_renderer_layer(
+        &self,
+        camera_handler: CameraHandler,
+    ) -> Result<RendererLayerHandler, RendererError> {
         let (result_sender, result_receiver) = oneshot::channel();
         let _ = self
             .command_sender
-            .send(Command::CreateRendererLayer { result_sender })
+            .send(Command::CreateRendererLayer {
+                camera_handler,
+                result_sender,
+            })
             .inspect_err(|e| log::error!("Creating renderer group, msg = {e}"));
 
         match result_receiver
@@ -326,13 +331,6 @@ impl RendererClient {
             Ok(ret) => ret,
             Err(_) => unreachable!(),
         }
-    }
-
-    pub fn set_camera(&self, camera: Camera) {
-        let _ = self
-            .command_sender
-            .send(Command::SetCamera { camera })
-            .inspect_err(|e| log::error!("Setting camera of renderer, msg = {e}"));
     }
 
     pub fn set_window_dimensions(&self, dimensions: Vec2<usize>) {

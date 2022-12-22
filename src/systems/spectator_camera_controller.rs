@@ -1,70 +1,87 @@
+use std::time::{Duration, Instant};
+
+use tokio::time::{interval, MissedTickBehavior};
 use vek::{num_traits::Zero, Vec2, Vec3};
 
 use muleengine::{
     camera::Camera,
-    prelude::ArcRwLock,
-    renderer::renderer_client::RendererClient,
+    messaging::spmc,
+    prelude::{ArcRwLock, ResultInspector},
+    renderer::{renderer_client::RendererClient, TransformHandler},
     system_container::System,
     window_context::{Key, WindowContext},
 };
 
-pub struct SpectatorCameraControllerSystem {
-    camera: Camera,
+pub struct SpectatorCameraInputSystem {
     window_context: ArcRwLock<dyn WindowContext>,
-    renderer_client: RendererClient,
+    data: SpectatorCameraInput,
+
+    moving_event_sender: spmc::Sender<Vec3<f32>>,
+    turning_event_sender: spmc::Sender<Vec2<f32>>,
 }
 
-impl SpectatorCameraControllerSystem {
-    pub fn new(
-        renderer_client: RendererClient,
-        window_context: ArcRwLock<dyn WindowContext>,
-    ) -> Self {
+#[derive(Clone)]
+pub struct SpectatorCameraInput {
+    moving_event_receiver: spmc::Receiver<Vec3<f32>>,
+    turning_event_receiver: spmc::Receiver<Vec2<f32>>,
+}
+
+impl SpectatorCameraInputSystem {
+    pub fn new(window_context: ArcRwLock<dyn WindowContext>) -> Self {
+        let turning_event_sender = spmc::Sender::new();
+        let turning_event_receiver = turning_event_sender.create_receiver();
+
+        let moving_event_sender = spmc::Sender::new();
+        let moving_event_receiver = moving_event_sender.create_receiver();
+
         Self {
-            camera: Camera::new(),
             window_context,
-            renderer_client,
+            data: SpectatorCameraInput {
+                moving_event_receiver,
+                turning_event_receiver,
+            },
+
+            moving_event_sender,
+            turning_event_sender,
         }
+    }
+
+    pub fn data(&self) -> &SpectatorCameraInput {
+        &self.data
     }
 }
 
-impl System for SpectatorCameraControllerSystem {
-    fn tick(&mut self, delta_time_in_secs: f32) {
-        let mut camera_turn = Vec2::<f32>::zero(); // x: vertical turn, y: horizontal turn
-
+impl System for SpectatorCameraInputSystem {
+    fn tick(&mut self, _delta_time_in_secs: f32) {
         let engine = self.window_context.read();
 
         // moving the camera with the keyboard
-        let moving_direction = {
-            let mut direction = Vec3::<f32>::zero();
+        let mut moving_direction = Vec3::zero();
+        if engine.is_key_pressed(Key::W) {
+            moving_direction.z = -1.0;
+        }
+        if engine.is_key_pressed(Key::S) {
+            moving_direction.z = 1.0;
+        }
 
-            if engine.is_key_pressed(Key::W) {
-                direction.z -= 1.0;
-            }
-            if engine.is_key_pressed(Key::S) {
-                direction.z += 1.0;
-            }
-            if engine.is_key_pressed(Key::A) {
-                direction.x -= 1.0;
-            }
-            if engine.is_key_pressed(Key::D) {
-                direction.x += 1.0;
-            }
-            if engine.is_key_pressed(Key::Space) {
-                direction.y += 1.0;
-            }
-            if engine.is_key_pressed(Key::C)
-                || engine.is_key_pressed(Key::CtrlLeft)
-                || engine.is_key_pressed(Key::CtrlRight)
-            {
-                direction.y -= 1.0;
-            }
+        if engine.is_key_pressed(Key::A) {
+            moving_direction.x = -1.0;
+        }
+        if engine.is_key_pressed(Key::D) {
+            moving_direction.x = 1.0;
+        }
 
-            if direction != Vec3::zero() {
-                direction.normalize();
-            }
+        if engine.is_key_pressed(Key::Space) {
+            moving_direction.y = 1.0;
+        }
+        if engine.is_key_pressed(Key::C)
+            || engine.is_key_pressed(Key::CtrlLeft)
+            || engine.is_key_pressed(Key::CtrlRight)
+        {
+            moving_direction.y = -1.0;
+        }
 
-            direction
-        };
+        self.moving_event_sender.send(moving_direction);
 
         // turning the camera with the keyboard
         let keyboard_camera_turn = {
@@ -103,29 +120,91 @@ impl System for SpectatorCameraControllerSystem {
             mouse_motion_relative_to_center
         };
 
+        let final_camera_turn = keyboard_camera_turn.unwrap_or(mouse_camera_turn);
+
+        self.turning_event_sender.send(Vec2::new(
+            final_camera_turn.x as f32,
+            final_camera_turn.y as f32,
+        ));
+    }
+}
+
+pub struct SpectatorCameraControllerSystem {
+    camera: Camera,
+    skydome_camera_transform_handler: TransformHandler,
+    main_camera_transform_handler: TransformHandler,
+    renderer_client: RendererClient,
+    spectator_camera_input: SpectatorCameraInput,
+}
+
+impl SpectatorCameraControllerSystem {
+    pub fn new(
+        renderer_client: RendererClient,
+        skydome_camera_transform_handler: TransformHandler,
+        main_camera_transform_handler: TransformHandler,
+        spectator_camera_input: SpectatorCameraInput,
+    ) -> Self {
+        Self {
+            camera: Camera::new(),
+            skydome_camera_transform_handler,
+            main_camera_transform_handler,
+            renderer_client,
+            spectator_camera_input,
+        }
+    }
+
+    async fn run(&mut self) {
+        let interval_secs = 1.0 / 30.0;
+        let mut interval = interval(Duration::from_secs_f32(interval_secs));
+        interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
+
+        let mut delta_time_secs = 0.0;
+
+        loop {
+            let start = Instant::now();
+
+            self.tick(delta_time_secs).await;
+
+            interval.tick().await;
+
+            let end = Instant::now();
+            delta_time_secs = (end - start).as_secs_f32();
+        }
+    }
+
+    async fn tick(&mut self, delta_time_in_secs: f32) {
+        // moving the camera
+        let mut moving_direction = Vec3::<f32>::zero();
+        while let Some(moving_input) = self.spectator_camera_input.moving_event_receiver.pop() {
+            moving_direction += moving_input;
+        }
+
+        if moving_direction != Vec3::zero() {
+            moving_direction.normalize();
+        }
+
         // turning the camera
+        let mut camera_turn = Vec2::<f32>::zero();
+        while let Some(camera_turn_input) = self.spectator_camera_input.turning_event_receiver.pop()
         {
-            let final_camera_turn = keyboard_camera_turn.unwrap_or(mouse_camera_turn);
-
-            if final_camera_turn.x < 0 {
+            if camera_turn_input.x < 0.0 {
                 // left
-                camera_turn.y = 1.0;
-            } else if final_camera_turn.x > 0 {
+                camera_turn.y += 1.0;
+            } else if camera_turn_input.x > 0.0 {
                 // right
-                camera_turn.y = -1.0;
-            } else {
-                camera_turn.y = 0.0;
+                camera_turn.y -= 1.0;
             }
 
-            if final_camera_turn.y < 0 {
+            if camera_turn_input.y < 0.0 {
                 // down
-                camera_turn.x = 1.0;
-            } else if final_camera_turn.y > 0 {
+                camera_turn.x += 1.0;
+            } else if camera_turn_input.y > 0.0 {
                 // up
-                camera_turn.x = -1.0;
-            } else {
-                camera_turn.x = 0.0;
+                camera_turn.x -= 1.0;
             }
+        }
+        if !camera_turn.is_approx_zero() {
+            camera_turn.normalize();
         }
 
         // transform the camera
@@ -147,6 +226,40 @@ impl System for SpectatorCameraControllerSystem {
         self.camera
             .rotate_around_unit_y(camera_turn.y * turning_velocity_rad * delta_time_in_secs);
 
-        self.renderer_client.set_camera(self.camera.clone());
+        let _ = self
+            .renderer_client
+            .update_transform(
+                self.main_camera_transform_handler.clone(),
+                self.camera.transform,
+            )
+            .await
+            .inspect_err(|e| log::error!("{e:?}"));
+
+        let mut skybox_camera_transform = self.camera.transform;
+        skybox_camera_transform.position = Vec3::zero();
+        let _ = self
+            .renderer_client
+            .update_transform(
+                self.skydome_camera_transform_handler.clone(),
+                skybox_camera_transform,
+            )
+            .await
+            .inspect_err(|e| log::error!("{e:?}"));
     }
+}
+
+pub async fn run(
+    renderer_client: RendererClient,
+    skydome_camera_transform_handler: TransformHandler,
+    main_camera_transform_handler: TransformHandler,
+    spectator_camera_input: SpectatorCameraInput,
+) {
+    SpectatorCameraControllerSystem::new(
+        renderer_client,
+        skydome_camera_transform_handler,
+        main_camera_transform_handler,
+        spectator_camera_input,
+    )
+    .run()
+    .await;
 }

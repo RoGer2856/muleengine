@@ -20,6 +20,7 @@ pub use renderer_objects::renderer_transform::*;
 
 #[derive(Debug)]
 pub enum RendererError {
+    InvalidRendererCameraHandler(CameraHandler),
     InvalidRendererTransformHandler(TransformHandler),
     InvalidRendererMaterialHandler(MaterialHandler),
     InvalidRendererShaderHandler(ShaderHandler),

@@ -428,7 +428,7 @@ fn init_test_async() -> (TestLoopAsync, TestLoopClient) {
 
 impl TestLoopSync {
     pub async fn block_on_main_loop(&mut self) {
-        while self.should_run.fetch_and(true, Ordering::SeqCst) {
+        while self.should_run.load(Ordering::SeqCst) {
             self.renderer_system.tick(1.0 / 30.0);
 
             tokio::task::yield_now().await;
@@ -444,7 +444,7 @@ impl TestLoopSync {
 
 impl TestLoopAsync {
     pub async fn block_on_main_loop(&mut self) {
-        while self.should_run.fetch_and(true, Ordering::SeqCst) {
+        while self.should_run.load(Ordering::SeqCst) {
             self.renderer_system.tick(1.0 / 30.0);
 
             tokio::task::yield_now().await;
@@ -464,7 +464,7 @@ impl TestLoopClient {
     }
 
     pub fn stop_main_loop(&self) {
-        self.should_run.fetch_and(false, Ordering::SeqCst);
+        self.should_run.load(Ordering::SeqCst);
     }
 
     pub fn renderer_impl(&self) -> &TestRendererImpl {

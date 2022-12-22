@@ -4,7 +4,7 @@ use vek::Vec2;
 use super::renderer_layer_object::RendererLayerObject;
 
 #[derive(Clone)]
-pub enum RendererPipelineStepObject {
+pub(crate) enum RendererPipelineStepObject {
     Clear {
         depth: bool,
         color: bool,

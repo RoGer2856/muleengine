@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use super::spectator_camera_controller::{self, SpectatorCameraInput};
 use muleengine::{
     asset_container::AssetContainer,
     mesh::{Material, MaterialTexture, MaterialTextureType, TextureMapMode},
@@ -7,7 +8,8 @@ use muleengine::{
     prelude::ResultInspector,
     renderer::{
         renderer_client::RendererClient, renderer_pipeline_step::RendererPipelineStep,
-        RendererGroupHandler, RendererLayerHandler, RendererObjectHandler,
+        CameraHandler, RendererGroupHandler, RendererLayerHandler, RendererObjectHandler,
+        TransformHandler,
     },
     service_container::ServiceContainer,
     system_container::System,
@@ -19,9 +21,16 @@ pub struct GameManager {
     first_tick: bool,
     service_container: ServiceContainer,
     inner: Arc<RwLock<Option<GameManagerPri>>>,
+    spectator_camera_input: SpectatorCameraInput,
 }
 
 struct GameManagerPri {
+    _skydome_camera_transform_handler: TransformHandler,
+    _skydome_camera_handler: CameraHandler,
+
+    _main_camera_transform_handler: TransformHandler,
+    _main_camera_handler: CameraHandler,
+
     _skydome_renderer_layer_handler: RendererLayerHandler,
     _main_renderer_layer_handler: RendererLayerHandler,
 
@@ -35,25 +44,56 @@ struct GameManagerPri {
 }
 
 impl GameManager {
-    pub fn new(service_container: ServiceContainer) -> Self {
+    pub fn new(
+        service_container: ServiceContainer,
+        spectator_camera_input: SpectatorCameraInput,
+    ) -> Self {
         Self {
             first_tick: true,
             service_container,
             inner: Arc::new(RwLock::new(None)),
+            spectator_camera_input,
         }
     }
 }
 
 impl GameManagerPri {
-    pub async fn new(service_container: ServiceContainer) -> Self {
+    pub async fn new(
+        service_container: ServiceContainer,
+        spectator_camera_input: SpectatorCameraInput,
+    ) -> Self {
         let renderer_client = service_container
             .get_service::<RendererClient>()
             .unwrap()
             .read()
             .clone();
 
-        let skydome_renderer_layer_handler = renderer_client.create_renderer_layer().await.unwrap();
-        let main_renderer_layer_handler = renderer_client.create_renderer_layer().await.unwrap();
+        let skydome_camera_transform_handler = renderer_client
+            .create_transform(Transform::default())
+            .await
+            .unwrap();
+        let skydome_camera_handler = renderer_client
+            .create_camera(skydome_camera_transform_handler.clone())
+            .await
+            .unwrap();
+
+        let main_camera_transform_handler = renderer_client
+            .create_transform(Transform::default())
+            .await
+            .unwrap();
+        let main_camera_handler = renderer_client
+            .create_camera(main_camera_transform_handler.clone())
+            .await
+            .unwrap();
+
+        let skydome_renderer_layer_handler = renderer_client
+            .create_renderer_layer(skydome_camera_handler.clone())
+            .await
+            .unwrap();
+        let main_renderer_layer_handler = renderer_client
+            .create_renderer_layer(main_camera_handler.clone())
+            .await
+            .unwrap();
 
         let skydome_renderer_group_handler = renderer_client.create_renderer_group().await.unwrap();
         renderer_client
@@ -104,7 +144,20 @@ impl GameManagerPri {
             .await
             .unwrap();
 
+        tokio::spawn(spectator_camera_controller::run(
+            renderer_client.clone(),
+            skydome_camera_transform_handler.clone(),
+            main_camera_transform_handler.clone(),
+            spectator_camera_input.clone(),
+        ));
+
         let mut ret = Self {
+            _skydome_camera_transform_handler: skydome_camera_transform_handler,
+            _skydome_camera_handler: skydome_camera_handler,
+
+            _main_camera_handler: main_camera_handler,
+            _main_camera_transform_handler: main_camera_transform_handler,
+
             _skydome_renderer_layer_handler: skydome_renderer_layer_handler,
             _main_renderer_layer_handler: main_renderer_layer_handler,
 
@@ -345,10 +398,12 @@ impl System for GameManager {
 
             let inner = self.inner.clone();
             let service_container = self.service_container.clone();
+            let spectator_camera_input = self.spectator_camera_input.clone();
             tokio::spawn(async move {
                 tokio::spawn(async move {
-                    *inner.write().await =
-                        Some(GameManagerPri::new(service_container.clone()).await);
+                    let game_manager_pri =
+                        GameManagerPri::new(service_container, spectator_camera_input).await;
+                    *inner.write().await = Some(game_manager_pri);
                 })
                 .await
                 .inspect_err(|e| {
