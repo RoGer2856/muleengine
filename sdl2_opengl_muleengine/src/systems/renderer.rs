@@ -667,7 +667,7 @@ impl RendererImpl for Renderer {
         let mesh_renderer_object = Arc::new(RwLock::new(GLDrawableMesh::new(
             mesh.read().gl_mesh().clone(),
             material.read().gl_material().clone(),
-            transform.read().clone(),
+            **transform.read(),
             shader,
         )));
 
@@ -802,13 +802,13 @@ impl RendererImpl for Renderer {
         };
 
         let camera = Arc::new(RwLock::new(GLCamera {
-            transform: transform.read().clone(),
+            transform: **transform.read(),
         }));
 
         let index = self.renderer_cameras.create_object((
             camera.clone(),
             transform.write().observe(move |transform| {
-                camera.write().transform = transform.clone();
+                camera.write().transform = *transform;
             }),
         ));
 
