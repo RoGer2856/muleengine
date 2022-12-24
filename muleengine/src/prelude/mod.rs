@@ -1,3 +1,5 @@
+mod result_option_inspect;
+
 use std::{
     any::{Any, TypeId},
     sync::Arc,
@@ -5,7 +7,7 @@ use std::{
 
 use parking_lot::RwLock;
 
-pub use crate::result_option_inspect::*;
+pub use result_option_inspect::*;
 
 pub type ArcRwLock<T> = Arc<RwLock<T>>;
 

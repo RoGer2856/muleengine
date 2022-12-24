@@ -5,7 +5,7 @@ use vek::Transform;
 
 use crate::{
     mesh::{Material, Mesh},
-    result_option_inspect::ResultInspector,
+    prelude::ResultInspector,
 };
 
 use super::{

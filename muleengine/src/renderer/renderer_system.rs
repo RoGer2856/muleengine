@@ -7,8 +7,7 @@ use vek::Transform;
 use crate::{
     containers::object_pool::{ObjectPool, ObjectPoolIndex},
     mesh::{Material, Mesh},
-    prelude::{ArcRwLock, OptionInspector},
-    result_option_inspect::ResultInspector,
+    prelude::{ArcRwLock, OptionInspector, ResultInspector},
     system_container::System,
 };
 
