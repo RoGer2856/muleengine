@@ -1,6 +1,6 @@
 #![allow(unstable_name_collisions)]
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use game_2::{
     main_loop::MainLoop,
@@ -9,10 +9,12 @@ use game_2::{
 use muleengine::{
     asset_container::AssetContainer,
     asset_reader::AssetReader,
+    fps_counter::FpsCounter,
     image_container::ImageContainer,
     renderer::renderer_system::SyncRenderer,
     scene_container::SceneContainer,
     service_container::ServiceContainer,
+    stopwatch::Stopwatch,
     system_container::SystemContainer,
     window_context::{Event, WindowContext},
 };
@@ -101,6 +103,9 @@ async fn async_main() {
 
     let event_receiver = sdl2_gl_context.read().event_receiver();
 
+    let mut stopwatch = Stopwatch::start_new();
+    let mut fps_counter = FpsCounter::new();
+
     const DESIRED_FPS: f32 = 30.0;
     let main_loop = MainLoop::new(DESIRED_FPS);
     'running: for delta_time_in_secs in main_loop.iter() {
@@ -125,6 +130,13 @@ async fn async_main() {
             sdl2_gl_context
                 .write()
                 .warp_mouse_normalized_screen_space(Vec2::new(0.5, 0.5));
+        }
+
+        fps_counter.draw_happened();
+        if stopwatch.elapsed() > Duration::from_millis(1000) {
+            log::debug!("Average FPS = {:?}", fps_counter.get_average_fps());
+            stopwatch.restart();
+            fps_counter.restart();
         }
 
         tokio::task::yield_now().await;
