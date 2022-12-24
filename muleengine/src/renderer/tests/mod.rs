@@ -1,6 +1,6 @@
 mod test_renderer;
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use tokio::sync::RwLock as AsyncRwLock;
 use vek::{Transform, Vec3};
@@ -30,7 +30,7 @@ async fn transform_is_released_when_handlers_are_dropped() {
         })
     };
 
-    test_loop.block_on_main_loop().await;
+    test_loop.block_on_main_loop(Duration::from_secs(1)).await;
 
     test_task.await.unwrap();
 
@@ -84,7 +84,7 @@ async fn update_transform() {
         })
     };
 
-    test_loop.block_on_main_loop().await;
+    test_loop.block_on_main_loop(Duration::from_secs(1)).await;
 
     test_task.await.unwrap();
 }
@@ -108,7 +108,7 @@ async fn shader_is_released_when_handlers_are_dropped() {
         })
     };
 
-    test_loop.block_on_main_loop().await;
+    test_loop.block_on_main_loop(Duration::from_secs(1)).await;
 
     test_task.await.unwrap();
 
@@ -143,7 +143,7 @@ async fn material_is_released_when_handlers_are_dropped() {
         })
     };
 
-    test_loop.block_on_main_loop().await;
+    test_loop.block_on_main_loop(Duration::from_secs(1)).await;
 
     test_task.await.unwrap();
 
@@ -178,7 +178,7 @@ async fn mesh_is_released_when_handlers_are_dropped() {
         })
     };
 
-    test_loop.block_on_main_loop().await;
+    test_loop.block_on_main_loop(Duration::from_secs(1)).await;
 
     test_task.await.unwrap();
 
@@ -268,7 +268,7 @@ async fn renderer_object_is_released_when_handlers_are_dropped() {
         })
     };
 
-    test_loop.block_on_main_loop().await;
+    test_loop.block_on_main_loop(Duration::from_secs(1)).await;
 
     test_task.await.unwrap();
 

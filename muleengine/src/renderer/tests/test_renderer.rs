@@ -4,6 +4,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
+    time::{Duration, Instant},
 };
 
 use parking_lot::RwLock;
@@ -425,11 +426,17 @@ pub fn init_test_async() -> (TestLoopAsync, TestLoopClient) {
 }
 
 impl TestLoopSync {
-    pub async fn block_on_main_loop(&mut self) {
+    pub async fn block_on_main_loop(&mut self, timeout: Duration) {
+        let start = Instant::now();
         while self.should_run.load(Ordering::SeqCst) {
             self.renderer_system.tick(1.0 / 30.0);
 
             tokio::task::yield_now().await;
+
+            let now = Instant::now();
+            if now - start >= timeout {
+                break;
+            }
         }
 
         self.renderer_system.tick(1.0 / 30.0);
@@ -441,11 +448,17 @@ impl TestLoopSync {
 }
 
 impl TestLoopAsync {
-    pub async fn block_on_main_loop(&mut self) {
+    pub async fn block_on_main_loop(&mut self, timeout: Duration) {
+        let start = Instant::now();
         while self.should_run.load(Ordering::SeqCst) {
             self.renderer_system.tick(1.0 / 30.0);
 
             tokio::task::yield_now().await;
+
+            let now = Instant::now();
+            if now - start >= timeout {
+                break;
+            }
         }
 
         self.renderer_system.tick(1.0 / 30.0);
