@@ -230,10 +230,6 @@ impl Renderer {
             near_plane,
             far_plane,
         );
-
-        unsafe {
-            gl::Viewport(0, 0, window_dimensions.x as i32, window_dimensions.y as i32);
-        }
     }
 }
 
