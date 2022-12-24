@@ -7,34 +7,33 @@ use std::{
 };
 
 use parking_lot::RwLock;
-use tokio::sync::RwLock as AsyncRwLock;
-use vek::{Transform, Vec3};
+use vek::Transform;
 
 use crate::{
     mesh::{Material, Mesh},
     prelude::ArcRwLock,
-    renderer::RendererGroupHandler,
+    renderer::{
+        renderer_client::RendererClient,
+        renderer_impl::RendererImpl,
+        renderer_pipeline_step_impl,
+        renderer_system::{AsyncRenderer, SyncRenderer},
+        RendererCamera, RendererGroup, RendererLayer, RendererMaterial, RendererMesh,
+        RendererObject, RendererShader, RendererTransform,
+    },
     sendable_ptr::SendablePtr,
     system_container::System,
 };
 
-use super::{
-    renderer_client::RendererClient,
-    renderer_impl::RendererImpl,
-    renderer_system::{AsyncRenderer, SyncRenderer},
-    RendererCamera, RendererGroup, RendererLayer, RendererMaterial, RendererMesh, RendererObject,
-    RendererShader, RendererTransform,
-};
-
 #[derive(Clone)]
-struct TestRendererImpl {
-    renderer_groups: ArcRwLock<BTreeMap<SendablePtr<dyn RendererGroup>, TestRendererGroupImpl>>,
-    transforms: ArcRwLock<BTreeMap<SendablePtr<dyn RendererTransform>, Transform<f32, f32, f32>>>,
-    materials: ArcRwLock<BTreeMap<SendablePtr<dyn RendererMaterial>, Material>>,
-    shaders: ArcRwLock<BTreeMap<SendablePtr<dyn RendererShader>, String>>,
-    meshes: ArcRwLock<BTreeMap<SendablePtr<dyn RendererMesh>, Arc<Mesh>>>,
+pub struct TestRendererImpl {
+    pub renderer_groups: ArcRwLock<BTreeMap<SendablePtr<dyn RendererGroup>, TestRendererGroupImpl>>,
+    pub transforms:
+        ArcRwLock<BTreeMap<SendablePtr<dyn RendererTransform>, Transform<f32, f32, f32>>>,
+    pub materials: ArcRwLock<BTreeMap<SendablePtr<dyn RendererMaterial>, Material>>,
+    pub shaders: ArcRwLock<BTreeMap<SendablePtr<dyn RendererShader>, String>>,
+    pub meshes: ArcRwLock<BTreeMap<SendablePtr<dyn RendererMesh>, Arc<Mesh>>>,
 
-    renderer_objects: ArcRwLock<BTreeSet<SendablePtr<dyn RendererObject>>>,
+    pub renderer_objects: ArcRwLock<BTreeSet<SendablePtr<dyn RendererObject>>>,
 }
 
 impl TestRendererImpl {
@@ -51,8 +50,8 @@ impl TestRendererImpl {
 }
 
 #[derive(Clone)]
-struct TestRendererGroupImpl {
-    renderer_objects: ArcRwLock<BTreeSet<SendablePtr<dyn RendererObject>>>,
+pub struct TestRendererGroupImpl {
+    pub renderer_objects: ArcRwLock<BTreeSet<SendablePtr<dyn RendererObject>>>,
 }
 
 impl RendererGroup for TestRendererGroupImpl {}
@@ -80,25 +79,25 @@ impl TestRendererGroupImpl {
     }
 }
 
-struct TestRendererTransformImpl;
+pub struct TestRendererTransformImpl;
 impl RendererTransform for TestRendererTransformImpl {}
 
-struct TestRendererMaterialImpl;
+pub struct TestRendererMaterialImpl;
 impl RendererMaterial for TestRendererMaterialImpl {}
 
-struct TestRendererShaderImpl;
+pub struct TestRendererShaderImpl;
 impl RendererShader for TestRendererShaderImpl {}
 
-struct TestRendererMeshImpl;
+pub struct TestRendererMeshImpl;
 impl RendererMesh for TestRendererMeshImpl {}
 
-struct TestRendererObjectImpl;
+pub struct TestRendererObjectImpl;
 impl RendererObject for TestRendererObjectImpl {}
 
 impl RendererImpl for TestRendererImpl {
     fn set_renderer_pipeline(
         &mut self,
-        steps: Vec<super::renderer_pipeline_step_impl::RendererPipelineStepImpl>,
+        steps: Vec<renderer_pipeline_step_impl::RendererPipelineStepImpl>,
     ) -> Result<(), String> {
         todo!();
     }
@@ -370,24 +369,24 @@ impl RendererImpl for TestRendererImpl {
     fn render(&mut self) {}
 }
 
-struct TestLoopSync {
+pub struct TestLoopSync {
     should_run: Arc<AtomicBool>,
     renderer_system: SyncRenderer,
 }
 
-struct TestLoopAsync {
+pub struct TestLoopAsync {
     should_run: Arc<AtomicBool>,
     renderer_system: AsyncRenderer,
 }
 
 #[derive(Clone)]
-struct TestLoopClient {
+pub struct TestLoopClient {
     should_run: Arc<AtomicBool>,
     renderer_impl: TestRendererImpl,
     renderer_client: RendererClient,
 }
 
-fn init_test_sync() -> (TestLoopSync, TestLoopClient) {
+pub fn init_test_sync() -> (TestLoopSync, TestLoopClient) {
     let renderer_impl = TestRendererImpl::new();
     let should_run = Arc::new(AtomicBool::new(true));
     let renderer_system = SyncRenderer::new(renderer_impl.clone());
@@ -406,7 +405,7 @@ fn init_test_sync() -> (TestLoopSync, TestLoopClient) {
     )
 }
 
-fn init_test_async() -> (TestLoopAsync, TestLoopClient) {
+pub fn init_test_async() -> (TestLoopAsync, TestLoopClient) {
     let renderer_impl = TestRendererImpl::new();
     let should_run = Arc::new(AtomicBool::new(true));
     let renderer_system = AsyncRenderer::new(4, renderer_impl.clone());
@@ -463,288 +462,10 @@ impl TestLoopClient {
     }
 
     pub fn stop_main_loop(&self) {
-        self.should_run.load(Ordering::SeqCst);
+        self.should_run.store(false, Ordering::SeqCst);
     }
 
     pub fn renderer_impl(&self) -> &TestRendererImpl {
         &self.renderer_impl
     }
 }
-
-#[tokio::test(flavor = "current_thread")]
-async fn transform_is_released_when_handlers_are_dropped() {
-    let (mut test_loop, test_client) = init_test_sync();
-
-    let test_task = {
-        let test_client = test_client.clone();
-        tokio::spawn(async move {
-            let _handler = test_client
-                .renderer_client()
-                .create_transform(Transform::default())
-                .await
-                .unwrap();
-
-            assert_eq!(1, test_client.renderer_impl().transforms.read().len());
-
-            test_client.stop_main_loop();
-        })
-    };
-
-    test_loop.block_on_main_loop().await;
-
-    test_task.await.unwrap();
-
-    assert_eq!(
-        0,
-        test_loop
-            .renderer_system()
-            .renderer_pri
-            .renderer_transforms
-            .read()
-            .len()
-    );
-    assert_eq!(0, test_client.renderer_impl().transforms.read().len());
-}
-
-// #[tokio::test(flavor = "current_thread")]
-// async fn update_transform() {
-//     let (mut test_loop, test_client) = init_test_async();
-
-//     let test_task = {
-//         let test_client = test_client.clone();
-//         tokio::spawn(async move {
-//             let mut transform = Transform::default();
-
-//             let handler = test_client
-//                 .renderer_client()
-//                 .create_transform(transform)
-//                 .await
-//                 .unwrap();
-
-//             transform.position += Vec3::new(1.0, 2.0, 3.0);
-//             test_client
-//                 .renderer_client()
-//                 .update_transform(handler.clone(), transform)
-//                 .await
-//                 .unwrap();
-
-//             assert_eq!(
-//                 transform,
-//                 *test_client
-//                     .renderer_impl()
-//                     .transforms
-//                     .read()
-//                     .iter()
-//                     .next()
-//                     .unwrap()
-//                     .1
-//             );
-
-//             test_client.stop_main_loop();
-//         })
-//     };
-
-//     test_loop.block_on_main_loop().await;
-
-//     test_task.await.unwrap();
-// }
-
-// #[tokio::test(flavor = "current_thread")]
-// async fn shader_is_released_when_handlers_are_dropped() {
-//     let (mut test_loop, test_client) = init_test_sync();
-
-//     let test_task = {
-//         let test_client = test_client.clone();
-//         tokio::spawn(async move {
-//             let _handler = test_client
-//                 .renderer_client()
-//                 .create_shader("some shader name".to_string())
-//                 .await
-//                 .unwrap();
-
-//             assert_eq!(1, test_client.renderer_impl().shaders.read().len());
-
-//             test_client.stop_main_loop();
-//         })
-//     };
-
-//     test_loop.block_on_main_loop().await;
-
-//     test_task.await.unwrap();
-
-//     assert_eq!(
-//         0,
-//         test_loop
-//             .renderer_system()
-//             .renderer_pri
-//             .renderer_shaders
-//             .read()
-//             .len()
-//     );
-//     assert_eq!(0, test_client.renderer_impl().shaders.read().len());
-// }
-
-// #[tokio::test(flavor = "current_thread")]
-// async fn material_is_released_when_handlers_are_dropped() {
-//     let (mut test_loop, test_client) = init_test_async();
-
-//     let test_task = {
-//         let test_client = test_client.clone();
-//         tokio::spawn(async move {
-//             let _handler = test_client
-//                 .renderer_client()
-//                 .create_material(Material::default())
-//                 .await
-//                 .unwrap();
-
-//             assert_eq!(1, test_client.renderer_impl().materials.read().len());
-
-//             test_client.stop_main_loop();
-//         })
-//     };
-
-//     test_loop.block_on_main_loop().await;
-
-//     test_task.await.unwrap();
-
-//     assert_eq!(
-//         0,
-//         test_loop
-//             .renderer_system()
-//             .renderer_pri
-//             .renderer_materials
-//             .read()
-//             .len()
-//     );
-//     assert_eq!(0, test_client.renderer_impl().materials.read().len());
-// }
-
-// #[tokio::test(flavor = "current_thread")]
-// async fn mesh_is_released_when_handlers_are_dropped() {
-//     let (mut test_loop, test_client) = init_test_sync();
-
-//     let test_task = {
-//         let test_client = test_client.clone();
-//         tokio::spawn(async move {
-//             let _handler = test_client
-//                 .renderer_client()
-//                 .create_mesh(Arc::new(Mesh::default()))
-//                 .await
-//                 .unwrap();
-
-//             assert_eq!(1, test_client.renderer_impl().meshes.read().len());
-
-//             test_client.stop_main_loop();
-//         })
-//     };
-
-//     test_loop.block_on_main_loop().await;
-
-//     test_task.await.unwrap();
-
-//     assert_eq!(
-//         0,
-//         test_loop
-//             .renderer_system()
-//             .renderer_pri
-//             .renderer_meshes
-//             .read()
-//             .len()
-//     );
-//     assert_eq!(0, test_client.renderer_impl().meshes.read().len());
-// }
-
-// #[tokio::test(flavor = "current_thread")]
-// async fn renderer_object_is_released_when_handlers_are_dropped() {
-//     let (mut test_loop, test_client) = init_test_async();
-
-//     let renderer_group_handler: Arc<AsyncRwLock<Option<RendererGroupHandler>>> =
-//         Arc::new(AsyncRwLock::new(None));
-
-//     let test_task = {
-//         let test_client = test_client.clone();
-//         let renderer_group_handler = renderer_group_handler.clone();
-//         tokio::spawn(async move {
-//             let transform_handler = test_client
-//                 .renderer_client()
-//                 .create_transform(Transform::default())
-//                 .await
-//                 .unwrap();
-
-//             let material_handler = test_client
-//                 .renderer_client()
-//                 .create_material(Material::default())
-//                 .await
-//                 .unwrap();
-
-//             let shader_handler = test_client
-//                 .renderer_client()
-//                 .create_shader("some shader name".to_string())
-//                 .await
-//                 .unwrap();
-
-//             let mesh_handler = test_client
-//                 .renderer_client()
-//                 .create_mesh(Arc::new(Mesh::default()))
-//                 .await
-//                 .unwrap();
-
-//             let renderer_object_handler = test_client
-//                 .renderer_client()
-//                 .create_renderer_object_from_mesh(
-//                     mesh_handler,
-//                     shader_handler,
-//                     material_handler,
-//                     transform_handler,
-//                 )
-//                 .await
-//                 .unwrap();
-
-//             *renderer_group_handler.write().await = Some(
-//                 test_client
-//                     .renderer_client()
-//                     .create_renderer_group()
-//                     .await
-//                     .unwrap(),
-//             );
-
-//             test_client
-//                 .renderer_client()
-//                 .add_renderer_object_to_group(
-//                     renderer_object_handler.clone(),
-//                     renderer_group_handler.read().await.clone().unwrap(),
-//                 )
-//                 .await
-//                 .unwrap();
-
-//             assert_eq!(1, test_client.renderer_impl().renderer_objects.read().len());
-
-//             let renderer_groups = test_client.renderer_impl().renderer_groups.read();
-//             assert_eq!(1, renderer_groups.len());
-//             let renderer_group = renderer_groups.iter().next().unwrap().1;
-//             assert_eq!(1, renderer_group.renderer_objects.read().len());
-
-//             test_client.stop_main_loop();
-//         })
-//     };
-
-//     test_loop.block_on_main_loop().await;
-
-//     test_task.await.unwrap();
-
-//     assert_eq!(
-//         0,
-//         test_loop
-//             .renderer_system()
-//             .renderer_pri
-//             .renderer_objects
-//             .read()
-//             .len()
-//     );
-//     assert_eq!(0, test_client.renderer_impl().renderer_objects.read().len());
-
-//     let renderer_groups = test_client.renderer_impl().renderer_groups.read();
-//     assert_eq!(1, renderer_groups.len());
-//     let renderer_group = renderer_groups.iter().next().unwrap().1;
-//     assert_eq!(0, renderer_group.renderer_objects.read().len());
-// }
