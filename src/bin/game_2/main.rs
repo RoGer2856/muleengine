@@ -17,7 +17,10 @@ use muleengine::{
     window_context::{Event, WindowContext},
 };
 use parking_lot::RwLock;
-use sdl2_opengl_muleengine::{systems::renderer::Renderer, GLProfile, Sdl2GLContext};
+use sdl2_opengl_muleengine::{
+    sdl2_gl_context::{GLProfile, Sdl2GLContext},
+    systems::renderer::Renderer,
+};
 use vek::Vec2;
 
 fn main() {
