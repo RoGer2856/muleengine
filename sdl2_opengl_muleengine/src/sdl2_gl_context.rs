@@ -1,7 +1,8 @@
+use muleengine::prelude::ResultInspector;
 use sdl2::event as sdl2_event;
 use sdl2::keyboard::{Keycode, Scancode};
 use sdl2::mouse::MouseButton as Sdl2MouseButton;
-use sdl2::video::{GLContext, Window, WindowBuildError};
+use sdl2::video::{FullscreenType, GLContext, Window, WindowBuildError};
 use sdl2::{video, EventPump, Sdl, VideoSubsystem};
 use vek::Vec2;
 
@@ -71,6 +72,7 @@ impl Sdl2GLContext {
         let sdl_window = sdl_video
             .window(window_name, window_width, window_height)
             .opengl()
+            .maximized()
             .build()
             .map_err(ContextCreationError::CouldNotBuildWindow)?;
 
@@ -200,6 +202,19 @@ impl WindowContext for Sdl2GLContext {
             self.sdl_window.size().0 as usize,
             self.sdl_window.size().1 as usize,
         )
+    }
+
+    fn set_fullscreen(&mut self, fullscreen: bool) {
+        let _ = if fullscreen {
+            self.sdl_window.set_fullscreen(FullscreenType::Desktop)
+        } else {
+            self.sdl_window.set_fullscreen(FullscreenType::Off)
+        }
+        .inspect_err(|e| {
+            log::error!("set_fullscreen, msg = {e}");
+        });
+
+        self.sdl_window.maximize();
     }
 
     fn show_cursor(&mut self, show: bool) {
