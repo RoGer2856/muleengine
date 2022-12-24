@@ -1014,9 +1014,6 @@ impl RendererPri {
             Command::ReleaseCamera { object_pool_index } => {
                 self.release_camera(object_pool_index, renderer_impl);
             }
-            Command::SetWindowDimensions { dimensions } => {
-                renderer_impl.set_window_dimensions(dimensions);
-            }
         }
     }
 

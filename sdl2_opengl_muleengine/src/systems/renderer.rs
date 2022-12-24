@@ -14,7 +14,7 @@ use muleengine::{
     window_context::WindowContext,
 };
 use parking_lot::RwLock;
-use vek::{Mat4, Transform, Vec2};
+use vek::{Mat4, Transform, Vec2, Vec4};
 
 use crate::{
     gl_drawable_mesh::GLDrawableMesh,
@@ -52,6 +52,8 @@ pub struct Renderer {
 
     mesh_renderer_objects: ObjectPool<(ArcRwLock<MeshRendererObject>, TransformObserver)>,
 
+    screen_clear_color: Vec4<f32>,
+
     projection_matrix: Mat4<f32>,
     window_dimensions: Vec2<usize>,
     window_context: ArcRwLock<dyn WindowContext>,
@@ -81,6 +83,8 @@ impl Renderer {
             renderer_meshes: ObjectPool::new(),
 
             mesh_renderer_objects: ObjectPool::new(),
+
+            screen_clear_color: Vec4::zero(),
 
             projection_matrix: Mat4::identity(),
             window_dimensions: Vec2::zero(),
@@ -213,13 +217,39 @@ impl Renderer {
             );
         }
     }
+
+    fn set_window_dimensions(&mut self, window_dimensions: Vec2<usize>) {
+        self.window_dimensions = window_dimensions;
+
+        let fov_y_degrees = 45.0f32;
+        let near_plane = 0.01;
+        let far_plane = 1000.0;
+        self.projection_matrix = Mat4::perspective_fov_rh_zo(
+            fov_y_degrees.to_radians(),
+            window_dimensions.x as f32,
+            window_dimensions.y as f32,
+            near_plane,
+            far_plane,
+        );
+
+        unsafe {
+            gl::Viewport(0, 0, window_dimensions.x as i32, window_dimensions.y as i32);
+        }
+    }
 }
 
 impl RendererImpl for Renderer {
     fn render(&mut self) {
+        let window_dimensions = self.window_context.read().window_dimensions();
+        self.set_window_dimensions(window_dimensions);
+
         unsafe {
-            // todo!();
-            gl::ClearColor(0.2, 0.2, 0.2, 1.0);
+            gl::ClearColor(
+                self.screen_clear_color.x,
+                self.screen_clear_color.y,
+                self.screen_clear_color.z,
+                self.screen_clear_color.w,
+            );
             gl::Enable(gl::DEPTH_TEST);
         }
 
@@ -800,24 +830,5 @@ impl RendererImpl for Renderer {
             .release_object(index.0)
             .ok_or_else(|| "Releasing camera, msg = could not find RendererCamera".to_string())
             .map(|_| ())
-    }
-
-    fn set_window_dimensions(&mut self, window_dimensions: Vec2<usize>) {
-        self.window_dimensions = window_dimensions;
-
-        let fov_y_degrees = 45.0f32;
-        let near_plane = 0.01;
-        let far_plane = 1000.0;
-        self.projection_matrix = Mat4::perspective_fov_rh_zo(
-            fov_y_degrees.to_radians(),
-            window_dimensions.x as f32,
-            window_dimensions.y as f32,
-            near_plane,
-            far_plane,
-        );
-
-        unsafe {
-            gl::Viewport(0, 0, window_dimensions.x as i32, window_dimensions.y as i32);
-        }
     }
 }

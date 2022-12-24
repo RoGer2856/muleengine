@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use tokio::sync::oneshot;
-use vek::{Transform, Vec2};
+use vek::Transform;
 
 use crate::{
     containers::object_pool::ObjectPoolIndex,
@@ -102,10 +102,6 @@ pub enum Command {
     },
     ReleaseCamera {
         object_pool_index: ObjectPoolIndex,
-    },
-
-    SetWindowDimensions {
-        dimensions: Vec2<usize>,
     },
 }
 

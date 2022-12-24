@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use tokio::sync::oneshot;
-use vek::{Transform, Vec2};
+use vek::Transform;
 
 use crate::{
     mesh::{Material, Mesh},
@@ -331,12 +331,5 @@ impl RendererClient {
             Ok(ret) => ret,
             Err(_) => unreachable!(),
         }
-    }
-
-    pub fn set_window_dimensions(&self, dimensions: Vec2<usize>) {
-        let _ = self
-            .command_sender
-            .send(Command::SetWindowDimensions { dimensions })
-            .inspect_err(|e| log::error!("Setting window dimensions of renderer, msg = {e}"));
     }
 }

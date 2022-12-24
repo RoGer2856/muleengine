@@ -64,7 +64,7 @@ async fn async_main() {
 
     let mut service_container = init_services();
 
-    let (mut system_container, renderer_client) = {
+    let mut system_container = {
         let mut system_container = SystemContainer::new();
 
         // creating renderer system
@@ -81,7 +81,7 @@ async fn async_main() {
         let renderer_system = SyncRenderer::new(renderer_impl);
         let renderer_client = renderer_system.client();
 
-        service_container.insert(renderer_client.clone());
+        service_container.insert(renderer_client);
 
         let spectator_camera_input_system =
             SpectatorCameraInputSystem::new(sdl2_gl_context.clone());
@@ -93,7 +93,7 @@ async fn async_main() {
         // adding renderer system as the last system
         system_container.add_system(renderer_system);
 
-        (system_container, renderer_client)
+        system_container
     };
 
     let event_receiver = sdl2_gl_context.read().event_receiver();
@@ -107,12 +107,8 @@ async fn async_main() {
         while let Some(event) = event_receiver.pop() {
             log::debug!("EVENT = {event:?}");
 
-            match event {
-                Event::Resized { width, height } => {
-                    renderer_client.set_window_dimensions(Vec2::new(width, height));
-                }
-                Event::Closed => break 'running,
-                _ => (),
+            if let Event::Closed = event {
+                break 'running;
             }
         }
 

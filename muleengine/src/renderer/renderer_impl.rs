@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use vek::{Transform, Vec2};
+use vek::Transform;
 
 use crate::{
     mesh::{Material, Mesh},
@@ -16,8 +16,6 @@ use super::{
 
 pub trait RendererImpl {
     fn render(&mut self);
-
-    fn set_window_dimensions(&mut self, dimensions: Vec2<usize>);
 
     fn set_renderer_pipeline(&mut self, steps: Vec<RendererPipelineStepImpl>)
         -> Result<(), String>;
