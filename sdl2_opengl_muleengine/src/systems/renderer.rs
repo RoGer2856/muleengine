@@ -28,29 +28,28 @@ use crate::{
         RendererCameraIndex, RendererGroupIndex, RendererLayerIndex, RendererMaterialIndex,
         RendererMeshIndex, RendererObjectIndex, RendererShaderIndex, RendererTransformIndex,
     },
-    mesh_renderer_object::MeshRendererObject,
 };
 
 use super::{
-    renderer_group_object::RendererGroupObject, renderer_layer_object::RendererLayerObject,
-    renderer_pipeline_step_object::RendererPipelineStepObject, RendererCameraObject,
-    RendererTransformObject,
+    gl_camera::GLCamera, renderer_group_object::RendererGroupObject,
+    renderer_layer_object::RendererLayerObject,
+    renderer_pipeline_step_object::RendererPipelineStepObject,
 };
 
-type TransformObserver = Observer<RendererTransformObject>;
+type TransformObserver = Observer<Transform<f32, f32, f32>>;
 
 pub struct Renderer {
     renderer_pipeline_steps: Vec<RendererPipelineStepObject>,
 
-    renderer_cameras: ObjectPool<(ArcRwLock<RendererCameraObject>, TransformObserver)>,
+    renderer_cameras: ObjectPool<(ArcRwLock<GLCamera>, TransformObserver)>,
     renderer_layers: ObjectPool<ArcRwLock<RendererLayerObject>>,
     renderer_groups: ObjectPool<ArcRwLock<RendererGroupObject>>,
-    renderer_transforms: ObjectPool<ArcRwLock<Observable<RendererTransformObject>>>,
+    renderer_transforms: ObjectPool<ArcRwLock<Observable<Transform<f32, f32, f32>>>>,
     renderer_materials: ObjectPool<ArcRwLock<RendererMaterialObject>>,
     renderer_shaders: ObjectPool<ArcRwLock<RendererShaderObject>>,
     renderer_meshes: ObjectPool<ArcRwLock<RendererMeshObject>>,
 
-    mesh_renderer_objects: ObjectPool<(ArcRwLock<MeshRendererObject>, TransformObserver)>,
+    mesh_renderer_objects: ObjectPool<(ArcRwLock<GLDrawableMesh>, TransformObserver)>,
 
     screen_clear_color: Vec4<f32>,
 
@@ -489,7 +488,7 @@ impl RendererImpl for Renderer {
         &mut self,
         transform: Transform<f32, f32, f32>,
     ) -> Result<ArcRwLock<dyn RendererTransform>, String> {
-        let renderer_transform = Observable::new(RendererTransformObject { transform });
+        let renderer_transform = Observable::new(transform);
         let index = self
             .renderer_transforms
             .create_object(Arc::new(RwLock::new(renderer_transform)));
@@ -510,7 +509,7 @@ impl RendererImpl for Renderer {
             "Updating transform, msg = could not find RendererTransform".to_string()
         })?;
 
-        transform.write().borrow_mut().transform = new_transform;
+        *transform.write().borrow_mut() = new_transform;
 
         Ok(())
     }
@@ -665,22 +664,17 @@ impl RendererImpl for Renderer {
             })?
         };
 
-        let mesh_renderer_object = Arc::new(RwLock::new(MeshRendererObject {
-            gl_drawable_mesh: GLDrawableMesh::new(
-                mesh.read().gl_mesh().clone(),
-                material.read().gl_material().clone(),
-                transform.read().transform,
-                shader,
-            ),
-        }));
+        let mesh_renderer_object = Arc::new(RwLock::new(GLDrawableMesh::new(
+            mesh.read().gl_mesh().clone(),
+            material.read().gl_material().clone(),
+            transform.read().clone(),
+            shader,
+        )));
 
         let index = self.mesh_renderer_objects.create_object((
             mesh_renderer_object.clone(),
             transform.write().observe(move |transform| {
-                mesh_renderer_object
-                    .write()
-                    .gl_drawable_mesh
-                    .set_transform(&transform.transform);
+                mesh_renderer_object.write().set_transform(transform);
             }),
         ));
 
@@ -807,14 +801,14 @@ impl RendererImpl for Renderer {
             })?
         };
 
-        let camera = Arc::new(RwLock::new(RendererCameraObject {
-            transform: transform.read().transform,
+        let camera = Arc::new(RwLock::new(GLCamera {
+            transform: transform.read().clone(),
         }));
 
         let index = self.renderer_cameras.create_object((
             camera.clone(),
             transform.write().observe(move |transform| {
-                camera.write().transform = transform.transform;
+                camera.write().transform = transform.clone();
             }),
         ));
 

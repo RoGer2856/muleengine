@@ -3,10 +3,10 @@ use std::collections::BTreeMap;
 use muleengine::prelude::ArcRwLock;
 use vek::{Mat4, Vec3};
 
-use crate::mesh_renderer_object::MeshRendererObject;
+use crate::gl_drawable_mesh::GLDrawableMesh;
 
 pub(crate) struct RendererGroupObject {
-    mesh_renderer_objects: BTreeMap<*const MeshRendererObject, ArcRwLock<MeshRendererObject>>,
+    mesh_renderer_objects: BTreeMap<*const GLDrawableMesh, ArcRwLock<GLDrawableMesh>>,
 }
 
 impl Default for RendererGroupObject {
@@ -24,17 +24,17 @@ impl RendererGroupObject {
 
     pub fn add_mesh_renderer_object(
         &mut self,
-        renderer_object: ArcRwLock<MeshRendererObject>,
-    ) -> Option<ArcRwLock<MeshRendererObject>> {
+        renderer_object: ArcRwLock<GLDrawableMesh>,
+    ) -> Option<ArcRwLock<GLDrawableMesh>> {
         self.mesh_renderer_objects
             .insert(renderer_object.data_ptr(), renderer_object)
     }
 
     pub fn remove_mesh_renderer_object(
         &mut self,
-        renderer_object: &ArcRwLock<MeshRendererObject>,
-    ) -> Option<ArcRwLock<MeshRendererObject>> {
-        let ptr: *const MeshRendererObject = renderer_object.data_ptr();
+        renderer_object: &ArcRwLock<GLDrawableMesh>,
+    ) -> Option<ArcRwLock<GLDrawableMesh>> {
+        let ptr: *const GLDrawableMesh = renderer_object.data_ptr();
         self.mesh_renderer_objects.remove(&ptr)
     }
 
@@ -45,11 +45,9 @@ impl RendererGroupObject {
         view_matrix: &Mat4<f32>,
     ) {
         for renderer_object in self.mesh_renderer_objects.values() {
-            renderer_object.read().gl_drawable_mesh.draw(
-                eye_position,
-                projection_matrix,
-                view_matrix,
-            );
+            renderer_object
+                .read()
+                .draw(eye_position, projection_matrix, view_matrix);
         }
     }
 }

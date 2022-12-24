@@ -3,15 +3,15 @@ use std::collections::BTreeMap;
 use muleengine::prelude::ArcRwLock;
 use vek::Mat4;
 
-use super::{renderer_group_object::RendererGroupObject, RendererCameraObject};
+use super::{gl_camera::GLCamera, renderer_group_object::RendererGroupObject};
 
 pub(crate) struct RendererLayerObject {
-    camera: ArcRwLock<RendererCameraObject>,
+    camera: ArcRwLock<GLCamera>,
     renderer_groups: BTreeMap<*const RendererGroupObject, ArcRwLock<RendererGroupObject>>,
 }
 
 impl RendererLayerObject {
-    pub fn new(camera: ArcRwLock<RendererCameraObject>) -> Self {
+    pub fn new(camera: ArcRwLock<GLCamera>) -> Self {
         Self {
             camera,
             renderer_groups: BTreeMap::new(),
