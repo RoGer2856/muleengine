@@ -7,5 +7,4 @@
     clippy::collapsible_if
 )]
 
-pub mod main_loop;
 pub mod systems;

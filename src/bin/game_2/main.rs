@@ -2,9 +2,8 @@
 
 use std::{sync::Arc, time::Duration};
 
-use game_2::{
-    main_loop::MainLoop,
-    systems::{game_manager::GameManager, spectator_camera_controller::SpectatorCameraInputSystem},
+use game_2::systems::{
+    game_manager::GameManager, spectator_camera_controller::SpectatorCameraInputSystem,
 };
 use muleengine::{
     asset_container::AssetContainer,
@@ -103,12 +102,12 @@ async fn async_main() {
 
     let event_receiver = sdl2_gl_context.read().event_receiver();
 
-    let mut stopwatch = Stopwatch::start_new();
+    let mut fps_counter_stopwatch = Stopwatch::start_new();
     let mut fps_counter = FpsCounter::new();
 
-    const DESIRED_FPS: f32 = 30.0;
-    let main_loop = MainLoop::new(DESIRED_FPS);
-    'running: for delta_time_in_secs in main_loop.iter() {
+    let mut delta_time_stopwatch = Stopwatch::start_new();
+    let mut delta_time_in_secs = 1.0 / 60.0;
+    'running: loop {
         // handling events
         sdl2_gl_context.write().flush_events();
 
@@ -133,13 +132,15 @@ async fn async_main() {
         }
 
         fps_counter.draw_happened();
-        if stopwatch.elapsed() > Duration::from_millis(1000) {
+        if fps_counter_stopwatch.elapsed() > Duration::from_millis(1000) {
             log::debug!("Average FPS = {:?}", fps_counter.get_average_fps());
-            stopwatch.restart();
+            fps_counter_stopwatch.restart();
             fps_counter.restart();
         }
 
         tokio::task::yield_now().await;
+
+        delta_time_in_secs = delta_time_stopwatch.restart().as_secs_f32();
     }
 }
 

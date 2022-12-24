@@ -15,7 +15,9 @@ impl Stopwatch {
         Instant::now() - self.start_time
     }
 
-    pub fn restart(&mut self) {
+    pub fn restart(&mut self) -> Duration {
+        let elapsed_time = Instant::now() - self.start_time;
         self.start_time = Instant::now();
+        elapsed_time
     }
 }
