@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-env_logger = "0.9"
+env_logger = "0.10"
 log = "0.4"
 tokio = { version = "1.20", features = ["full"] }
 vek = "0.15"
@@ -19,11 +19,3 @@ members = [
 	"muleengine",
 	"sdl2_opengl_muleengine"
 ]
-
-# muleengine
-# vek = "0.15"
-# image = "0.24"
-# assimp = "0.3.1"
-# assimp-sys = "0.3.1"
-# tempfile = "3"
-# parking_lot = "*"

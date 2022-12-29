@@ -7,6 +7,9 @@
     clippy::collapsible_if
 )]
 
+extern crate miniz_oxide;
+extern crate minizip_sys;
+
 pub mod aabb;
 pub mod asset_container;
 pub mod asset_reader;
