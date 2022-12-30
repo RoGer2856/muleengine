@@ -655,7 +655,7 @@ dependencies = [
 [[package]]
 name = "minizip-sys"
 version = "0.1.0"
-source = "git+https://github.com/bytifex/minizip-sys.git#9d737012700d20aafdcce1780d2da7ec1be3eb57"
+source = "git+https://github.com/bytifex/minizip-sys.git#de696a976a8c9c462d1fb47957effb551e165597"
 dependencies = [
  "bindgen",
  "cmake",
