@@ -105,7 +105,7 @@ impl RendererImpl for TestRendererImpl {
 
     fn create_renderer_layer(
         &mut self,
-        camear: ArcRwLock<dyn RendererCamera>,
+        camera: ArcRwLock<dyn RendererCamera>,
     ) -> Result<ArcRwLock<dyn RendererLayer>, String> {
         todo!();
     }
