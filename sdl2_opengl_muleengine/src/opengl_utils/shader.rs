@@ -67,13 +67,12 @@ impl Shader {
                         error_log.as_mut_ptr() as *mut i8,
                     );
                     error_log.resize(actual_info_log_length as usize, 0);
-    
+
                     let error_msg = String::from_utf8(error_log)
                         .map_err(ShaderCreationError::CompilationErrorToString)?;
-                    
+
                     Err(ShaderCreationError::CompilationError { error_msg })?
                 }
-   
             }
 
             shader_id

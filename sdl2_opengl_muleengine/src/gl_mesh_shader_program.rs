@@ -86,7 +86,7 @@ impl GLMeshShaderProgram {
                 .get_uniform_by_name("normalMatrix"),
             bones: gl_shader_program
                 .shader_program
-                .get_uniform_by_name("bones[0]"),
+                .get_uniform_by_name("bones"),
 
             use_albedo_texture: gl_shader_program
                 .shader_program

@@ -192,12 +192,20 @@ impl ShaderProgram {
                 gl::GetAttribLocation(self.program_id, attribute_name.as_ptr() as *const i8);
 
             match String::from_utf8(attribute_name) {
-                Ok(attribute_name) => self.attributes.push(Ok(ShaderAttribute::new(ShaderInput {
-                    name: attribute_name,
-                    location,
-                    data_type,
-                    array_size,
-                }))),
+                Ok(mut attribute_name) => {
+                    if attribute_name.ends_with("[0]") {
+                        attribute_name.truncate(attribute_name.len() - 3);
+                    } else if attribute_name.ends_with("[]") {
+                        attribute_name.truncate(attribute_name.len() - 2);
+                    }
+
+                    self.attributes.push(Ok(ShaderAttribute::new(ShaderInput {
+                        name: attribute_name,
+                        location,
+                        data_type,
+                        array_size,
+                    })))
+                }
                 Err(e) => self.attributes.push(Err(e)),
             }
         }
@@ -238,12 +246,20 @@ impl ShaderProgram {
                 gl::GetUniformLocation(self.program_id, uniform_name.as_ptr() as *const i8);
 
             match String::from_utf8(uniform_name) {
-                Ok(uniform_name) => self.uniforms.push(Ok(ShaderUniform::new(ShaderInput {
-                    name: uniform_name,
-                    location,
-                    data_type,
-                    array_size,
-                }))),
+                Ok(mut uniform_name) => {
+                    if uniform_name.ends_with("[0]") {
+                        uniform_name.truncate(uniform_name.len() - 3);
+                    } else if uniform_name.ends_with("[]") {
+                        uniform_name.truncate(uniform_name.len() - 2);
+                    }
+
+                    self.uniforms.push(Ok(ShaderUniform::new(ShaderInput {
+                        name: uniform_name,
+                        location,
+                        data_type,
+                        array_size,
+                    })))
+                }
                 Err(e) => self.uniforms.push(Err(e)),
             }
         }
