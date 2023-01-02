@@ -7,4 +7,5 @@
     clippy::collapsible_if
 )]
 
+pub mod async_systems_runner;
 pub mod systems;

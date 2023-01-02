@@ -76,7 +76,10 @@ where
     pub fn get_ref_by_key(&self, key: &KeyType) -> Option<(&KeyType, &ValueType)> {
         self.map_of_indices
             .get(key)
-            .map(|index| self.get_ref_by_index(*index).unwrap())
+            .map(|index| match self.get_ref_by_index(*index) {
+                Some(pair) => pair,
+                None => unreachable!(),
+            })
     }
 
     pub fn get_mut_by_index(

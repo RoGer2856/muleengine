@@ -1,186 +1,54 @@
 use std::sync::Arc;
 
-use super::spectator_camera_controller::{self, SpectatorCameraInput};
+use game_2::systems::renderer_configuration::RendererConfiguration;
 use muleengine::{
     asset_container::AssetContainer,
     mesh::{Material, MaterialTexture, MaterialTextureType, TextureMapMode},
     mesh_creator,
-    prelude::ResultInspector,
-    renderer::{
-        renderer_client::RendererClient, renderer_pipeline_step::RendererPipelineStep,
-        CameraHandler, RendererGroupHandler, RendererLayerHandler, RendererObjectHandler,
-        TransformHandler,
-    },
+    prelude::{ArcRwLock, ResultInspector},
+    renderer::{renderer_client::RendererClient, RendererObjectHandler},
     service_container::ServiceContainer,
-    system_container::System,
 };
-use tokio::sync::RwLock;
-use vek::{Transform, Vec2, Vec3};
+use vek::{Transform, Vec3};
 
-pub struct GameManager {
-    first_tick: bool,
-    service_container: ServiceContainer,
-    inner: Arc<RwLock<Option<GameManagerPri>>>,
-    spectator_camera_input: SpectatorCameraInput,
-}
-
-struct GameManagerPri {
-    _skydome_camera_transform_handler: TransformHandler,
-    _skydome_camera_handler: CameraHandler,
-
-    _main_camera_transform_handler: TransformHandler,
-    _main_camera_handler: CameraHandler,
-
-    _skydome_renderer_layer_handler: RendererLayerHandler,
-    _main_renderer_layer_handler: RendererLayerHandler,
-
-    skydome_renderer_group_handler: RendererGroupHandler,
-    main_renderer_group_handler: RendererGroupHandler,
-
+pub struct Objects {
     renderer_object_handlers: Vec<RendererObjectHandler>,
-
+    renderer_configuration: ArcRwLock<RendererConfiguration>,
     renderer_client: RendererClient,
     asset_container: AssetContainer,
 }
 
-impl GameManager {
-    pub fn new(
-        service_container: ServiceContainer,
-        spectator_camera_input: SpectatorCameraInput,
-    ) -> Self {
+impl Objects {
+    pub fn new(service_container: ServiceContainer) -> Self {
         Self {
-            first_tick: true,
-            service_container,
-            inner: Arc::new(RwLock::new(None)),
-            spectator_camera_input,
-        }
-    }
-}
-
-impl GameManagerPri {
-    pub async fn new(
-        service_container: ServiceContainer,
-        spectator_camera_input: SpectatorCameraInput,
-    ) -> Self {
-        let renderer_client = service_container
-            .get_service::<RendererClient>()
-            .unwrap()
-            .read()
-            .clone();
-
-        let skydome_camera_transform_handler = renderer_client
-            .create_transform(Transform::default())
-            .await
-            .unwrap();
-        let skydome_camera_handler = renderer_client
-            .create_camera(skydome_camera_transform_handler.clone())
-            .await
-            .unwrap();
-
-        let main_camera_transform_handler = renderer_client
-            .create_transform(Transform::default())
-            .await
-            .unwrap();
-        let main_camera_handler = renderer_client
-            .create_camera(main_camera_transform_handler.clone())
-            .await
-            .unwrap();
-
-        let skydome_renderer_layer_handler = renderer_client
-            .create_renderer_layer(skydome_camera_handler.clone())
-            .await
-            .unwrap();
-        let main_renderer_layer_handler = renderer_client
-            .create_renderer_layer(main_camera_handler.clone())
-            .await
-            .unwrap();
-
-        let skydome_renderer_group_handler = renderer_client.create_renderer_group().await.unwrap();
-        renderer_client
-            .add_renderer_group_to_layer(
-                skydome_renderer_group_handler.clone(),
-                skydome_renderer_layer_handler.clone(),
-            )
-            .await
-            .unwrap();
-
-        let main_renderer_group_handler = renderer_client.create_renderer_group().await.unwrap();
-        renderer_client
-            .add_renderer_group_to_layer(
-                main_renderer_group_handler.clone(),
-                main_renderer_layer_handler.clone(),
-            )
-            .await
-            .unwrap();
-
-        renderer_client
-            .set_renderer_pipeline(vec![
-                RendererPipelineStep::Clear {
-                    depth: true,
-                    color: true,
-
-                    viewport_start_ndc: Vec2::broadcast(0.0),
-                    viewport_end_ndc: Vec2::broadcast(1.0),
-                },
-                RendererPipelineStep::Draw {
-                    renderer_layer_handler: skydome_renderer_layer_handler.clone(),
-
-                    viewport_start_ndc: Vec2::broadcast(0.0),
-                    viewport_end_ndc: Vec2::broadcast(1.0),
-                },
-                RendererPipelineStep::Clear {
-                    viewport_start_ndc: Vec2::broadcast(0.0),
-                    viewport_end_ndc: Vec2::broadcast(1.0),
-                    depth: true,
-                    color: false,
-                },
-                RendererPipelineStep::Draw {
-                    renderer_layer_handler: main_renderer_layer_handler.clone(),
-
-                    viewport_start_ndc: Vec2::broadcast(0.0),
-                    viewport_end_ndc: Vec2::broadcast(1.0),
-                },
-            ])
-            .await
-            .unwrap();
-
-        tokio::spawn(spectator_camera_controller::run(
-            renderer_client.clone(),
-            skydome_camera_transform_handler.clone(),
-            main_camera_transform_handler.clone(),
-            spectator_camera_input.clone(),
-        ));
-
-        let mut ret = Self {
-            _skydome_camera_transform_handler: skydome_camera_transform_handler,
-            _skydome_camera_handler: skydome_camera_handler,
-
-            _main_camera_handler: main_camera_handler,
-            _main_camera_transform_handler: main_camera_transform_handler,
-
-            _skydome_renderer_layer_handler: skydome_renderer_layer_handler,
-            _main_renderer_layer_handler: main_renderer_layer_handler,
-
-            skydome_renderer_group_handler,
-            main_renderer_group_handler,
-
             renderer_object_handlers: Vec::new(),
-
-            renderer_client,
-            asset_container: service_container
-                .get_service::<AssetContainer>()
+            renderer_configuration: service_container
+                .get_service::<RendererConfiguration>()
+                .inspect_err(|e| log::error!("{e:?}"))
+                .unwrap(),
+            renderer_client: service_container
+                .get_service::<RendererClient>()
+                .inspect_err(|e| log::error!("{e:?}"))
                 .unwrap()
                 .read()
                 .clone(),
-        };
-
-        ret.populate_with_objects().await;
-
-        ret
+            asset_container: service_container
+                .get_service::<AssetContainer>()
+                .inspect_err(|e| log::error!("{e:?}"))
+                .unwrap()
+                .read()
+                .clone(),
+        }
     }
 
-    async fn populate_with_objects(&mut self) {
+    pub async fn populate_with_objects(&mut self) {
         self.add_skybox().await;
+
+        let main_renderer_group_handler = self
+            .renderer_configuration
+            .read()
+            .main_renderer_group_handler()
+            .clone();
 
         {
             let mut transform = Transform::<f32, f32, f32>::default();
@@ -191,17 +59,25 @@ impl GameManagerPri {
                 .renderer_client
                 .create_shader("Assets/shaders/lit_wo_normal".to_string())
                 .await
+                .inspect_err(|e| log::error!("{e:?}"))
                 .unwrap();
             let material_handler = self
                 .renderer_client
                 .create_material(mesh.get_material().clone())
                 .await
+                .inspect_err(|e| log::error!("{e:?}"))
                 .unwrap();
-            let mesh_handler = self.renderer_client.create_mesh(mesh).await.unwrap();
+            let mesh_handler = self
+                .renderer_client
+                .create_mesh(mesh)
+                .await
+                .inspect_err(|e| log::error!("{e:?}"))
+                .unwrap();
             let transform_handler = self
                 .renderer_client
                 .create_transform(transform)
                 .await
+                .inspect_err(|e| log::error!("{e:?}"))
                 .unwrap();
             let renderer_object_handler = self
                 .renderer_client
@@ -212,15 +88,17 @@ impl GameManagerPri {
                     transform_handler.clone(),
                 )
                 .await
+                .inspect_err(|e| log::error!("{e:?}"))
                 .unwrap();
             self.renderer_object_handlers
                 .push(renderer_object_handler.clone());
             self.renderer_client
                 .add_renderer_object_to_group(
                     renderer_object_handler,
-                    self.main_renderer_group_handler.clone(),
+                    main_renderer_group_handler.clone(),
                 )
                 .await
+                .inspect_err(|e| log::error!("{e:?}"))
                 .unwrap();
 
             transform.position.x = -2.0;
@@ -228,6 +106,7 @@ impl GameManagerPri {
             self.renderer_client
                 .update_transform(transform_handler, transform)
                 .await
+                .inspect_err(|e| log::error!("{e:?}"))
                 .unwrap();
         }
 
@@ -248,17 +127,20 @@ impl GameManagerPri {
                     &self.asset_container.asset_reader().read(),
                     &mut self.asset_container.image_container().write(),
                 )
+                .inspect_err(|e| log::error!("{e:?}"))
                 .unwrap();
 
             let shader_handler = self
                 .renderer_client
                 .create_shader("Assets/shaders/lit_normal".to_string())
                 .await
+                .inspect_err(|e| log::error!("{e:?}"))
                 .unwrap();
             let transform_handler = self
                 .renderer_client
                 .create_transform(transform)
                 .await
+                .inspect_err(|e| log::error!("{e:?}"))
                 .unwrap();
             for mesh in scene.meshes_ref().iter() {
                 match &mesh {
@@ -267,11 +149,13 @@ impl GameManagerPri {
                             .renderer_client
                             .create_material(mesh.get_material().clone())
                             .await
+                            .inspect_err(|e| log::error!("{e:?}"))
                             .unwrap();
                         let mesh_handler = self
                             .renderer_client
                             .create_mesh(mesh.clone())
                             .await
+                            .inspect_err(|e| log::error!("{e:?}"))
                             .unwrap();
                         let renderer_object_handler = self
                             .renderer_client
@@ -282,15 +166,17 @@ impl GameManagerPri {
                                 transform_handler.clone(),
                             )
                             .await
+                            .inspect_err(|e| log::error!("{e:?}"))
                             .unwrap();
                         self.renderer_object_handlers
                             .push(renderer_object_handler.clone());
                         self.renderer_client
                             .add_renderer_object_to_group(
                                 renderer_object_handler,
-                                self.main_renderer_group_handler.clone(),
+                                main_renderer_group_handler.clone(),
                             )
                             .await
+                            .inspect_err(|e| log::error!("{e:?}"))
                             .unwrap();
                     }
                     Err(e) => {
@@ -301,7 +187,7 @@ impl GameManagerPri {
         }
     }
 
-    async fn add_skybox(&mut self) {
+    pub async fn add_skybox(&mut self) {
         let transform = Transform::<f32, f32, f32>::default();
 
         let scene_path = "Assets/objects/skybox/Skybox.obj";
@@ -314,7 +200,14 @@ impl GameManagerPri {
                 &self.asset_container.asset_reader().read(),
                 &mut self.asset_container.image_container().write(),
             )
+            .inspect_err(|e| log::error!("{e:?}"))
             .unwrap();
+
+        let skydome_renderer_group_handler = self
+            .renderer_configuration
+            .read()
+            .skydome_renderer_group_handler()
+            .clone();
 
         if scene.meshes_ref().len() == 6 {
             let texture_paths = [
@@ -330,12 +223,14 @@ impl GameManagerPri {
                 .renderer_client
                 .create_shader("Assets/shaders/unlit".to_string())
                 .await
+                .inspect_err(|e| log::error!("{e:?}"))
                 .unwrap();
 
             let transform_handler = self
                 .renderer_client
                 .create_transform(transform)
                 .await
+                .inspect_err(|e| log::error!("{e:?}"))
                 .unwrap();
 
             for (index, texture_path) in texture_paths.iter().enumerate() {
@@ -363,8 +258,14 @@ impl GameManagerPri {
                     .renderer_client
                     .create_material(material)
                     .await
+                    .inspect_err(|e| log::error!("{e:?}"))
                     .unwrap();
-                let mesh_handler = self.renderer_client.create_mesh(mesh).await.unwrap();
+                let mesh_handler = self
+                    .renderer_client
+                    .create_mesh(mesh)
+                    .await
+                    .inspect_err(|e| log::error!("{e:?}"))
+                    .unwrap();
                 let renderer_object_handler = self
                     .renderer_client
                     .create_renderer_object_from_mesh(
@@ -374,43 +275,21 @@ impl GameManagerPri {
                         transform_handler.clone(),
                     )
                     .await
+                    .inspect_err(|e| log::error!("{e:?}"))
                     .unwrap();
                 self.renderer_object_handlers
                     .push(renderer_object_handler.clone());
                 self.renderer_client
                     .add_renderer_object_to_group(
                         renderer_object_handler,
-                        self.skydome_renderer_group_handler.clone(),
+                        skydome_renderer_group_handler.clone(),
                     )
                     .await
+                    .inspect_err(|e| log::error!("{e:?}"))
                     .unwrap();
             }
         } else {
-            panic!("Skybox does not contain exactly 6 meshes");
-        }
-    }
-}
-
-impl System for GameManager {
-    fn tick(&mut self, _delta_time_in_secs: f32) {
-        if self.first_tick {
-            self.first_tick = false;
-
-            let inner = self.inner.clone();
-            let service_container = self.service_container.clone();
-            let spectator_camera_input = self.spectator_camera_input.clone();
-            tokio::spawn(async move {
-                tokio::spawn(async move {
-                    let game_manager_pri =
-                        GameManagerPri::new(service_container, spectator_camera_input).await;
-                    *inner.write().await = Some(game_manager_pri);
-                })
-                .await
-                .inspect_err(|e| {
-                    log::error!("Error during initialization of GameManager, msg = {e}")
-                })
-                .unwrap();
-            });
+            log::error!("Skybox does not contain exactly 6 meshes");
         }
     }
 }

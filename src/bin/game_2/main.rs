@@ -1,16 +1,23 @@
 #![allow(unstable_name_collisions)]
 
+mod objects;
+
 use std::{sync::Arc, time::Duration};
 
-use game_2::systems::{
-    game_manager::GameManager, spectator_camera_controller::SpectatorCameraInputSystem,
+use game_2::{
+    async_systems_runner::AsyncSystemsRunner,
+    systems::{
+        renderer_configuration::RendererConfiguration,
+        spectator_camera_controller::{self, SpectatorCameraInput, SpectatorCameraInputSystem},
+    },
 };
 use muleengine::{
     asset_container::AssetContainer,
     asset_reader::AssetReader,
     fps_counter::FpsCounter,
     image_container::ImageContainer,
-    renderer::renderer_system::SyncRenderer,
+    prelude::ResultInspector,
+    renderer::{renderer_client::RendererClient, renderer_system::SyncRenderer},
     scene_container::SceneContainer,
     service_container::ServiceContainer,
     stopwatch::Stopwatch,
@@ -22,7 +29,10 @@ use sdl2_opengl_muleengine::{
     sdl2_gl_context::{GLProfile, Sdl2GLContext},
     systems::renderer::Renderer,
 };
+use tokio::task::JoinHandle;
 use vek::Vec2;
+
+use crate::objects::Objects;
 
 fn main() {
     env_logger::builder()
@@ -34,11 +44,17 @@ fn main() {
         tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
+            .inspect_err(|e| {
+                log::error!("Could not create tokio multi thread runtime, msg = {e}")
+            })
             .unwrap()
     } else {
         tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
+            .inspect_err(|e| {
+                log::error!("Could not create tokio current thread runtime, msg = {e}")
+            })
             .unwrap()
     };
 
@@ -57,6 +73,7 @@ async fn async_main() {
             4,
             0,
         )
+        .inspect_err(|e| log::error!("Could not create Sdl2GlContext, msg = {e:?}"))
         .unwrap(),
     ));
 
@@ -66,9 +83,9 @@ async fn async_main() {
         sdl2_gl_context.warp_mouse_normalized_screen_space(Vec2::new(0.5, 0.5));
     }
 
-    let mut service_container = init_services();
+    let mut service_container = init_basic_services();
 
-    let mut system_container = {
+    let (mut system_container, spectator_camera_input) = {
         let mut system_container = SystemContainer::new();
 
         // creating renderer system
@@ -77,6 +94,7 @@ async fn async_main() {
             sdl2_gl_context.clone(),
             service_container
                 .get_service::<AssetContainer>()
+                .inspect_err(|e| log::error!("{e:?}"))
                 .unwrap()
                 .read()
                 .clone(),
@@ -92,13 +110,16 @@ async fn async_main() {
         let spectator_camera_input = spectator_camera_input_system.data().clone();
         system_container.add_system(spectator_camera_input_system);
 
-        system_container.add_system(GameManager::new(service_container, spectator_camera_input));
-
         // adding renderer system as the last system
         system_container.add_system(renderer_system);
 
-        system_container
+        (system_container, spectator_camera_input)
     };
+
+    let _async_systems_runner = AsyncSystemsRunner::run(run_async_systems(
+        service_container.clone(),
+        spectator_camera_input,
+    ));
 
     let event_receiver = sdl2_gl_context.read().event_receiver();
 
@@ -115,6 +136,8 @@ async fn async_main() {
             log::debug!("EVENT = {event:?}");
 
             if let Event::Closed = event {
+                // todo!("if the following is called, then spectator camera controller blocks the exit process")
+                // async_systems_runner.join().await;
                 break 'running;
             }
         }
@@ -142,9 +165,12 @@ async fn async_main() {
 
         delta_time_in_secs = delta_time_stopwatch.restart().as_secs_f32();
     }
+
+    // service_container is dropped manually to making sure it lives until the end of the program
+    drop(service_container);
 }
 
-pub fn init_services() -> ServiceContainer {
+pub fn init_basic_services() -> ServiceContainer {
     let mut service_container = ServiceContainer::new();
 
     service_container.insert(AssetReader::new());
@@ -153,4 +179,42 @@ pub fn init_services() -> ServiceContainer {
     service_container.insert(AssetContainer::new(&service_container));
 
     service_container
+}
+
+pub async fn run_async_systems(
+    mut service_container: ServiceContainer,
+    spectator_camera_input: SpectatorCameraInput,
+) -> Vec<JoinHandle<()>> {
+    let mut ret = Vec::new();
+
+    let renderer_configuration = RendererConfiguration::new(service_container.clone()).await;
+    let renderer_configuration = service_container
+        .insert(renderer_configuration)
+        .new_item
+        .as_arc_ref()
+        .clone();
+
+    let renderer_client = service_container
+        .get_service::<RendererClient>()
+        .inspect_err(|e| log::error!("{e:?}"))
+        .unwrap()
+        .read()
+        .clone();
+
+    ret.push(tokio::spawn(spectator_camera_controller::run(
+        renderer_client.clone(),
+        renderer_configuration
+            .read()
+            .skydome_camera_transform_handler(),
+        renderer_configuration
+            .read()
+            .main_camera_transform_handler(),
+        spectator_camera_input,
+    )));
+
+    let mut objects = Objects::new(service_container.clone());
+    objects.populate_with_objects().await;
+    service_container.insert(objects);
+
+    ret
 }

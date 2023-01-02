@@ -40,7 +40,7 @@ impl GLMaterial {
         for texture in material.textures.iter() {
             let material_texture = GLMaterialTexture::new(texture, gl_texture_container);
             let material_texture = material_texture.inspect_err(|e| {
-                log::error!("Could not load texture for material, msg = '{:?}'", e)
+                log::error!("Could not load texture for material, msg = '{e:?}'")
             });
             if let Ok(material_texture) = material_texture {
                 textures.push(material_texture);
