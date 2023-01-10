@@ -1,5 +1,7 @@
 use vek::Vec2;
 
+use crate::system_container::System;
+
 use super::messaging::spmc;
 
 #[derive(Debug, Clone)]
@@ -210,7 +212,7 @@ pub enum Event {
 pub type EventSender = spmc::Sender<Event>;
 pub type EventReceiver = spmc::Receiver<Event>;
 
-pub trait WindowContext {
+pub trait WindowContext: System {
     fn is_key_pressed(&self, key: Key) -> bool;
     fn is_mouse_button_pressed(&self, button: MouseButton) -> bool;
     fn mouse_pos(&self) -> Vec2<usize>;

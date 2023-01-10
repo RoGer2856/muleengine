@@ -1,6 +1,10 @@
-use std::{any::type_name, sync::Arc};
+use std::{
+    any::{type_name, TypeId},
+    collections::BTreeMap,
+    sync::Arc,
+};
 
-use parking_lot::RwLock;
+use parking_lot::{Mutex, RwLock};
 
 use crate::prelude::ArcRwLock;
 
@@ -16,6 +20,7 @@ pub struct ServiceMissingError {
 #[derive(Clone)]
 pub struct ServiceContainer {
     service_dict: ArcRwLock<SendableMultiTypeDict>,
+    service_type_locks: Arc<Mutex<BTreeMap<TypeId, Arc<Mutex<()>>>>>,
 }
 
 impl Default for ServiceContainer {
@@ -40,6 +45,7 @@ impl ServiceContainer {
     pub fn new() -> Self {
         Self {
             service_dict: Arc::new(RwLock::new(SendableMultiTypeDict::new())),
+            service_type_locks: Arc::new(Mutex::new(BTreeMap::new())),
         }
     }
 
@@ -64,10 +70,40 @@ impl ServiceContainer {
         &self,
         service_constructor: impl FnOnce() -> ServiceType,
     ) -> ArcRwLock<ServiceType> {
-        self.service_dict
-            .write()
-            .get_or_insert_item_ref::<RwLock<ServiceType>>(|| RwLock::new(service_constructor()))
-            .as_arc_ref()
-            .clone()
+        self.lock_service_type::<ServiceType>();
+
+        let service = self
+            .service_dict
+            .read()
+            .get_item_ref::<RwLock<ServiceType>>();
+
+        let service = if let Some(service) = service {
+            service.as_arc_ref().clone()
+        } else {
+            let service = RwLock::new(service_constructor());
+            self.service_dict
+                .write()
+                .get_or_insert_item_ref::<RwLock<ServiceType>>(|| service)
+                .as_arc_ref()
+                .clone()
+        };
+
+        self.unlock_service_type::<ServiceType>();
+
+        service
+    }
+
+    fn lock_service_type<ServiceType: 'static>(&self) {
+        let type_id = TypeId::of::<ServiceType>();
+        let mut service_type_locks = self.service_type_locks.lock();
+        let entry = service_type_locks
+            .entry(type_id)
+            .or_insert_with(|| Arc::new(Mutex::new(())));
+        let _ = entry.clone().lock();
+    }
+
+    fn unlock_service_type<ServiceType: 'static>(&self) {
+        let type_id = TypeId::of::<ServiceType>();
+        self.service_type_locks.lock().remove(&type_id);
     }
 }

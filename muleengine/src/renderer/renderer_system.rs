@@ -70,9 +70,13 @@ pub(super) struct RendererPri {
 
 impl SyncRenderer {
     pub fn new(renderer_impl: impl RendererImpl + 'static) -> Self {
+        Self::new_from_box(Box::new(renderer_impl))
+    }
+
+    pub fn new_from_box(renderer_impl: Box<dyn RendererImpl + 'static>) -> Self {
         Self {
             renderer_pri: RendererPri::new(),
-            renderer_impl: Box::new(renderer_impl),
+            renderer_impl,
         }
     }
 

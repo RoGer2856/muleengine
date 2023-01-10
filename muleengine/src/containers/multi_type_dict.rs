@@ -1,6 +1,7 @@
 use std::{
     any::{Any, TypeId},
     collections::{btree_map::Iter, BTreeMap},
+    ops::Deref,
     sync::Arc,
 };
 
@@ -176,6 +177,14 @@ impl<ItemType: ?Sized> MultiTypeDictItem<ItemType> {
 
     pub fn type_id(&self) -> TypeId {
         self.type_id
+    }
+}
+
+impl<ItemType: ?Sized> Deref for MultiTypeDictItem<ItemType> {
+    type Target = ItemType;
+
+    fn deref(&self) -> &Self::Target {
+        &*self.as_arc_ref()
     }
 }
 

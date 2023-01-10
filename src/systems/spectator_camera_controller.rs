@@ -46,8 +46,8 @@ impl SpectatorCameraInputSystem {
         }
     }
 
-    pub fn data(&self) -> &SpectatorCameraInput {
-        &self.data
+    pub fn data(&self) -> SpectatorCameraInput {
+        self.data.clone()
     }
 }
 

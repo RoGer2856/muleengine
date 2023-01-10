@@ -1,4 +1,5 @@
 use muleengine::prelude::ResultInspector;
+use muleengine::system_container::System;
 use sdl2::event as sdl2_event;
 use sdl2::keyboard::{Keycode, Scancode};
 use sdl2::mouse::MouseButton as Sdl2MouseButton;
@@ -8,7 +9,7 @@ use vek::Vec2;
 
 use muleengine::window_context::{Event, EventSender, Key, MouseButton, WindowContext};
 
-pub struct Sdl2GLContext {
+pub struct Sdl2GlContext {
     sdl_context: Sdl,
     _sdl_video: VideoSubsystem,
     _gl_context: GLContext,
@@ -27,35 +28,35 @@ pub enum ContextCreationError {
     CouldNotCreateEventPump(String),
     CouldNotBuildWindow(WindowBuildError),
     CouldNotCreateContextWithGLVersion {
-        gl_profile: GLProfile,
+        gl_profile: GlProfile,
         gl_major_version: u8,
         gl_minor_version: u8,
     },
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum GLProfile {
+pub enum GlProfile {
     Core,
     Compatibility,
     GLES,
 }
 
-impl From<GLProfile> for video::GLProfile {
-    fn from(gl_profile: GLProfile) -> video::GLProfile {
+impl From<GlProfile> for video::GLProfile {
+    fn from(gl_profile: GlProfile) -> video::GLProfile {
         match gl_profile {
-            GLProfile::Compatibility => video::GLProfile::Compatibility,
-            GLProfile::Core => video::GLProfile::Core,
-            GLProfile::GLES => video::GLProfile::GLES,
+            GlProfile::Compatibility => video::GLProfile::Compatibility,
+            GlProfile::Core => video::GLProfile::Core,
+            GlProfile::GLES => video::GLProfile::GLES,
         }
     }
 }
 
-impl Sdl2GLContext {
+impl Sdl2GlContext {
     pub fn new(
         window_name: &str,
         window_width: u32,
         window_height: u32,
-        gl_profile: GLProfile,
+        gl_profile: GlProfile,
         gl_major_version: u8,
         gl_minor_version: u8,
     ) -> Result<Self, ContextCreationError> {
@@ -176,7 +177,13 @@ impl Sdl2GLContext {
     }
 }
 
-impl WindowContext for Sdl2GLContext {
+impl System for Sdl2GlContext {
+    fn tick(&mut self, _delta_time_in_secs: f32) {
+        self.flush_events();
+    }
+}
+
+impl WindowContext for Sdl2GlContext {
     fn is_key_pressed(&self, key: Key) -> bool {
         let keyboard_state = self.event_pump.keyboard_state();
         let keycode = from_key_to_sdl_keycode(key);

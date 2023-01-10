@@ -1,6 +1,6 @@
 use parking_lot::RwLock;
 
-use crate::prelude::ArcRwLock;
+use crate::{containers::multi_type_dict::MultiTypeDictInsertResult, prelude::ArcRwLock};
 
 use super::containers::multi_type_dict::{MultiTypeDict, MultiTypeDictItem};
 
@@ -33,9 +33,13 @@ impl SystemContainer {
         }
     }
 
-    pub fn add_system(&mut self, system: impl System) {
+    pub fn add_system<SystemType: System>(
+        &mut self,
+        system: SystemType,
+    ) -> MultiTypeDictInsertResult<RwLock<SystemType>> {
         let result = self.systems_by_type_id.insert(RwLock::new(system));
         self.systems.push(result.new_item.as_arc_ref().clone());
+        result
     }
 
     pub fn get_system<SystemType: 'static>(&self) -> Option<MultiTypeDictItem<RwLock<SystemType>>> {
