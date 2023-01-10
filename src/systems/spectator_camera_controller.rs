@@ -5,7 +5,7 @@ use vek::{num_traits::Zero, Vec2, Vec3};
 
 use muleengine::{
     camera::Camera,
-    messaging::spmc,
+    messaging::mpmc,
     prelude::{ArcRwLock, ResultInspector},
     renderer::{renderer_client::RendererClient, TransformHandler},
     system_container::System,
@@ -16,22 +16,22 @@ pub struct SpectatorCameraInputSystem {
     window_context: ArcRwLock<dyn WindowContext>,
     data: SpectatorCameraInput,
 
-    moving_event_sender: spmc::Sender<Vec3<f32>>,
-    turning_event_sender: spmc::Sender<Vec2<f32>>,
+    moving_event_sender: mpmc::Sender<Vec3<f32>>,
+    turning_event_sender: mpmc::Sender<Vec2<f32>>,
 }
 
 #[derive(Clone)]
 pub struct SpectatorCameraInput {
-    moving_event_receiver: spmc::Receiver<Vec3<f32>>,
-    turning_event_receiver: spmc::Receiver<Vec2<f32>>,
+    moving_event_receiver: mpmc::Receiver<Vec3<f32>>,
+    turning_event_receiver: mpmc::Receiver<Vec2<f32>>,
 }
 
 impl SpectatorCameraInputSystem {
     pub fn new(window_context: ArcRwLock<dyn WindowContext>) -> Self {
-        let turning_event_sender = spmc::Sender::new();
+        let turning_event_sender = mpmc::Sender::new();
         let turning_event_receiver = turning_event_sender.create_receiver();
 
-        let moving_event_sender = spmc::Sender::new();
+        let moving_event_sender = mpmc::Sender::new();
         let moving_event_receiver = moving_event_sender.create_receiver();
 
         Self {

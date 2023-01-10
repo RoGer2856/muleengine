@@ -187,9 +187,10 @@ mod tests {
 
         sender.send("0".to_string());
         sender.send("1".to_string());
-        sender.send("2".to_string());
-        sender.send("3".to_string());
-        sender.send("4".to_string());
+        let sender_clone = sender.clone();
+        sender_clone.send("2".to_string());
+        sender_clone.send("3".to_string());
+        sender_clone.send("4".to_string());
 
         assert_eq!(receiver0.pop(), Some("0".to_string()));
         assert_eq!(receiver0.pop(), Some("1".to_string()));

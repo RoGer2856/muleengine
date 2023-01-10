@@ -94,7 +94,7 @@ impl Game2 {
                 .clone(),
         );
 
-        // todo!("choose between SyncRenderer and AsyncRenderer");
+        // todo!("choose between SyncRenderer and AsyncRenderer automatically");
         let renderer_system = SyncRenderer::new(renderer_impl);
         let renderer_client = renderer_system.client();
 

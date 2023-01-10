@@ -2,7 +2,7 @@ use vek::Vec2;
 
 use crate::system_container::System;
 
-use super::messaging::spmc;
+use super::messaging::mpmc;
 
 #[derive(Debug, Clone)]
 pub enum Key {
@@ -209,8 +209,8 @@ pub enum Event {
     },
 }
 
-pub type EventSender = spmc::Sender<Event>;
-pub type EventReceiver = spmc::Receiver<Event>;
+pub type EventSender = mpmc::Sender<Event>;
+pub type EventReceiver = mpmc::Receiver<Event>;
 
 pub trait WindowContext: System {
     fn is_key_pressed(&self, key: Key) -> bool;

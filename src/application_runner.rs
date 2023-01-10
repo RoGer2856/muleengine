@@ -71,9 +71,6 @@ pub async fn async_run<ACType>(
 
     let async_systems = application.async_systems();
     let async_systems = tokio::spawn(async move {
-        todo!(
-            "if the following is called, then spectator camera controller blocks the exit process"
-        );
         async_systems.join().await;
     });
 
