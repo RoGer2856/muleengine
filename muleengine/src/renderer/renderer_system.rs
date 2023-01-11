@@ -123,7 +123,7 @@ impl AsyncRenderer {
                                     if let Ok(command) = command {
                                         renderer_pri.execute_command(command, renderer_impl.as_renderer_impl_mut());
                                     } else {
-                                        log::error!("ALl the command senders are dropped");
+                                        log::error!("All the command senders are dropped");
                                         break;
                                     }
                                 }

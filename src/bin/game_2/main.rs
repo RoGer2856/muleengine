@@ -3,6 +3,7 @@
 mod objects;
 
 use game_2::{
+    app_loop_state::{AppLoopState, AppLoopStateWatcher},
     application_runner::{self, ApplicationCallbacks, ApplicationContext},
     async_systems_runner::AsyncSystemsRunner,
     systems::{
@@ -38,7 +39,7 @@ fn main() {
 }
 
 struct Game2 {
-    should_run: bool,
+    app_loop_state: AppLoopState,
     service_container: ServiceContainer,
     window_context: ArcRwLock<dyn WindowContext>,
     event_receiver: EventReceiver,
@@ -113,8 +114,14 @@ impl Game2 {
 
         let event_receiver = window_context.read().event_receiver();
 
+        let app_loop_state = AppLoopState::new();
+
+        app_context
+            .service_container()
+            .insert(app_loop_state.watcher());
+
         Self {
-            should_run: true,
+            app_loop_state,
             service_container: app_context.service_container().clone(),
             window_context,
             event_receiver,
@@ -145,7 +152,15 @@ impl Game2 {
             .read()
             .clone();
 
+        let app_loop_state_watcher = service_container
+            .get_service::<AppLoopStateWatcher>()
+            .inspect_err(|e| log::error!("{e:?}"))
+            .unwrap()
+            .read()
+            .clone();
+
         ret.push(tokio::spawn(spectator_camera_controller::run(
+            app_loop_state_watcher,
             renderer_client.clone(),
             renderer_configuration
                 .read()
@@ -165,7 +180,7 @@ impl Game2 {
 
     fn process_event(&mut self, event: Event, _app_context: &mut ApplicationContext) {
         if let Event::Closed = event {
-            self.should_run = false;
+            self.app_loop_state.stop_loop();
         }
     }
 }
@@ -176,7 +191,7 @@ impl ApplicationCallbacks for Game2 {
     }
 
     fn should_run(&self, _app_context: &mut ApplicationContext) -> bool {
-        self.should_run
+        self.app_loop_state.should_run()
     }
 
     fn tick(&mut self, _delta_time_in_secs: f32, app_context: &mut ApplicationContext) {

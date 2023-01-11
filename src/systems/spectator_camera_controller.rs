@@ -12,6 +12,8 @@ use muleengine::{
     window_context::{Key, WindowContext},
 };
 
+use crate::app_loop_state::AppLoopStateWatcher;
+
 pub struct SpectatorCameraInputSystem {
     window_context: ArcRwLock<dyn WindowContext>,
     data: SpectatorCameraInput,
@@ -130,6 +132,7 @@ impl System for SpectatorCameraInputSystem {
 }
 
 pub struct SpectatorCameraControllerSystem {
+    app_loop_state_watcher: AppLoopStateWatcher,
     camera: Camera,
     skydome_camera_transform_handler: TransformHandler,
     main_camera_transform_handler: TransformHandler,
@@ -139,12 +142,14 @@ pub struct SpectatorCameraControllerSystem {
 
 impl SpectatorCameraControllerSystem {
     pub fn new(
+        app_loop_state_watcher: AppLoopStateWatcher,
         renderer_client: RendererClient,
         skydome_camera_transform_handler: TransformHandler,
         main_camera_transform_handler: TransformHandler,
         spectator_camera_input: SpectatorCameraInput,
     ) -> Self {
         Self {
+            app_loop_state_watcher,
             camera: Camera::new(),
             skydome_camera_transform_handler,
             main_camera_transform_handler,
@@ -163,9 +168,14 @@ impl SpectatorCameraControllerSystem {
         loop {
             let start = Instant::now();
 
-            self.tick(delta_time_secs).await;
-
-            interval.tick().await;
+            tokio::select! {
+                _ = self.app_loop_state_watcher.wait_for_quit() => {
+                    break;
+                }
+                _ = interval.tick() => {
+                    self.tick(delta_time_secs).await;
+                }
+            }
 
             let end = Instant::now();
             delta_time_secs = (end - start).as_secs_f32();
@@ -249,12 +259,14 @@ impl SpectatorCameraControllerSystem {
 }
 
 pub async fn run(
+    app_loop_state_watcher: AppLoopStateWatcher,
     renderer_client: RendererClient,
     skydome_camera_transform_handler: TransformHandler,
     main_camera_transform_handler: TransformHandler,
     spectator_camera_input: SpectatorCameraInput,
 ) {
     SpectatorCameraControllerSystem::new(
+        app_loop_state_watcher,
         renderer_client,
         skydome_camera_transform_handler,
         main_camera_transform_handler,
