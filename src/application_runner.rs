@@ -13,6 +13,12 @@ pub struct ApplicationContext {
     service_container: ServiceContainer,
 }
 
+impl Default for ApplicationContext {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ApplicationContext {
     pub fn new() -> Self {
         Self {

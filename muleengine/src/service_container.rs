@@ -4,7 +4,7 @@ use std::{
     sync::Arc,
 };
 
-use parking_lot::{Mutex, RwLock};
+use parking_lot::{Condvar, Mutex, RwLock};
 
 use crate::prelude::ArcRwLock;
 
@@ -17,10 +17,18 @@ pub struct ServiceMissingError {
     service_type_name: String,
 }
 
+type ServiceTypeLock = Arc<(Mutex<bool>, Condvar)>;
+
 #[derive(Clone)]
 pub struct ServiceContainer {
     service_dict: ArcRwLock<SendableMultiTypeDict>,
-    service_type_locks: Arc<Mutex<BTreeMap<TypeId, Arc<Mutex<()>>>>>,
+    service_type_locks: Arc<Mutex<BTreeMap<TypeId, ServiceTypeLock>>>,
+}
+
+pub struct ServiceTypeGuard {
+    service_type_locks: Arc<Mutex<BTreeMap<TypeId, ServiceTypeLock>>>,
+    type_id: TypeId,
+    lock: Arc<(Mutex<bool>, Condvar)>,
 }
 
 impl Default for ServiceContainer {
@@ -70,7 +78,7 @@ impl ServiceContainer {
         &self,
         service_constructor: impl FnOnce() -> ServiceType,
     ) -> ArcRwLock<ServiceType> {
-        self.lock_service_type::<ServiceType>();
+        let _service_type_guard = self.lock_service_type::<ServiceType>();
 
         let service = self
             .service_dict
@@ -88,23 +96,46 @@ impl ServiceContainer {
                 .clone()
         };
 
-        self.unlock_service_type::<ServiceType>();
-
         service
     }
 
-    fn lock_service_type<ServiceType: 'static>(&self) {
+    fn lock_service_type<ServiceType: 'static>(&self) -> ServiceTypeGuard {
         let type_id = TypeId::of::<ServiceType>();
         let mut service_type_locks = self.service_type_locks.lock();
         let entry = service_type_locks
             .entry(type_id)
-            .or_insert_with(|| Arc::new(Mutex::new(())));
-        // todo!()
-        let _ = entry.clone().lock();
-    }
+            .or_insert_with(|| Arc::new((Mutex::new(false), Condvar::new())));
 
-    fn unlock_service_type<ServiceType: 'static>(&self) {
-        let type_id = TypeId::of::<ServiceType>();
-        self.service_type_locks.lock().remove(&type_id);
+        let entry = entry.clone();
+
+        drop(service_type_locks);
+
+        let mut service_type_locked = entry.0.lock();
+        while *service_type_locked {
+            entry.1.wait(&mut service_type_locked);
+        }
+        *service_type_locked = true;
+
+        ServiceTypeGuard {
+            service_type_locks: self.service_type_locks.clone(),
+            type_id,
+            lock: entry.clone(),
+        }
+    }
+}
+
+impl Drop for ServiceTypeGuard {
+    fn drop(&mut self) {
+        let mut service_type_locks = self.service_type_locks.lock();
+        // check that only service_type_locks and self contains this lock
+        if Arc::strong_count(&self.lock) == 2 {
+            // nobody tries to lock the service type
+            service_type_locks.remove(&self.type_id);
+        } else {
+            // somebody tries to lock the service type
+            let mut service_type_locked = self.lock.0.lock();
+            *service_type_locked = false;
+            self.lock.1.notify_one();
+        }
     }
 }

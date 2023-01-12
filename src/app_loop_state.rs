@@ -8,6 +8,12 @@ pub struct AppLoopState(Arc<Sender<bool>>);
 #[derive(Clone)]
 pub struct AppLoopStateWatcher(Receiver<bool>);
 
+impl Default for AppLoopState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AppLoopState {
     pub fn new() -> Self {
         let (sender, _receiver) = watch::channel(true);
@@ -35,12 +41,8 @@ impl AppLoopStateWatcher {
 
     pub async fn wait_for_quit(&self) {
         let mut run_loop = self.0.clone();
-        loop {
-            if let Ok(()) = run_loop.changed().await {
-                if !*run_loop.borrow() {
-                    break;
-                }
-            } else {
+        while let Ok(()) = run_loop.changed().await {
+            if !*run_loop.borrow() {
                 break;
             }
         }

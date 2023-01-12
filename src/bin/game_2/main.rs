@@ -35,7 +35,7 @@ fn main() {
         .filter_level(log::LevelFilter::Trace)
         .init();
 
-    application_runner::run(true, |app_context| Game2::new(app_context));
+    application_runner::run(true, Game2::new);
 }
 
 struct Game2 {
@@ -47,9 +47,9 @@ struct Game2 {
 
 impl Game2 {
     fn add_basic_services(service_container: &mut ServiceContainer) {
-        service_container.get_or_insert_service(|| AssetReader::new());
-        service_container.get_or_insert_service(|| ImageContainer::new());
-        service_container.get_or_insert_service(|| SceneContainer::new());
+        service_container.get_or_insert_service(AssetReader::new);
+        service_container.get_or_insert_service(ImageContainer::new);
+        service_container.get_or_insert_service(SceneContainer::new);
         service_container.get_or_insert_service(|| AssetContainer::new(service_container));
     }
 
