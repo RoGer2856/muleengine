@@ -161,3 +161,69 @@ impl<T: Send> Drop for CommandReceiver<T> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use parking_lot::Mutex;
+
+    use super::{command_channel, CommandReceiver};
+
+    #[derive(Debug, Clone, Copy, Eq, PartialEq)]
+    struct Command(usize);
+
+    async fn run_worker(
+        received_values: Arc<Mutex<Vec<Command>>>,
+        mut receiver: CommandReceiver<Command>,
+    ) {
+        while let Ok(command) = receiver.recv_async().await {
+            received_values.lock().push(command);
+        }
+    }
+
+    async fn run_test(number_of_workers: usize) {
+        let received_values = Arc::new(Mutex::new(Vec::<Command>::new()));
+
+        let (sender, receiver) = command_channel();
+
+        let mut workers = Vec::new();
+        for _ in 0..number_of_workers {
+            let received_values = received_values.clone();
+            let receiver = receiver.clone();
+            workers.push(tokio::spawn(run_worker(received_values, receiver)));
+        }
+
+        sender.send(Command(7)).unwrap();
+
+        drop(sender);
+
+        for worker in workers {
+            worker.await.unwrap();
+        }
+
+        let received_values = received_values.lock();
+        assert_eq!(received_values.len(), 1);
+        assert_eq!(*received_values.get(0).unwrap(), Command(7));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn single_worker_current_thread() {
+        run_test(1).await;
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn multiple_workers_current_thread() {
+        run_test(10).await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn single_worker_multi_thread() {
+        run_test(1).await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn multiple_workers_multi_thread() {
+        run_test(10).await;
+    }
+}
