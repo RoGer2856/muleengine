@@ -681,6 +681,7 @@ dependencies = [
  "assimp",
  "assimp-sys",
  "closure",
+ "env_logger",
  "futures",
  "image",
  "log",

@@ -1,10 +1,10 @@
 use std::{collections::BTreeSet, sync::Arc};
 
 use parking_lot::RwLock;
-use tokio::sync::watch;
 use vek::Transform;
 
 use crate::{
+    app_loop_state::AppLoopState,
     containers::object_pool::{ObjectPool, ObjectPoolIndex},
     mesh::{Material, Mesh},
     messaging::command_channel::{command_channel, CommandReceiver, CommandSender},
@@ -35,7 +35,7 @@ pub struct SyncRenderer {
 pub struct AsyncRenderer {
     pub(super) renderer_pri: RendererPri,
     pub(super) renderer_impl: Box<dyn RendererImplAsync>,
-    halt_sender: watch::Sender<bool>,
+    app_loop_state: AppLoopState,
 }
 
 pub(super) struct RendererLayerData {
@@ -96,25 +96,26 @@ impl AsyncRenderer {
             panic!("Number of executors given to Renderer::new_async(..) has to be more than 0");
         }
 
-        let (halt_sender, halt_receiver) = watch::channel(false);
+        let app_loop_state = AppLoopState::new();
+        let app_loop_state_watcher = app_loop_state.watcher();
 
         let ret = Self {
             renderer_pri: RendererPri::new(),
             renderer_impl: Box::new(renderer_impl),
-            halt_sender,
+            app_loop_state,
         };
 
         for _ in 0..number_of_executors {
             let renderer_pri = ret.renderer_pri.clone();
             let renderer_impl = ret.renderer_impl.box_clone();
-            let halt_receiver = halt_receiver.clone();
+            let app_loop_state_watcher = app_loop_state_watcher.clone();
 
             tokio::spawn(async move {
                 // the outer loop is there to restart the inner loop in case of a panic
                 while {
                     let mut renderer_pri = renderer_pri.clone();
                     let mut renderer_impl = renderer_impl.box_clone();
-                    let mut halt_receiver = halt_receiver.clone();
+                    let app_loop_state_watcher = app_loop_state_watcher.clone();
 
                     let task_result = tokio::spawn(async move {
                         log::info!("Starting AsyncRenderer executor");
@@ -129,21 +130,8 @@ impl AsyncRenderer {
                                         break;
                                     }
                                 }
-                                should_halt = halt_receiver.changed() => {
-                                    let mut should_break = false;
-                                    if should_halt.is_err() {
-                                        log::error!("AsyncRenderer's halt_sender is closed but it did not send the halt signal");
-                                        should_break = true;
-                                    }
-
-                                    if *halt_receiver.borrow() {
-                                        should_break = true;
-                                    }
-
-                                    if should_break {
-                                        log::info!("Stopping renderer executor");
-                                        // break;
-                                    }
+                                _ = app_loop_state_watcher.wait_for_quit() => {
+                                    break;
                                 }
                             }
                         }
@@ -1047,9 +1035,6 @@ impl System for AsyncRenderer {
 
 impl Drop for AsyncRenderer {
     fn drop(&mut self) {
-        let _ = self
-            .halt_sender
-            .send(true)
-            .inspect_err(|_| log::error!("AsyncRenderer is dropped but no executors are running"));
+        self.app_loop_state.stop_loop();
     }
 }

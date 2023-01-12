@@ -1,9 +1,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -11,6 +8,7 @@ use parking_lot::RwLock;
 use vek::Transform;
 
 use crate::{
+    app_loop_state::{AppLoopState, AppLoopStateWatcher},
     mesh::{Material, Mesh},
     prelude::ArcRwLock,
     renderer::{
@@ -371,35 +369,36 @@ impl RendererImpl for TestRendererImpl {
 }
 
 pub struct TestLoopSync {
-    should_run: Arc<AtomicBool>,
+    app_loop_state_watcher: AppLoopStateWatcher,
     renderer_system: SyncRenderer,
 }
 
 pub struct TestLoopAsync {
-    should_run: Arc<AtomicBool>,
+    app_loop_state_watcher: AppLoopStateWatcher,
     renderer_system: AsyncRenderer,
 }
 
 #[derive(Clone)]
 pub struct TestLoopClient {
-    should_run: Arc<AtomicBool>,
+    app_loop_state: AppLoopState,
     renderer_impl: TestRendererImpl,
     renderer_client: RendererClient,
 }
 
 pub fn init_test_sync() -> (TestLoopSync, TestLoopClient) {
     let renderer_impl = TestRendererImpl::new();
-    let should_run = Arc::new(AtomicBool::new(true));
+    let app_loop_state = AppLoopState::new();
+    let app_loop_state_watcher = app_loop_state.watcher();
     let renderer_system = SyncRenderer::new(renderer_impl.clone());
     let renderer_client = renderer_system.client();
 
     (
         TestLoopSync {
-            should_run: should_run.clone(),
+            app_loop_state_watcher,
             renderer_system,
         },
         TestLoopClient {
-            should_run,
+            app_loop_state,
             renderer_impl,
             renderer_client,
         },
@@ -408,17 +407,18 @@ pub fn init_test_sync() -> (TestLoopSync, TestLoopClient) {
 
 pub fn init_test_async() -> (TestLoopAsync, TestLoopClient) {
     let renderer_impl = TestRendererImpl::new();
-    let should_run = Arc::new(AtomicBool::new(true));
+    let app_loop_state = AppLoopState::new();
+    let app_loop_state_watcher = app_loop_state.watcher();
     let renderer_system = AsyncRenderer::new(4, renderer_impl.clone());
     let renderer_client = renderer_system.client();
 
     (
         TestLoopAsync {
-            should_run: should_run.clone(),
+            app_loop_state_watcher,
             renderer_system,
         },
         TestLoopClient {
-            should_run,
+            app_loop_state,
             renderer_impl,
             renderer_client,
         },
@@ -428,7 +428,7 @@ pub fn init_test_async() -> (TestLoopAsync, TestLoopClient) {
 impl TestLoopSync {
     pub async fn block_on_main_loop(&mut self, timeout: Duration) {
         let start = Instant::now();
-        while self.should_run.load(Ordering::SeqCst) {
+        while self.app_loop_state_watcher.should_run() {
             self.renderer_system.tick(1.0 / 30.0);
 
             tokio::task::yield_now().await;
@@ -450,7 +450,7 @@ impl TestLoopSync {
 impl TestLoopAsync {
     pub async fn block_on_main_loop(&mut self, timeout: Duration) {
         let start = Instant::now();
-        while self.should_run.load(Ordering::SeqCst) {
+        while self.app_loop_state_watcher.should_run() {
             self.renderer_system.tick(1.0 / 30.0);
 
             tokio::task::yield_now().await;
@@ -475,7 +475,7 @@ impl TestLoopClient {
     }
 
     pub fn stop_main_loop(&self) {
-        self.should_run.store(false, Ordering::SeqCst);
+        self.app_loop_state.stop_loop();
     }
 
     pub fn renderer_impl(&self) -> &TestRendererImpl {

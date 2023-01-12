@@ -126,6 +126,10 @@ async fn shader_is_released_when_handlers_are_dropped() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn material_is_released_when_handlers_are_dropped() {
+    env_logger::builder()
+        .filter_level(log::LevelFilter::Trace)
+        .init();
+
     let (mut test_loop, test_client) = init_test_async();
 
     let test_task = {
