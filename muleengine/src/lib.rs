@@ -11,6 +11,7 @@ extern crate miniz_oxide;
 extern crate minizip_sys;
 
 pub mod aabb;
+pub mod app_loop_state;
 pub mod asset_container;
 pub mod asset_reader;
 pub mod camera;

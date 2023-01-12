@@ -142,7 +142,7 @@ impl AsyncRenderer {
 
                                     if should_break {
                                         log::info!("Stopping renderer executor");
-                                        break;
+                                        // break;
                                     }
                                 }
                             }

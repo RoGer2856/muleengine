@@ -4,6 +4,7 @@ use tokio::time::{interval, MissedTickBehavior};
 use vek::{num_traits::Zero, Vec2, Vec3};
 
 use muleengine::{
+    app_loop_state::AppLoopStateWatcher,
     camera::Camera,
     messaging::mpmc,
     prelude::{ArcRwLock, ResultInspector},
@@ -11,8 +12,6 @@ use muleengine::{
     system_container::System,
     window_context::{Key, WindowContext},
 };
-
-use crate::app_loop_state::AppLoopStateWatcher;
 
 pub struct SpectatorCameraInputSystem {
     window_context: ArcRwLock<dyn WindowContext>,

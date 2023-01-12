@@ -3,7 +3,6 @@
 mod objects;
 
 use game_2::{
-    app_loop_state::{AppLoopState, AppLoopStateWatcher},
     application_runner::{self, ApplicationCallbacks, ApplicationContext},
     async_systems_runner::AsyncSystemsRunner,
     systems::{
@@ -12,6 +11,7 @@ use game_2::{
     },
 };
 use muleengine::{
+    app_loop_state::{AppLoopState, AppLoopStateWatcher},
     asset_container::AssetContainer,
     asset_reader::AssetReader,
     image_container::ImageContainer,

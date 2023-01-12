@@ -7,7 +7,6 @@
     clippy::collapsible_if
 )]
 
-pub mod app_loop_state;
 pub mod application_runner;
 pub mod async_systems_runner;
 pub mod systems;
