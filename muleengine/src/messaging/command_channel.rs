@@ -104,13 +104,15 @@ impl<T: Send> CommandReceiver<T> {
     pub fn try_pop(&self) -> Result<T, TryRecvError> {
         let mut ret = Err(TryRecvError::Empty);
 
-        self.queue_watcher_sender.send_modify(|queue| {
-            if let Some(command) = queue.pop_front() {
-                ret = Ok(command);
-            } else {
-                ret = Err(TryRecvError::Empty);
-            }
-        });
+        if !self.queue_watcher_sender.borrow().is_empty() {
+            self.queue_watcher_sender.send_modify(|queue| {
+                if let Some(command) = queue.pop_front() {
+                    ret = Ok(command);
+                } else {
+                    ret = Err(TryRecvError::Empty);
+                }
+            });
+        }
 
         if let Err(TryRecvError::Empty) = ret {
             if self.sender_count.load(atomic::Ordering::SeqCst) == 0 {
