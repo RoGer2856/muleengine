@@ -104,6 +104,3 @@ pub enum Command {
         object_pool_index: ObjectPoolIndex,
     },
 }
-
-pub type CommandSender = flume::Sender<Command>;
-pub type CommandReceiver = flume::Receiver<Command>;

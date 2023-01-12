@@ -32,7 +32,7 @@ use crate::objects::Objects;
 
 fn main() {
     env_logger::builder()
-        .filter_level(log::LevelFilter::Debug)
+        .filter_level(log::LevelFilter::Trace)
         .init();
 
     application_runner::run(true, |app_context| Game2::new(app_context));
@@ -196,7 +196,7 @@ impl ApplicationCallbacks for Game2 {
 
     fn tick(&mut self, _delta_time_in_secs: f32, app_context: &mut ApplicationContext) {
         while let Some(event) = self.event_receiver.pop() {
-            log::debug!("EVENT = {event:?}");
+            log::trace!("EVENT = {event:?}");
 
             self.process_event(event, app_context);
         }

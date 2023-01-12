@@ -29,4 +29,5 @@ pub enum RendererError {
     InvalidRendererLayerHandler(RendererLayerHandler),
     InvalidRendererGroupHandler(RendererGroupHandler),
     RendererImplError(String),
+    RendererSystemDropped,
 }

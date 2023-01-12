@@ -188,7 +188,7 @@ impl<ItemType: ?Sized> Deref for SendableMultiTypeDictItem<ItemType> {
     type Target = ItemType;
 
     fn deref(&self) -> &Self::Target {
-        &*self.as_arc_ref()
+        self.as_arc_ref()
     }
 }
 

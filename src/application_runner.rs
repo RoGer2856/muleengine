@@ -4,6 +4,7 @@ use muleengine::{
     fps_counter::FpsCounter, prelude::ResultInspector, service_container::ServiceContainer,
     stopwatch::Stopwatch, system_container::SystemContainer,
 };
+use tokio::time::{sleep_until, Instant};
 
 use crate::async_systems_runner::AsyncSystemsRunner;
 
@@ -96,8 +97,17 @@ pub async fn async_run<ACType>(
         delta_time_in_secs = delta_time_stopwatch.restart().as_secs_f32();
     }
 
-    async_systems
-        .await
-        .inspect_err(|e| log::error!("Joining async systems, msg = {e}"))
-        .unwrap()
+    drop(application);
+    drop(app_context);
+
+    let timeout = Duration::from_secs(10);
+    let timestamp = Instant::now() + timeout;
+    tokio::select! {
+        _ = sleep_until(timestamp) => {
+            log::error!("Could not shutdown gracefully in {:?}", timeout);
+        }
+        join_result = async_systems => {
+            let _ = join_result.inspect_err(|e| log::error!("Joining async systems, msg = {e}"));
+        }
+    }
 }

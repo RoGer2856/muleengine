@@ -110,7 +110,7 @@ impl Sdl2GlContext {
     }
 
     fn try_from_sdl2_event_to_event(&self, sdl2_event: sdl2_event::Event) -> Option<Event> {
-        // log::debug!("SDL2_EVENT = {sdl2_event:?}");
+        // log::trace!("SDL2_EVENT = {sdl2_event:?}");
 
         Some(match sdl2_event {
             sdl2_event::Event::Window { win_event, .. } => match win_event {

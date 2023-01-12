@@ -681,7 +681,6 @@ dependencies = [
  "assimp",
  "assimp-sys",
  "closure",
- "flume",
  "futures",
  "image",
  "log",

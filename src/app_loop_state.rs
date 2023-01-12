@@ -40,6 +40,8 @@ impl AppLoopStateWatcher {
                 if !*run_loop.borrow() {
                     break;
                 }
+            } else {
+                break;
             }
         }
     }
@@ -62,10 +64,11 @@ mod tests {
             state.stop_loop();
         });
 
-        let timeout = Instant::now() + Duration::from_secs(1);
+        let timeout = Duration::from_secs(1);
+        let timestamp = Instant::now() + timeout;
         loop {
             tokio::select! {
-                _ = sleep_until(timeout) => {
+                _ = sleep_until(timestamp) => {
                     break;
                 }
                 _ = state_watcher.wait_for_quit() => {

@@ -7,13 +7,14 @@ use vek::Transform;
 use crate::{
     containers::object_pool::{ObjectPool, ObjectPoolIndex},
     mesh::{Material, Mesh},
+    messaging::command_channel::{command_channel, CommandReceiver, CommandSender},
     prelude::{ArcRwLock, OptionInspector, ResultInspector},
     system_container::System,
 };
 
 use super::{
     renderer_client::RendererClient,
-    renderer_command::{Command, CommandReceiver, CommandSender},
+    renderer_command::Command,
     renderer_impl::{RendererImpl, RendererImplAsync},
     renderer_objects::{
         renderer_camera::CameraHandler,
@@ -64,8 +65,8 @@ pub(super) struct RendererPri {
     pub(super) renderer_meshes: ArcRwLock<ObjectPool<ArcRwLock<dyn RendererMesh>>>,
     pub(super) renderer_objects: ArcRwLock<ObjectPool<RendererObjectData>>,
 
-    pub(super) command_receiver: CommandReceiver,
-    pub(super) command_sender: CommandSender,
+    pub(super) command_receiver: CommandReceiver<Command>,
+    pub(super) command_sender: CommandSender<Command>,
 }
 
 impl SyncRenderer {
@@ -109,6 +110,7 @@ impl AsyncRenderer {
             let halt_receiver = halt_receiver.clone();
 
             tokio::spawn(async move {
+                // the outer loop is there to restart the inner loop in case of a panic
                 while {
                     let mut renderer_pri = renderer_pri.clone();
                     let mut renderer_impl = renderer_impl.box_clone();
@@ -140,6 +142,7 @@ impl AsyncRenderer {
 
                                     if should_break {
                                         log::info!("Stopping renderer executor");
+                                        break;
                                     }
                                 }
                             }
@@ -165,7 +168,7 @@ impl AsyncRenderer {
 
 impl RendererPri {
     pub fn new() -> Self {
-        let (sender, receiver) = flume::unbounded();
+        let (sender, receiver) = command_channel();
 
         Self {
             renderer_cameras: Arc::new(RwLock::new(ObjectPool::new())),

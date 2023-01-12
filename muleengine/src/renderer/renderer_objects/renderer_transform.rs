@@ -2,8 +2,9 @@ use std::{cmp::Ordering, fmt::Debug, sync::Arc};
 
 use crate::{
     containers::object_pool::ObjectPoolIndex,
+    messaging::command_channel::CommandSender,
     prelude::{AsAny, ResultInspector},
-    renderer::renderer_command::{Command, CommandSender},
+    renderer::renderer_command::Command,
 };
 
 pub trait RendererTransform: AsAny + Sync + Send + 'static {}
@@ -11,14 +12,14 @@ pub trait RendererTransform: AsAny + Sync + Send + 'static {}
 #[derive(Clone)]
 pub(crate) struct TransformHandlerDestructor {
     pub(crate) object_pool_index: ObjectPoolIndex,
-    command_sender: CommandSender,
+    command_sender: CommandSender<Command>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct TransformHandler(pub(crate) Arc<TransformHandlerDestructor>);
 
 impl TransformHandler {
-    pub fn new(object_pool_index: ObjectPoolIndex, command_sender: CommandSender) -> Self {
+    pub fn new(object_pool_index: ObjectPoolIndex, command_sender: CommandSender<Command>) -> Self {
         Self(Arc::new(TransformHandlerDestructor {
             object_pool_index,
             command_sender,
@@ -61,6 +62,6 @@ impl Drop for TransformHandlerDestructor {
             .send(Command::ReleaseTransform {
                 object_pool_index: self.object_pool_index,
             })
-            .inspect_err(|e| log::error!("Release transform, msg = {e}"));
+            .inspect_err(|e| log::error!("Release transform, msg = {e:?}"));
     }
 }

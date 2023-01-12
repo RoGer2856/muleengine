@@ -17,17 +17,14 @@ impl AsyncSystemsRunner {
     }
 
     pub async fn join(self) {
-        let async_systems = self
-            .async_systems
-            .await
-            .inspect_err(|e| {
-                log::error!("Failed to await async systems, msg = {e:?}");
-            })
-            .unwrap();
-        for async_system in async_systems {
-            let _ = async_system.await.inspect_err(|e| {
-                log::error!("Failed to await async system, msg = {e:?}");
-            });
+        if let Ok(async_systems) = self.async_systems.await.inspect_err(|e| {
+            log::error!("awaiting async systems, msg = {e:?}");
+        }) {
+            for async_system in async_systems {
+                let _ = async_system.await.inspect_err(|e| {
+                    log::error!("awaiting async system, msg = {e:?}");
+                });
+            }
         }
     }
 }
