@@ -6,6 +6,7 @@ use std::{
     },
 };
 
+use parking_lot::Mutex;
 use tokio::sync::watch;
 
 #[derive(Debug)]
@@ -24,31 +25,36 @@ pub enum TryRecvError {
     Disconnected,
 }
 
-pub struct CommandSender<T: Send> {
+struct Shared<T: Send> {
+    queue: Arc<Mutex<VecDeque<T>>>,
     sender_count: Arc<AtomicUsize>,
-    queue_watcher_sender: Arc<watch::Sender<VecDeque<T>>>,
+    queue_watcher_sender: Arc<watch::Sender<()>>,
+}
+
+pub struct CommandSender<T: Send> {
+    shared: Shared<T>,
 }
 
 pub struct CommandReceiver<T: Send> {
-    sender_count: Arc<AtomicUsize>,
-    queue_watcher_sender: Arc<watch::Sender<VecDeque<T>>>,
-    queue_watcher_receiver: watch::Receiver<VecDeque<T>>,
+    shared: Shared<T>,
+    queue_watcher_receiver: watch::Receiver<()>,
 }
 
 pub fn command_channel<T: Send>() -> (CommandSender<T>, CommandReceiver<T>) {
-    let (sender, receiver) = watch::channel(VecDeque::new());
-    let sender = Arc::new(sender);
+    let (sender, receiver) = watch::channel(());
 
-    let sender_count = Arc::new(AtomicUsize::new(1));
+    let shared = Shared {
+        queue: Arc::new(Mutex::new(VecDeque::new())),
+        sender_count: Arc::new(AtomicUsize::new(1)),
+        queue_watcher_sender: Arc::new(sender),
+    };
 
     (
         CommandSender {
-            sender_count: sender_count.clone(),
-            queue_watcher_sender: sender.clone(),
+            shared: shared.clone(),
         },
         CommandReceiver {
-            sender_count,
-            queue_watcher_sender: sender,
+            shared,
             queue_watcher_receiver: receiver,
         },
     )
@@ -56,10 +62,9 @@ pub fn command_channel<T: Send>() -> (CommandSender<T>, CommandReceiver<T>) {
 
 impl<T: Send> CommandSender<T> {
     pub fn send(&self, command: T) -> Result<(), SendError> {
-        if self.queue_watcher_sender.receiver_count() != 0 {
-            self.queue_watcher_sender.send_modify(|queue| {
-                queue.push_back(command);
-            });
+        if self.shared.queue_watcher_sender.receiver_count() != 0 {
+            self.shared.queue.lock().push_back(command);
+            let _ = self.shared.queue_watcher_sender.send(());
 
             Ok(())
         } else {
@@ -88,7 +93,7 @@ impl<T: Send> CommandReceiver<T> {
         match self.queue_watcher_receiver.has_changed() {
             Ok(true) => self.try_pop(),
             Ok(false) => {
-                if self.sender_count.load(atomic::Ordering::SeqCst) == 0 {
+                if self.shared.sender_count.load(atomic::Ordering::SeqCst) == 0 {
                     Err(TryRecvError::Disconnected)
                 } else {
                     Err(TryRecvError::Empty)
@@ -102,52 +107,51 @@ impl<T: Send> CommandReceiver<T> {
     }
 
     pub fn try_pop(&self) -> Result<T, TryRecvError> {
-        let mut ret = Err(TryRecvError::Empty);
-
-        if !self.queue_watcher_sender.borrow().is_empty() {
-            self.queue_watcher_sender.send_modify(|queue| {
-                if let Some(command) = queue.pop_front() {
-                    ret = Ok(command);
-                } else {
-                    ret = Err(TryRecvError::Empty);
-                }
-            });
+        let mut queue_guard = self.shared.queue.lock();
+        if let Some(command) = queue_guard.pop_front() {
+            let _ = self.shared.queue_watcher_sender.send(());
+            Ok(command)
+        } else if self.shared.sender_count.load(atomic::Ordering::SeqCst) == 0 {
+            Err(TryRecvError::Disconnected)
+        } else {
+            Err(TryRecvError::Empty)
         }
+    }
+}
 
-        if let Err(TryRecvError::Empty) = ret {
-            if self.sender_count.load(atomic::Ordering::SeqCst) == 0 {
-                ret = Err(TryRecvError::Disconnected)
-            }
+impl<T: Send> Clone for Shared<T> {
+    fn clone(&self) -> Self {
+        Self {
+            queue: self.queue.clone(),
+            sender_count: self.sender_count.clone(),
+            queue_watcher_sender: self.queue_watcher_sender.clone(),
         }
-
-        ret
     }
 }
 
 impl<T: Send> Clone for CommandSender<T> {
     fn clone(&self) -> Self {
-        self.sender_count.fetch_add(1, atomic::Ordering::SeqCst);
+        self.shared
+            .sender_count
+            .fetch_add(1, atomic::Ordering::SeqCst);
         Self {
-            sender_count: self.sender_count.clone(),
-            queue_watcher_sender: self.queue_watcher_sender.clone(),
+            shared: self.shared.clone(),
         }
     }
 }
 
 impl<T: Send> Drop for CommandSender<T> {
     fn drop(&mut self) {
-        // if this is the last sender, then notify all receivers
-        if self.sender_count.fetch_sub(1, atomic::Ordering::SeqCst) == 1 {
-            self.queue_watcher_sender.send_modify(|_queue| {});
-        }
+        self.shared
+            .sender_count
+            .fetch_sub(1, atomic::Ordering::SeqCst);
     }
 }
 
 impl<T: Send> Clone for CommandReceiver<T> {
     fn clone(&self) -> Self {
         Self {
-            sender_count: self.sender_count.clone(),
-            queue_watcher_sender: self.queue_watcher_sender.clone(),
+            shared: self.shared.clone(),
             queue_watcher_receiver: self.queue_watcher_receiver.clone(),
         }
     }
@@ -156,10 +160,12 @@ impl<T: Send> Clone for CommandReceiver<T> {
 impl<T: Send> Drop for CommandReceiver<T> {
     fn drop(&mut self) {
         // if this is the last receiver, then empty the queue
-        if self.queue_watcher_sender.receiver_count() == 1 {
-            self.queue_watcher_sender.send_modify(|queue| {
-                queue.clear();
-            });
+        if self.shared.queue_watcher_sender.receiver_count() == 1 {
+            let mut queue_guard = self.shared.queue.lock();
+            if !queue_guard.is_empty() {
+                queue_guard.clear();
+                let _ = self.shared.queue_watcher_sender.send(());
+            }
         }
     }
 }
