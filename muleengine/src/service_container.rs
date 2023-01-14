@@ -19,6 +19,10 @@ pub struct ServiceMissingError {
 
 type ServiceTypeLock = Arc<(Mutex<bool>, Condvar)>;
 
+pub trait Service: Send + Sync + 'static {}
+
+impl<T: Send + Sync + 'static> Service for T {}
+
 #[derive(Clone)]
 pub struct ServiceContainer {
     service_dict: ArcRwLock<SendableMultiTypeDict>,
@@ -57,14 +61,14 @@ impl ServiceContainer {
         }
     }
 
-    pub fn insert<ServiceType: Send + Sync + 'static>(
+    pub fn insert<ServiceType: Service>(
         &mut self,
         item: ServiceType,
     ) -> SendableMultiTypeDictInsertResult<RwLock<ServiceType>> {
         self.service_dict.write().insert(RwLock::new(item))
     }
 
-    pub fn get_service<ServiceType: 'static>(
+    pub fn get_service<ServiceType: Service>(
         &self,
     ) -> Result<ArcRwLock<ServiceType>, ServiceMissingError> {
         self.service_dict
@@ -74,7 +78,7 @@ impl ServiceContainer {
             .ok_or_else(ServiceMissingError::new::<ServiceType>)
     }
 
-    pub fn get_or_insert_service<ServiceType: Send + Sync + 'static>(
+    pub fn get_or_insert_service<ServiceType: Service>(
         &self,
         service_constructor: impl FnOnce() -> ServiceType,
     ) -> ArcRwLock<ServiceType> {
@@ -99,7 +103,7 @@ impl ServiceContainer {
         service
     }
 
-    fn lock_service_type<ServiceType: 'static>(&self) -> ServiceTypeGuard {
+    fn lock_service_type<ServiceType: Service>(&self) -> ServiceTypeGuard {
         let type_id = TypeId::of::<ServiceType>();
         let mut service_type_locks = self.service_type_locks.lock();
         let entry = service_type_locks
