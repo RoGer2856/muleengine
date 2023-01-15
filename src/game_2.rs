@@ -1,9 +1,8 @@
 use muleengine::{
     app_loop_state::{AppLoopState, AppLoopStateWatcher},
-    application_runner::{ApplicationCallbacks, ApplicationContext},
+    application_runner::{Application, ApplicationContext},
     asset_container::AssetContainer,
     asset_reader::AssetReader,
-    async_systems_runner::AsyncSystemsRunner,
     image_container::ImageContainer,
     prelude::{ArcRwLock, ResultInspector},
     renderer::{renderer_client::RendererClient, renderer_system::SyncRenderer},
@@ -22,13 +21,12 @@ use crate::{
     objects::Objects,
     systems::{
         renderer_configuration::RendererConfiguration,
-        spectator_camera_controller::{self, SpectatorCameraInput, SpectatorCameraInputSystem},
+        spectator_camera::{self, SpectatorCameraInput, SpectatorCameraInputSystem},
     },
 };
 
 pub struct Game2 {
     app_loop_state: AppLoopState,
-    service_container: ServiceContainer,
     window_context: ArcRwLock<dyn WindowContext>,
     event_receiver: EventReceiver,
 }
@@ -108,9 +106,12 @@ impl Game2 {
             .service_container()
             .insert(app_loop_state.watcher());
 
+        tokio::spawn(Self::run_async_systems(
+            app_context.service_container().clone(),
+        ));
+
         Self {
             app_loop_state,
-            service_container: app_context.service_container().clone(),
             window_context,
             event_receiver,
         }
@@ -147,7 +148,7 @@ impl Game2 {
             .read()
             .clone();
 
-        ret.push(tokio::spawn(spectator_camera_controller::run(
+        ret.push(tokio::spawn(spectator_camera::run(
             app_loop_state_watcher,
             renderer_client.clone(),
             renderer_configuration
@@ -173,11 +174,7 @@ impl Game2 {
     }
 }
 
-impl ApplicationCallbacks for Game2 {
-    fn async_systems(&mut self) -> AsyncSystemsRunner {
-        AsyncSystemsRunner::run(Self::run_async_systems(self.service_container.clone()))
-    }
-
+impl Application for Game2 {
     fn should_run(&self, _app_context: &mut ApplicationContext) -> bool {
         self.app_loop_state.should_run()
     }

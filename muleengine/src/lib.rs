@@ -15,7 +15,6 @@ pub mod app_loop_state;
 pub mod application_runner;
 pub mod asset_container;
 pub mod asset_reader;
-pub mod async_systems_runner;
 pub mod camera;
 pub mod containers;
 pub mod fps_counter;

@@ -3,8 +3,8 @@ use std::time::Duration;
 use tokio::time::{sleep_until, Instant};
 
 use crate::{
-    async_systems_runner::AsyncSystemsRunner, fps_counter::FpsCounter, prelude::ResultInspector,
-    service_container::ServiceContainer, stopwatch::Stopwatch, system_container::SystemContainer,
+    fps_counter::FpsCounter, prelude::ResultInspector, service_container::ServiceContainer,
+    stopwatch::Stopwatch, system_container::SystemContainer,
 };
 
 pub struct ApplicationContext {
@@ -35,17 +35,16 @@ impl ApplicationContext {
     }
 }
 
-pub trait ApplicationCallbacks: 'static {
-    fn async_systems(&mut self) -> AsyncSystemsRunner;
+pub trait Application: 'static {
     fn should_run(&self, app_context: &mut ApplicationContext) -> bool;
     fn tick(&mut self, delta_time_in_secs: f32, app_context: &mut ApplicationContext);
 }
 
-pub fn run<ACType>(
+pub fn run<ApplicationType>(
     multi_thread_executor: bool,
-    application_creator_cb: impl FnOnce(&mut ApplicationContext) -> ACType,
+    application_creator_cb: impl FnOnce(&mut ApplicationContext) -> ApplicationType,
 ) where
-    ACType: ApplicationCallbacks,
+    ApplicationType: Application,
 {
     let rt = if multi_thread_executor {
         tokio::runtime::Builder::new_multi_thread()
@@ -66,19 +65,14 @@ pub fn run<ACType>(
     rt.block_on(async_run(application_creator_cb));
 }
 
-pub async fn async_run<ACType>(
-    application_creator_cb: impl FnOnce(&mut ApplicationContext) -> ACType,
+pub async fn async_run<ApplicationType>(
+    application_creator_cb: impl FnOnce(&mut ApplicationContext) -> ApplicationType,
 ) where
-    ACType: ApplicationCallbacks,
+    ApplicationType: Application,
 {
     let mut app_context = ApplicationContext::new();
 
     let mut application = application_creator_cb(&mut app_context);
-
-    let async_systems = application.async_systems();
-    let async_systems = tokio::spawn(async move {
-        async_systems.join().await;
-    });
 
     let mut fps_counter_stopwatch = Stopwatch::start_new();
     let mut fps_counter = FpsCounter::new();
@@ -102,8 +96,10 @@ pub async fn async_run<ACType>(
         delta_time_in_secs = delta_time_stopwatch.restart().as_secs_f32();
     }
 
-    drop(application);
-    drop(app_context);
+    let drop_task = async move {
+        drop(application);
+        drop(app_context);
+    };
 
     let timeout = Duration::from_secs(10);
     let timestamp = Instant::now() + timeout;
@@ -111,8 +107,7 @@ pub async fn async_run<ACType>(
         _ = sleep_until(timestamp) => {
             log::error!("Could not shutdown gracefully in {:?}", timeout);
         }
-        join_result = async_systems => {
-            let _ = join_result.inspect_err(|e| log::error!("Joining async systems, msg = {e}"));
+        _ = drop_task => {
         }
     }
 }
