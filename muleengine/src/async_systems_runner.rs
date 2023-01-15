@@ -1,7 +1,8 @@
 use std::future::Future;
 
-use muleengine::prelude::ResultInspector;
 use tokio::task::JoinHandle;
+
+use crate::prelude::ResultInspector;
 
 pub struct AsyncSystemsRunner {
     async_systems: JoinHandle<Vec<JoinHandle<()>>>,

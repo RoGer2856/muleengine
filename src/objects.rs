@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use game_2::systems::renderer_configuration::RendererConfiguration;
 use muleengine::{
     asset_container::AssetContainer,
     mesh::{Material, MaterialTexture, MaterialTextureType, TextureMapMode},
@@ -10,6 +9,8 @@ use muleengine::{
     service_container::ServiceContainer,
 };
 use vek::{Transform, Vec3};
+
+use crate::systems::renderer_configuration::RendererConfiguration;
 
 pub struct Objects {
     renderer_object_handlers: Vec<RendererObjectHandler>,

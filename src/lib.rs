@@ -7,6 +7,6 @@
     clippy::collapsible_if
 )]
 
-pub mod application_runner;
-pub mod async_systems_runner;
+pub mod game_2;
+pub mod objects;
 pub mod systems;

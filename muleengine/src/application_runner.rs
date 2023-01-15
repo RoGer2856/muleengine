@@ -1,12 +1,11 @@
 use std::time::Duration;
 
-use muleengine::{
-    fps_counter::FpsCounter, prelude::ResultInspector, service_container::ServiceContainer,
-    stopwatch::Stopwatch, system_container::SystemContainer,
-};
 use tokio::time::{sleep_until, Instant};
 
-use crate::async_systems_runner::AsyncSystemsRunner;
+use crate::{
+    async_systems_runner::AsyncSystemsRunner, fps_counter::FpsCounter, prelude::ResultInspector,
+    service_container::ServiceContainer, stopwatch::Stopwatch, system_container::SystemContainer,
+};
 
 pub struct ApplicationContext {
     system_container: SystemContainer,
