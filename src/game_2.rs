@@ -1,28 +1,25 @@
 use muleengine::{
-    app_loop_state::{AppLoopState, AppLoopStateWatcher},
+    app_loop_state::AppLoopState,
     application_runner::{Application, ApplicationContext},
     asset_container::AssetContainer,
     asset_reader::AssetReader,
     image_container::ImageContainer,
     prelude::{ArcRwLock, ResultInspector},
-    renderer::{renderer_client::RendererClient, renderer_system::SyncRenderer},
+    renderer::renderer_system::SyncRenderer,
     scene_container::SceneContainer,
     service_container::ServiceContainer,
     window_context::{Event, EventReceiver, WindowContext},
 };
+use parking_lot::RwLock;
 use sdl2_opengl_muleengine::{
     sdl2_gl_context::{GlProfile, Sdl2GlContext},
     systems::renderer::Renderer,
 };
-use tokio::task::JoinHandle;
 use vek::Vec2;
 
 use crate::{
     objects::Objects,
-    systems::{
-        renderer_configuration::RendererConfiguration,
-        spectator_camera::{self, SpectatorCameraInput, SpectatorCameraInputSystem},
-    },
+    systems::{renderer_configuration::RendererConfiguration, spectator_camera},
 };
 
 pub struct Game2 {
@@ -32,15 +29,15 @@ pub struct Game2 {
 }
 
 impl Game2 {
-    fn add_basic_services(service_container: &mut ServiceContainer) {
+    fn add_basic_services(service_container: &ServiceContainer) {
         service_container.get_or_insert_service(AssetReader::new);
-        service_container.get_or_insert_service(ImageContainer::new);
-        service_container.get_or_insert_service(SceneContainer::new);
+        service_container.get_or_insert_service(|| RwLock::new(ImageContainer::new()));
+        service_container.get_or_insert_service(|| RwLock::new(SceneContainer::new()));
         service_container.get_or_insert_service(|| AssetContainer::new(service_container));
     }
 
     pub fn new(app_context: &mut ApplicationContext) -> Self {
-        Self::add_basic_services(app_context.service_container());
+        Self::add_basic_services(app_context.service_container_ref());
 
         let window_context = {
             let initial_window_dimensions = Vec2::new(800, 600);
@@ -63,7 +60,7 @@ impl Game2 {
         };
 
         let window_context = app_context
-            .system_container()
+            .system_container_mut()
             .add_system(window_context)
             .new_item
             .as_arc_ref()
@@ -73,98 +70,59 @@ impl Game2 {
             window_context.read().window_dimensions(),
             window_context.clone(),
             app_context
-                .service_container()
+                .service_container_ref()
                 .get_service::<AssetContainer>()
                 .inspect_err(|e| log::error!("{e:?}"))
                 .unwrap()
-                .read()
+                .as_ref()
                 .clone(),
         );
 
         // todo!("choose between SyncRenderer and AsyncRenderer automatically");
         let renderer_system = SyncRenderer::new(renderer_impl);
-        let renderer_client = renderer_system.client();
 
-        app_context.service_container().insert(renderer_client);
+        let renderer_client = renderer_system.client();
+        app_context.service_container_ref().insert(renderer_client);
 
         // adding Renderer as the first system
-        app_context.system_container().add_system(renderer_system);
-
-        let spectator_camera_input_system = SpectatorCameraInputSystem::new(window_context.clone());
         app_context
-            .service_container()
-            .insert(spectator_camera_input_system.data());
-        app_context
-            .system_container()
-            .add_system(spectator_camera_input_system);
+            .system_container_mut()
+            .add_system(renderer_system);
 
         let event_receiver = window_context.read().event_receiver();
 
         let app_loop_state = AppLoopState::new();
 
         app_context
-            .service_container()
+            .service_container_ref()
             .insert(app_loop_state.watcher());
 
-        tokio::spawn(Self::run_async_systems(
-            app_context.service_container().clone(),
-        ));
+        app_context
+            .service_container_ref()
+            .insert(RendererConfiguration::new(
+                app_context.service_container_ref().clone(),
+            ));
+
+        spectator_camera::run(
+            window_context.clone(),
+            app_context.service_container_ref().clone(),
+            app_context.system_container_mut(),
+        );
+
+        {
+            let service_container = app_context.service_container_ref().clone();
+            tokio::spawn(async move {
+                let mut objects = Objects::new(service_container.clone());
+                objects.populate_with_objects().await;
+                service_container.insert(objects);
+            });
+        }
 
         Self {
             app_loop_state,
             window_context,
             event_receiver,
         }
-    }
-
-    async fn run_async_systems(mut service_container: ServiceContainer) -> Vec<JoinHandle<()>> {
-        let mut ret = Vec::new();
-
-        let renderer_configuration = RendererConfiguration::new(service_container.clone()).await;
-        let renderer_configuration = service_container
-            .insert(renderer_configuration)
-            .new_item
-            .as_arc_ref()
-            .clone();
-
-        let renderer_client = service_container
-            .get_service::<RendererClient>()
-            .inspect_err(|e| log::error!("{e:?}"))
-            .unwrap()
-            .read()
-            .clone();
-
-        let spectator_camera_input = service_container
-            .get_service::<SpectatorCameraInput>()
-            .inspect_err(|e| log::error!("{e:?}"))
-            .unwrap()
-            .read()
-            .clone();
-
-        let app_loop_state_watcher = service_container
-            .get_service::<AppLoopStateWatcher>()
-            .inspect_err(|e| log::error!("{e:?}"))
-            .unwrap()
-            .read()
-            .clone();
-
-        ret.push(tokio::spawn(spectator_camera::run(
-            app_loop_state_watcher,
-            renderer_client.clone(),
-            renderer_configuration
-                .read()
-                .skydome_camera_transform_handler(),
-            renderer_configuration
-                .read()
-                .main_camera_transform_handler(),
-            spectator_camera_input,
-        )));
-
-        let mut objects = Objects::new(service_container.clone());
-        objects.populate_with_objects().await;
-        service_container.insert(objects);
-
-        ret
     }
 
     fn process_event(&mut self, event: Event, _app_context: &mut ApplicationContext) {

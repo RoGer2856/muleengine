@@ -6,14 +6,17 @@ use std::{
 
 use parking_lot::Mutex;
 
-use crate::containers::object_pool::{ObjectPool, ObjectPoolIndex};
+use crate::{
+    containers::object_pool::{ObjectPool, ObjectPoolIndex},
+    prelude::ArcMutex,
+};
 
 type ObserverFunction<T> = Box<dyn Fn(&T)>;
 
 pub struct Observable<T> {
     value: T,
     observers: ObjectPool<ObserverFunction<T>>,
-    to_be_deleted_observers: Arc<Mutex<Vec<ObjectPoolIndex>>>,
+    to_be_deleted_observers: ArcMutex<Vec<ObjectPoolIndex>>,
 }
 
 pub struct ObservableBorrower<'a, T> {
@@ -22,7 +25,7 @@ pub struct ObservableBorrower<'a, T> {
 
 pub struct Observer<T> {
     observer_index: ObjectPoolIndex,
-    to_be_deleted_observers: Arc<Mutex<Vec<ObjectPoolIndex>>>,
+    to_be_deleted_observers: ArcMutex<Vec<ObjectPoolIndex>>,
     _phantom: PhantomData<T>,
 }
 
@@ -117,7 +120,7 @@ mod tests {
     use closure::closure;
     use parking_lot::RwLock;
 
-    use crate::messaging::observable_fn::Observable;
+    use crate::sync::observable_fn::Observable;
 
     #[test]
     fn observable_borrow() {

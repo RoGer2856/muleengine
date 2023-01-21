@@ -1,3 +1,7 @@
+use std::sync::Arc;
+
+use parking_lot::RwLock;
+
 use crate::{
     asset_reader::AssetReader,
     image_container::ImageContainer,
@@ -8,7 +12,7 @@ use crate::{
 
 #[derive(Clone)]
 pub struct AssetContainer {
-    asset_reader: ArcRwLock<AssetReader>,
+    asset_reader: Arc<AssetReader>,
 
     image_container: ArcRwLock<ImageContainer>,
     scene_container: ArcRwLock<SceneContainer>,
@@ -22,17 +26,17 @@ impl AssetContainer {
                 .inspect_err(|e| log::error!("{e:?}"))
                 .unwrap(),
             scene_container: service_container
-                .get_service::<SceneContainer>()
+                .get_service::<RwLock<SceneContainer>>()
                 .inspect_err(|e| log::error!("{e:?}"))
                 .unwrap(),
             image_container: service_container
-                .get_service::<ImageContainer>()
+                .get_service::<RwLock<ImageContainer>>()
                 .inspect_err(|e| log::error!("{e:?}"))
                 .unwrap(),
         }
     }
 
-    pub fn asset_reader(&self) -> &ArcRwLock<AssetReader> {
+    pub fn asset_reader(&self) -> &Arc<AssetReader> {
         &self.asset_reader
     }
 

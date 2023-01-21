@@ -2,9 +2,9 @@ use std::{cmp::Ordering, fmt::Debug, sync::Arc};
 
 use crate::{
     containers::object_pool::ObjectPoolIndex,
-    messaging::command_channel::CommandSender,
     prelude::{AsAny, ResultInspector},
     renderer::renderer_command::Command,
+    sync::command_channel::CommandSender,
 };
 
 pub trait RendererGroup: AsAny + Sync + Send + 'static {}

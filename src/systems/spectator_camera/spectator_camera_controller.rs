@@ -11,7 +11,7 @@ use vek::{Vec2, Vec3};
 
 use super::spectator_camera_input::SpectatorCameraInput;
 
-pub struct SpectatorCameraControllerSystem {
+pub(super) struct SpectatorCameraController {
     app_loop_state_watcher: AppLoopStateWatcher,
     camera: Camera,
     skydome_camera_transform_handler: TransformHandler,
@@ -20,7 +20,7 @@ pub struct SpectatorCameraControllerSystem {
     spectator_camera_input: SpectatorCameraInput,
 }
 
-impl SpectatorCameraControllerSystem {
+impl SpectatorCameraController {
     pub(super) fn new(
         app_loop_state_watcher: AppLoopStateWatcher,
         renderer_client: RendererClient,

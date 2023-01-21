@@ -5,8 +5,8 @@ use vek::Transform;
 
 use crate::{
     mesh::{Material, Mesh},
-    messaging::command_channel::CommandSender,
     prelude::ResultInspector,
+    sync::command_channel::CommandSender,
 };
 
 use super::{

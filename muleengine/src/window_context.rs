@@ -2,7 +2,7 @@ use vek::Vec2;
 
 use crate::system_container::System;
 
-use super::messaging::mpmc;
+use super::sync::mpmc;
 
 #[derive(Debug, Clone)]
 pub enum Key {

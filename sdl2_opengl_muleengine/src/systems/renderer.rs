@@ -4,13 +4,13 @@ use muleengine::{
     asset_container::AssetContainer,
     containers::object_pool::ObjectPool,
     mesh::{Material, Mesh},
-    messaging::observable_fn::{Observable, Observer},
     prelude::ArcRwLock,
     renderer::{
         renderer_impl::RendererImpl, renderer_pipeline_step_impl::RendererPipelineStepImpl,
         RendererCamera, RendererGroup, RendererLayer, RendererMaterial, RendererMesh,
         RendererObject, RendererShader, RendererTransform,
     },
+    sync::observable_fn::{Observable, Observer},
     window_context::WindowContext,
 };
 use parking_lot::RwLock;
@@ -558,7 +558,7 @@ impl RendererImpl for Renderer {
     ) -> Result<ArcRwLock<dyn RendererShader>, String> {
         let gl_shader_program = match self
             .gl_shader_program_container
-            .get_shader_program(&shader_name, &self.asset_container.asset_reader().read())
+            .get_shader_program(&shader_name, self.asset_container.asset_reader())
         {
             Ok(shader_program) => Ok(shader_program),
             Err(e) => Err(format!("Loading shader program, msg = {e:?}")),

@@ -4,7 +4,7 @@ use muleengine::{
     asset_container::AssetContainer,
     mesh::{Material, MaterialTexture, MaterialTextureType, TextureMapMode},
     mesh_creator,
-    prelude::{ArcRwLock, ResultInspector},
+    prelude::ResultInspector,
     renderer::{renderer_client::RendererClient, RendererObjectHandler},
     service_container::ServiceContainer,
 };
@@ -14,7 +14,7 @@ use crate::systems::renderer_configuration::RendererConfiguration;
 
 pub struct Objects {
     renderer_object_handlers: Vec<RendererObjectHandler>,
-    renderer_configuration: ArcRwLock<RendererConfiguration>,
+    renderer_configuration: Arc<RendererConfiguration>,
     renderer_client: RendererClient,
     asset_container: AssetContainer,
 }
@@ -31,13 +31,13 @@ impl Objects {
                 .get_service::<RendererClient>()
                 .inspect_err(|e| log::error!("{e:?}"))
                 .unwrap()
-                .read()
+                .as_ref()
                 .clone(),
             asset_container: service_container
                 .get_service::<AssetContainer>()
                 .inspect_err(|e| log::error!("{e:?}"))
                 .unwrap()
-                .read()
+                .as_ref()
                 .clone(),
         }
     }
@@ -47,8 +47,8 @@ impl Objects {
 
         let main_renderer_group_handler = self
             .renderer_configuration
-            .read()
             .main_renderer_group_handler()
+            .await
             .clone();
 
         {
@@ -125,7 +125,7 @@ impl Objects {
                 .write()
                 .get_scene(
                     scene_path,
-                    &self.asset_container.asset_reader().read(),
+                    self.asset_container.asset_reader(),
                     &mut self.asset_container.image_container().write(),
                 )
                 .inspect_err(|e| log::error!("{e:?}"))
@@ -198,7 +198,7 @@ impl Objects {
             .write()
             .get_scene(
                 scene_path,
-                &self.asset_container.asset_reader().read(),
+                self.asset_container.asset_reader(),
                 &mut self.asset_container.image_container().write(),
             )
             .inspect_err(|e| log::error!("{e:?}"))
@@ -206,8 +206,8 @@ impl Objects {
 
         let skydome_renderer_group_handler = self
             .renderer_configuration
-            .read()
             .skydome_renderer_group_handler()
+            .await
             .clone();
 
         if scene.meshes_ref().len() == 6 {
@@ -241,7 +241,7 @@ impl Objects {
                             .asset_container
                             .image_container()
                             .write()
-                            .get_image(texture_path, &self.asset_container.asset_reader().read()),
+                            .get_image(texture_path, self.asset_container.asset_reader()),
                         texture_type: MaterialTextureType::Albedo,
                         texture_map_mode: TextureMapMode::Clamp,
                         blend: 0.0,

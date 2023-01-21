@@ -7,8 +7,8 @@ use crate::{
     app_loop_state::AppLoopState,
     containers::object_pool::{ObjectPool, ObjectPoolIndex},
     mesh::{Material, Mesh},
-    messaging::command_channel::{command_channel, CommandReceiver, CommandSender},
     prelude::{ArcRwLock, OptionInspector, ResultInspector},
+    sync::command_channel::{command_channel, CommandReceiver, CommandSender},
     system_container::System,
 };
 

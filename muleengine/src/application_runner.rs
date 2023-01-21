@@ -26,12 +26,16 @@ impl ApplicationContext {
         }
     }
 
-    pub fn system_container(&mut self) -> &mut SystemContainer {
+    pub fn system_container_ref(&self) -> &SystemContainer {
+        &self.system_container
+    }
+
+    pub fn system_container_mut(&mut self) -> &mut SystemContainer {
         &mut self.system_container
     }
 
-    pub fn service_container(&mut self) -> &mut ServiceContainer {
-        &mut self.service_container
+    pub fn service_container_ref(&self) -> &ServiceContainer {
+        &self.service_container
     }
 }
 

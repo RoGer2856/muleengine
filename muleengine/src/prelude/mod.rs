@@ -5,10 +5,11 @@ use std::{
     sync::Arc,
 };
 
-use parking_lot::RwLock;
+use parking_lot::{Mutex, RwLock};
 
 pub use result_option_inspect::*;
 
+pub type ArcMutex<T> = Arc<Mutex<T>>;
 pub type ArcRwLock<T> = Arc<RwLock<T>>;
 
 pub trait DowncastArc {

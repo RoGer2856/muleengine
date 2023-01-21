@@ -5,7 +5,10 @@ use std::sync::Arc;
 
 use parking_lot::Mutex;
 
-use crate::containers::object_pool::{ObjectPool, ObjectPoolIndex};
+use crate::{
+    containers::object_pool::{ObjectPool, ObjectPoolIndex},
+    prelude::ArcMutex,
+};
 
 struct ReceiverQueue<T> {
     queue: VecDeque<T>,
@@ -17,8 +20,8 @@ struct ReceiverQueueList<T>
 where
     T: Clone,
 {
-    receiver_queues: Arc<Mutex<ObjectPool<Arc<Mutex<ReceiverQueue<T>>>>>>,
-    to_be_removed: Arc<Mutex<Vec<ObjectPoolIndex>>>,
+    receiver_queues: ArcMutex<ObjectPool<ArcMutex<ReceiverQueue<T>>>>,
+    to_be_removed: ArcMutex<Vec<ObjectPoolIndex>>,
 }
 
 #[derive(Clone)]
@@ -35,7 +38,7 @@ where
 {
     receiver_queues: ReceiverQueueList<T>,
     queue_id: ObjectPoolIndex,
-    queue: Arc<Mutex<ReceiverQueue<T>>>,
+    queue: ArcMutex<ReceiverQueue<T>>,
 }
 
 impl<T> ReceiverQueue<T>

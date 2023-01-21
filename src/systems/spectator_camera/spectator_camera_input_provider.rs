@@ -2,13 +2,13 @@ use muleengine::system_container::System;
 use muleengine::window_context::Key;
 use muleengine::{prelude::ArcRwLock, window_context::WindowContext};
 
-use muleengine::messaging::mpmc;
+use muleengine::sync::mpmc;
 use vek::num_traits::Zero;
 use vek::{Vec2, Vec3};
 
 use super::spectator_camera_input::SpectatorCameraInput;
 
-pub struct SpectatorCameraInputSystem {
+pub(super) struct SpectatorCameraInputSystem {
     window_context: ArcRwLock<dyn WindowContext>,
     data: SpectatorCameraInput,
 

@@ -9,6 +9,8 @@ use std::{
 use parking_lot::Mutex;
 use tokio::sync::watch;
 
+use crate::prelude::ArcMutex;
+
 #[derive(Debug)]
 pub enum SendError {
     Disconnected,
@@ -26,7 +28,7 @@ pub enum TryRecvError {
 }
 
 struct Shared<T: Send> {
-    queue: Arc<Mutex<VecDeque<T>>>,
+    queue: ArcMutex<VecDeque<T>>,
     sender_count: Arc<AtomicUsize>,
     queue_watcher_sender: Arc<watch::Sender<()>>,
 }
@@ -176,13 +178,15 @@ mod tests {
 
     use parking_lot::Mutex;
 
+    use crate::prelude::ArcMutex;
+
     use super::{command_channel, CommandReceiver};
 
     #[derive(Debug, Clone, Copy, Eq, PartialEq)]
     struct Command(usize);
 
     async fn run_worker(
-        received_values: Arc<Mutex<Vec<Command>>>,
+        received_values: ArcMutex<Vec<Command>>,
         mut receiver: CommandReceiver<Command>,
     ) {
         while let Ok(command) = receiver.recv_async().await {

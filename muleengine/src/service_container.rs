@@ -5,8 +5,9 @@ use std::{
 };
 
 use parking_lot::{Condvar, Mutex, RwLock};
+use tokio::sync::Notify;
 
-use crate::prelude::ArcRwLock;
+use crate::prelude::{ArcMutex, ArcRwLock};
 
 use super::containers::sendable_multi_type_dict::{
     SendableMultiTypeDict, SendableMultiTypeDictInsertResult,
@@ -26,11 +27,13 @@ impl<T: Send + Sync + 'static> Service for T {}
 #[derive(Clone)]
 pub struct ServiceContainer {
     service_dict: ArcRwLock<SendableMultiTypeDict>,
-    service_type_locks: Arc<Mutex<BTreeMap<TypeId, ServiceTypeLock>>>,
+    service_type_locks: ArcMutex<BTreeMap<TypeId, ServiceTypeLock>>,
+    // todo!("use an async condvar")
+    service_dict_notify: Arc<Notify>,
 }
 
 pub struct ServiceTypeGuard {
-    service_type_locks: Arc<Mutex<BTreeMap<TypeId, ServiceTypeLock>>>,
+    service_type_locks: ArcMutex<BTreeMap<TypeId, ServiceTypeLock>>,
     type_id: TypeId,
     lock: Arc<(Mutex<bool>, Condvar)>,
 }
@@ -58,22 +61,44 @@ impl ServiceContainer {
         Self {
             service_dict: Arc::new(RwLock::new(SendableMultiTypeDict::new())),
             service_type_locks: Arc::new(Mutex::new(BTreeMap::new())),
+            service_dict_notify: Arc::new(Notify::new()),
         }
     }
 
     pub fn insert<ServiceType: Service>(
-        &mut self,
+        &self,
         item: ServiceType,
-    ) -> SendableMultiTypeDictInsertResult<RwLock<ServiceType>> {
-        self.service_dict.write().insert(RwLock::new(item))
+    ) -> SendableMultiTypeDictInsertResult<ServiceType> {
+        let ret = self.service_dict.write().insert(item);
+        self.service_dict_notify.notify_waiters();
+        ret
+    }
+
+    pub async fn wait_for_service<ServiceType: Service>(&self) -> Arc<ServiceType> {
+        #![allow(clippy::await_holding_lock)]
+
+        loop {
+            let service_dict_guard = self.service_dict.read();
+
+            if let Some(service) = service_dict_guard
+                .get_item_ref::<ServiceType>()
+                .map(|service| service.as_arc_ref().clone())
+            {
+                break service;
+            }
+
+            let service_dict_notify_task = self.service_dict_notify.notified();
+            drop(service_dict_guard);
+            service_dict_notify_task.await;
+        }
     }
 
     pub fn get_service<ServiceType: Service>(
         &self,
-    ) -> Result<ArcRwLock<ServiceType>, ServiceMissingError> {
+    ) -> Result<Arc<ServiceType>, ServiceMissingError> {
         self.service_dict
             .read()
-            .get_item_ref::<RwLock<ServiceType>>()
+            .get_item_ref::<ServiceType>()
             .map(|service| service.as_arc_ref().clone())
             .ok_or_else(ServiceMissingError::new::<ServiceType>)
     }
@@ -81,23 +106,23 @@ impl ServiceContainer {
     pub fn get_or_insert_service<ServiceType: Service>(
         &self,
         service_constructor: impl FnOnce() -> ServiceType,
-    ) -> ArcRwLock<ServiceType> {
+    ) -> Arc<ServiceType> {
         let _service_type_guard = self.lock_service_type::<ServiceType>();
 
-        let service = self
-            .service_dict
-            .read()
-            .get_item_ref::<RwLock<ServiceType>>();
+        let service = self.service_dict.read().get_item_ref::<ServiceType>();
 
         let service = if let Some(service) = service {
             service.as_arc_ref().clone()
         } else {
-            let service = RwLock::new(service_constructor());
-            self.service_dict
+            let service = service_constructor();
+            let ret = self
+                .service_dict
                 .write()
-                .get_or_insert_item_ref::<RwLock<ServiceType>>(|| service)
+                .get_or_insert_item_ref(|| service)
                 .as_arc_ref()
-                .clone()
+                .clone();
+            self.service_dict_notify.notify_waiters();
+            ret
         };
 
         service

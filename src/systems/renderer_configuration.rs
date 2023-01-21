@@ -5,10 +5,11 @@ use muleengine::{
         CameraHandler, RendererGroupHandler, RendererLayerHandler, TransformHandler,
     },
     service_container::ServiceContainer,
+    sync::async_item::AsyncItem,
 };
 use vek::{Transform, Vec2};
 
-pub struct RendererConfiguration {
+pub struct RendererConfigurationData {
     skydome_camera_transform_handler: TransformHandler,
     skydome_camera_handler: CameraHandler,
 
@@ -22,15 +23,13 @@ pub struct RendererConfiguration {
     main_renderer_group_handler: RendererGroupHandler,
 }
 
-impl RendererConfiguration {
-    pub async fn new(service_container: ServiceContainer) -> Self {
-        let renderer_client = service_container
-            .get_service::<RendererClient>()
-            .inspect_err(|e| log::error!("{e:?}"))
-            .unwrap()
-            .read()
-            .clone();
+#[derive(Clone)]
+pub struct RendererConfiguration {
+    data: AsyncItem<RendererConfigurationData>,
+}
 
+impl RendererConfigurationData {
+    pub async fn new(renderer_client: RendererClient) -> Self {
         let skydome_camera_transform_handler = renderer_client
             .create_transform(Transform::default())
             .await
@@ -58,12 +57,6 @@ impl RendererConfiguration {
             .await
             .inspect_err(|e| log::error!("{e:?}"))
             .unwrap();
-        let main_renderer_layer_handler = renderer_client
-            .create_renderer_layer(main_camera_handler.clone())
-            .await
-            .inspect_err(|e| log::error!("{e:?}"))
-            .unwrap();
-
         let skydome_renderer_group_handler = renderer_client
             .create_renderer_group()
             .await
@@ -78,6 +71,11 @@ impl RendererConfiguration {
             .inspect_err(|e| log::error!("{e:?}"))
             .unwrap();
 
+        let main_renderer_layer_handler = renderer_client
+            .create_renderer_layer(main_camera_handler.clone())
+            .await
+            .inspect_err(|e| log::error!("{e:?}"))
+            .unwrap();
         let main_renderer_group_handler = renderer_client
             .create_renderer_group()
             .await
@@ -128,8 +126,8 @@ impl RendererConfiguration {
             skydome_camera_transform_handler,
             skydome_camera_handler,
 
-            main_camera_handler,
             main_camera_transform_handler,
+            main_camera_handler,
 
             skydome_renderer_layer_handler,
             main_renderer_layer_handler,
@@ -138,36 +136,71 @@ impl RendererConfiguration {
             main_renderer_group_handler,
         }
     }
+}
 
-    pub fn skydome_camera_transform_handler(&self) -> TransformHandler {
-        self.skydome_camera_transform_handler.clone()
+impl RendererConfiguration {
+    pub fn new(service_container: ServiceContainer) -> Self {
+        let data = AsyncItem::new();
+
+        {
+            let data = data.clone();
+            tokio::spawn(async move {
+                let renderer_client = service_container
+                    .get_service::<RendererClient>()
+                    .inspect_err(|e| log::error!("{e:?}"))
+                    .unwrap()
+                    .as_ref()
+                    .clone();
+
+                data.set(RendererConfigurationData::new(renderer_client).await)
+                    .await;
+            });
+        }
+
+        Self { data }
     }
 
-    pub fn skydome_camera_handler(&self) -> CameraHandler {
-        self.skydome_camera_handler.clone()
+    pub async fn skydome_camera_transform_handler(&self) -> TransformHandler {
+        self.data
+            .read()
+            .await
+            .skydome_camera_transform_handler
+            .clone()
     }
 
-    pub fn main_camera_transform_handler(&self) -> TransformHandler {
-        self.main_camera_transform_handler.clone()
+    pub async fn skydome_camera_handler(&self) -> CameraHandler {
+        self.data.read().await.skydome_camera_handler.clone()
     }
 
-    pub fn main_camera_handler(&self) -> CameraHandler {
-        self.main_camera_handler.clone()
+    pub async fn main_camera_transform_handler(&self) -> TransformHandler {
+        self.data.read().await.main_camera_transform_handler.clone()
     }
 
-    pub fn skydome_renderer_layer_handler(&self) -> RendererLayerHandler {
-        self.skydome_renderer_layer_handler.clone()
+    pub async fn main_camera_handler(&self) -> CameraHandler {
+        self.data.read().await.main_camera_handler.clone()
     }
 
-    pub fn main_renderer_layer_handler(&self) -> RendererLayerHandler {
-        self.main_renderer_layer_handler.clone()
+    pub async fn skydome_renderer_layer_handler(&self) -> RendererLayerHandler {
+        self.data
+            .read()
+            .await
+            .skydome_renderer_layer_handler
+            .clone()
     }
 
-    pub fn skydome_renderer_group_handler(&self) -> RendererGroupHandler {
-        self.skydome_renderer_group_handler.clone()
+    pub async fn main_renderer_layer_handler(&self) -> RendererLayerHandler {
+        self.data.read().await.main_renderer_layer_handler.clone()
     }
 
-    pub fn main_renderer_group_handler(&self) -> RendererGroupHandler {
-        self.main_renderer_group_handler.clone()
+    pub async fn skydome_renderer_group_handler(&self) -> RendererGroupHandler {
+        self.data
+            .read()
+            .await
+            .skydome_renderer_group_handler
+            .clone()
+    }
+
+    pub async fn main_renderer_group_handler(&self) -> RendererGroupHandler {
+        self.data.read().await.main_renderer_group_handler.clone()
     }
 }
