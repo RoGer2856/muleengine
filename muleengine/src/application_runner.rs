@@ -1,10 +1,10 @@
-use std::time::Duration;
+use std::{panic, time::Duration};
 
 use tokio::time::{sleep_until, Instant};
 
 use crate::{
-    fps_counter::FpsCounter, prelude::ResultInspector, service_container::ServiceContainer,
-    stopwatch::Stopwatch, system_container::SystemContainer,
+    app_loop_state::AppLoopState, fps_counter::FpsCounter, prelude::ResultInspector,
+    service_container::ServiceContainer, stopwatch::Stopwatch, system_container::SystemContainer,
 };
 
 pub struct ApplicationContext {
@@ -78,13 +78,22 @@ pub async fn async_run<ApplicationType>(
 
     let mut application = application_creator_cb(&mut app_context);
 
+    let app_loop_state = AppLoopState::new();
+    let app_loop_state_watcher = app_loop_state.watcher();
+
+    let old_panic_hook = panic::take_hook();
+    panic::set_hook(Box::new(move |panic_info| {
+        log::error!("{panic_info}");
+        app_loop_state.stop_loop();
+    }));
+
     let mut fps_counter_stopwatch = Stopwatch::start_new();
     let mut fps_counter = FpsCounter::new();
 
     let mut delta_time_stopwatch = Stopwatch::start_new();
     let mut delta_time_in_secs = 1.0 / 60.0;
 
-    while application.should_run(&mut app_context) {
+    while application.should_run(&mut app_context) && app_loop_state_watcher.should_run() {
         app_context.system_container.tick(delta_time_in_secs);
 
         application.tick(delta_time_in_secs, &mut app_context);
@@ -114,4 +123,6 @@ pub async fn async_run<ApplicationType>(
         _ = drop_task => {
         }
     }
+
+    panic::set_hook(old_panic_hook);
 }
