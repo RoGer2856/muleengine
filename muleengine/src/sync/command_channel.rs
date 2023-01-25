@@ -30,6 +30,7 @@ pub enum TryRecvError {
 struct Shared<T: Send> {
     queue: ArcMutex<VecDeque<T>>,
     sender_count: Arc<AtomicUsize>,
+    // todo!("use an async condvar")
     queue_watcher_sender: Arc<watch::Sender<()>>,
 }
 
@@ -147,6 +148,8 @@ impl<T: Send> Drop for CommandSender<T> {
         self.shared
             .sender_count
             .fetch_sub(1, atomic::Ordering::SeqCst);
+
+        let _ = self.shared.queue_watcher_sender.send(());
     }
 }
 
@@ -221,21 +224,33 @@ mod tests {
 
     #[tokio::test(flavor = "current_thread")]
     async fn single_worker_current_thread() {
-        run_test(1).await;
+        // running the same test multiple times to ensure no race condition happened
+        for _i in 0..1000 {
+            run_test(1).await;
+        }
     }
 
     #[tokio::test(flavor = "current_thread")]
     async fn multiple_workers_current_thread() {
-        run_test(10).await;
+        // running the same test multiple times to ensure no race condition happened
+        for _i in 0..1000 {
+            run_test(10).await;
+        }
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn single_worker_multi_thread() {
-        run_test(1).await;
+        // running the same test multiple times to ensure no race condition happened
+        for _i in 0..1000 {
+            run_test(1).await;
+        }
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn multiple_workers_multi_thread() {
-        run_test(10).await;
+        // running the same test multiple times to ensure no race condition happened
+        for _i in 0..1000 {
+            run_test(10).await;
+        }
     }
 }
