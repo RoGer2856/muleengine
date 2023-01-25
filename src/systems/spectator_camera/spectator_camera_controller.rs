@@ -18,6 +18,9 @@ pub(super) struct SpectatorCameraController {
     main_camera_transform_handler: TransformHandler,
     renderer_client: RendererClient,
     spectator_camera_input: SpectatorCameraInput,
+    mouse_sensitivity: f32,
+
+    current_turn_value: Vec2<f32>,
 }
 
 impl SpectatorCameraController {
@@ -35,6 +38,9 @@ impl SpectatorCameraController {
             main_camera_transform_handler,
             renderer_client,
             spectator_camera_input,
+
+            mouse_sensitivity: 0.5,
+            current_turn_value: Vec2::zero(),
         }
     }
 
@@ -74,28 +80,28 @@ impl SpectatorCameraController {
         }
 
         // turning the camera
-        let mut camera_turn = Vec2::<f32>::zero();
+        const TURNING_VELOCITY_RAD: f32 = std::f32::consts::FRAC_PI_2 * 0.1;
+        let mut accumulated_camera_turn_input = Vec2::<f32>::zero();
         while let Some(camera_turn_input) = self.spectator_camera_input.turning_event_receiver.pop()
         {
-            if camera_turn_input.x < 0.0 {
-                // left
-                camera_turn.y += 1.0;
-            } else if camera_turn_input.x > 0.0 {
-                // right
-                camera_turn.y -= 1.0;
-            }
+            let direction = camera_turn_input
+                .try_normalized()
+                .unwrap_or_else(Vec2::zero);
 
-            if camera_turn_input.y < 0.0 {
-                // down
-                camera_turn.x += 1.0;
-            } else if camera_turn_input.y > 0.0 {
-                // up
-                camera_turn.x -= 1.0;
-            }
+            let magnitude = ((camera_turn_input.magnitude() - 1.0).max(0.0) * TURNING_VELOCITY_RAD)
+                * self.mouse_sensitivity;
+
+            accumulated_camera_turn_input += direction * magnitude;
         }
-        if !camera_turn.is_approx_zero() {
-            camera_turn.normalize();
-        }
+
+        accumulated_camera_turn_input = -accumulated_camera_turn_input.yx();
+
+        self.current_turn_value = if accumulated_camera_turn_input.is_approx_zero() {
+            accumulated_camera_turn_input
+        } else {
+            self.current_turn_value * (1.0 - self.mouse_sensitivity)
+                + accumulated_camera_turn_input * self.mouse_sensitivity
+        };
 
         // transform the camera
         let velocity = 0.5;
@@ -110,11 +116,10 @@ impl SpectatorCameraController {
         self.camera
             .move_by(corrected_moving_direction * velocity * delta_time_in_secs);
 
-        let turning_velocity_rad = std::f32::consts::FRAC_PI_2;
         self.camera
-            .pitch(camera_turn.x * turning_velocity_rad * delta_time_in_secs);
+            .pitch(self.current_turn_value.x * delta_time_in_secs);
         self.camera
-            .rotate_around_unit_y(camera_turn.y * turning_velocity_rad * delta_time_in_secs);
+            .rotate_around_unit_y(self.current_turn_value.y * delta_time_in_secs);
 
         let _ = self
             .renderer_client

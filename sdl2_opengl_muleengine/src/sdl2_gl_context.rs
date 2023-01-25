@@ -73,7 +73,7 @@ impl Sdl2GlContext {
         let sdl_window = sdl_video
             .window(window_name, window_width, window_height)
             .opengl()
-            .maximized()
+            // .maximized()
             .build()
             .map_err(ContextCreationError::CouldNotBuildWindow)?;
 

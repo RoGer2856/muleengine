@@ -4,7 +4,7 @@ use muleengine::{
     asset_container::AssetContainer,
     asset_reader::AssetReader,
     image_container::ImageContainer,
-    prelude::{ArcRwLock, ResultInspector},
+    prelude::ResultInspector,
     renderer::renderer_system::SyncRenderer,
     scene_container::SceneContainer,
     service_container::ServiceContainer,
@@ -24,7 +24,6 @@ use crate::{
 
 pub struct Game2 {
     app_loop_state: AppLoopState,
-    window_context: ArcRwLock<dyn WindowContext>,
     event_receiver: EventReceiver,
 }
 
@@ -42,7 +41,7 @@ impl Game2 {
         let window_context = {
             let initial_window_dimensions = Vec2::new(800, 600);
 
-            let mut window_context = Sdl2GlContext::new(
+            let window_context = Sdl2GlContext::new(
                 "game_2",
                 initial_window_dimensions.x as u32,
                 initial_window_dimensions.y as u32,
@@ -52,9 +51,6 @@ impl Game2 {
             )
             .inspect_err(|e| log::error!("Could not create Sdl2GlContext, msg = {e:?}"))
             .unwrap();
-
-            window_context.show_cursor(false);
-            window_context.warp_mouse_normalized_screen_space(Vec2::new(0.5, 0.5));
 
             window_context
         };
@@ -104,7 +100,7 @@ impl Game2 {
             ));
 
         spectator_camera::run(
-            window_context.clone(),
+            window_context,
             app_context.service_container_ref().clone(),
             app_context.system_container_mut(),
         );
@@ -120,7 +116,6 @@ impl Game2 {
 
         Self {
             app_loop_state,
-            window_context,
             event_receiver,
         }
     }
@@ -142,16 +137,6 @@ impl Application for Game2 {
             log::trace!("EVENT = {event:?}");
 
             self.process_event(event, app_context);
-        }
-
-        // putting the cursor back to the center of the window
-        let window_center = self.window_context.read().window_dimensions() / 2;
-
-        let mouse_pos = self.window_context.read().mouse_pos();
-        if mouse_pos.x != window_center.x || mouse_pos.y != window_center.y {
-            self.window_context
-                .write()
-                .warp_mouse_normalized_screen_space(Vec2::new(0.5, 0.5));
         }
     }
 }

@@ -1,9 +1,8 @@
 use muleengine::system_container::System;
-use muleengine::window_context::Key;
+use muleengine::window_context::{Key, MouseButton};
 use muleengine::{prelude::ArcRwLock, window_context::WindowContext};
 
 use muleengine::sync::mpmc;
-use vek::num_traits::Zero;
 use vek::{Vec2, Vec3};
 
 use super::spectator_camera_input::SpectatorCameraInput;
@@ -14,6 +13,8 @@ pub(super) struct SpectatorCameraInputSystem {
 
     moving_event_sender: mpmc::Sender<Vec3<f32>>,
     turning_event_sender: mpmc::Sender<Vec2<f32>>,
+
+    was_active_last_tick: bool,
 }
 
 impl SpectatorCameraInputSystem {
@@ -33,6 +34,8 @@ impl SpectatorCameraInputSystem {
 
             moving_event_sender,
             turning_event_sender,
+
+            was_active_last_tick: false,
         }
     }
 
@@ -43,78 +46,68 @@ impl SpectatorCameraInputSystem {
 
 impl System for SpectatorCameraInputSystem {
     fn tick(&mut self, _delta_time_in_secs: f32) {
-        let engine = self.window_context.read();
+        let mut window_context = self.window_context.write();
 
-        // moving the camera with the keyboard
-        let mut moving_direction = Vec3::zero();
-        if engine.is_key_pressed(Key::W) {
-            moving_direction.z = -1.0;
-        }
-        if engine.is_key_pressed(Key::S) {
-            moving_direction.z = 1.0;
-        }
+        let should_be_active = window_context.is_mouse_button_pressed(MouseButton::Right);
+        if should_be_active {
+            if self.was_active_last_tick {
+                // moving the camera with the keyboard
+                let mut moving_direction = Vec3::zero();
+                if window_context.is_key_pressed(Key::W) {
+                    moving_direction.z = -1.0;
+                }
+                if window_context.is_key_pressed(Key::S) {
+                    moving_direction.z = 1.0;
+                }
 
-        if engine.is_key_pressed(Key::A) {
-            moving_direction.x = -1.0;
-        }
-        if engine.is_key_pressed(Key::D) {
-            moving_direction.x = 1.0;
-        }
+                if window_context.is_key_pressed(Key::A) {
+                    moving_direction.x = -1.0;
+                }
+                if window_context.is_key_pressed(Key::D) {
+                    moving_direction.x = 1.0;
+                }
 
-        if engine.is_key_pressed(Key::Space) {
-            moving_direction.y = 1.0;
-        }
-        if engine.is_key_pressed(Key::C)
-            || engine.is_key_pressed(Key::CtrlLeft)
-            || engine.is_key_pressed(Key::CtrlRight)
-        {
-            moving_direction.y = -1.0;
-        }
+                if window_context.is_key_pressed(Key::Space) {
+                    moving_direction.y = 1.0;
+                }
+                if window_context.is_key_pressed(Key::C)
+                    || window_context.is_key_pressed(Key::CtrlLeft)
+                    || window_context.is_key_pressed(Key::CtrlRight)
+                {
+                    moving_direction.y = -1.0;
+                }
 
-        self.moving_event_sender.send(moving_direction);
+                self.moving_event_sender.send(moving_direction);
 
-        // turning the camera with the keyboard
-        let keyboard_camera_turn = {
-            let mut camera_turn = Vec2::<i32>::zero();
+                // turning the camera with the mouse
+                let mouse_camera_turn = {
+                    let window_center = window_context.window_dimensions() / 2;
 
-            if engine.is_key_pressed(Key::Left) {
-                camera_turn.x -= 1;
+                    let mouse_pos = window_context.mouse_pos();
+                    let mouse_motion_relative_to_center = Vec2::new(
+                        mouse_pos.x as f32 - window_center.x as f32,
+                        mouse_pos.y as f32 - window_center.y as f32,
+                    );
+
+                    mouse_motion_relative_to_center
+                };
+
+                self.turning_event_sender.send(mouse_camera_turn);
             }
-            if engine.is_key_pressed(Key::Right) {
-                camera_turn.x += 1;
+
+            window_context.show_cursor(false);
+
+            // putting the cursor back to the center of the window
+            let window_center = window_context.window_dimensions() / 2;
+
+            let mouse_pos = window_context.mouse_pos();
+            if mouse_pos.x != window_center.x || mouse_pos.y != window_center.y {
+                window_context.warp_mouse_normalized_screen_space(Vec2::new(0.5, 0.5));
             }
-            if engine.is_key_pressed(Key::Up) {
-                camera_turn.y -= 1;
-            }
-            if engine.is_key_pressed(Key::Down) {
-                camera_turn.y += 1;
-            }
+        } else {
+            window_context.show_cursor(true);
+        }
 
-            if camera_turn.is_zero() {
-                None
-            } else {
-                Some(camera_turn)
-            }
-        };
-
-        // turning the camera with the mouse
-        let mouse_camera_turn = {
-            let window_center = engine.window_dimensions() / 2;
-
-            let mouse_pos = engine.mouse_pos();
-            let mouse_motion_relative_to_center = Vec2::<i32>::new(
-                mouse_pos.x as i32 - window_center.x as i32,
-                mouse_pos.y as i32 - window_center.y as i32,
-            );
-
-            mouse_motion_relative_to_center
-        };
-
-        let final_camera_turn = keyboard_camera_turn.unwrap_or(mouse_camera_turn);
-
-        self.turning_event_sender.send(Vec2::new(
-            final_camera_turn.x as f32,
-            final_camera_turn.y as f32,
-        ));
+        self.was_active_last_tick = should_be_active;
     }
 }
