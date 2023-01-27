@@ -1,3 +1,15 @@
+//! # Example
+//! ```
+//! use muleengine::sync::async_item::AsyncItem;
+//!
+//! # #[tokio::main]
+//! # async fn main() {
+//! let item = AsyncItem::new();
+//! item.set(7).await;
+//! assert_eq!(7, *item.read().await);
+//! # }
+//! ```
+
 use std::{ops::Deref, sync::Arc};
 
 use tokio::sync::{Notify, RwLock, RwLockReadGuard};
