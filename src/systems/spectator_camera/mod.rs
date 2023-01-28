@@ -7,7 +7,7 @@ use spectator_camera_input::*;
 use spectator_camera_input_provider::*;
 
 use muleengine::{
-    app_loop_state::AppLoopStateWatcher,
+    app_loop_state::{AppLoopState, AppLoopStateWatcher},
     prelude::{ArcRwLock, ResultInspector},
     renderer::renderer_client::RendererClient,
     service_container::ServiceContainer,
@@ -16,6 +16,8 @@ use muleengine::{
 };
 
 use super::renderer_configuration::RendererConfiguration;
+
+pub struct SpectatorCameraLoopState(pub AppLoopState);
 
 pub fn run(
     window_context: ArcRwLock<dyn WindowContext>,
@@ -60,8 +62,13 @@ pub fn run(
         let main_camera_transform_handler =
             renderer_configuration.main_camera_transform_handler().await;
 
+        let spectator_camera_loop_state = SpectatorCameraLoopState(AppLoopState::new());
+        let spectator_camera_loop_state_watcher = spectator_camera_loop_state.0.watcher();
+        service_container.insert(spectator_camera_loop_state);
+
         SpectatorCameraController::new(
             app_loop_state_watcher,
+            spectator_camera_loop_state_watcher,
             renderer_client,
             skydome_camera_transform_handler,
             main_camera_transform_handler,
@@ -69,5 +76,8 @@ pub fn run(
         )
         .run()
         .await;
+
+        todo!("remove SpectatorCameraLoopState from service_container");
+        todo!("remove SpectatorCameraInputProvider from system_container");
     });
 }

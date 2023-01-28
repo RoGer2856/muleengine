@@ -13,6 +13,7 @@ use super::spectator_camera_input::SpectatorCameraInput;
 
 pub(super) struct SpectatorCameraController {
     app_loop_state_watcher: AppLoopStateWatcher,
+    spectator_camera_loop_state_watcher: AppLoopStateWatcher,
     camera: Camera,
     skydome_camera_transform_handler: TransformHandler,
     main_camera_transform_handler: TransformHandler,
@@ -26,6 +27,7 @@ pub(super) struct SpectatorCameraController {
 impl SpectatorCameraController {
     pub(super) fn new(
         app_loop_state_watcher: AppLoopStateWatcher,
+        spectator_camera_loop_state_watcher: AppLoopStateWatcher,
         renderer_client: RendererClient,
         skydome_camera_transform_handler: TransformHandler,
         main_camera_transform_handler: TransformHandler,
@@ -33,6 +35,7 @@ impl SpectatorCameraController {
     ) -> Self {
         Self {
             app_loop_state_watcher,
+            spectator_camera_loop_state_watcher,
             camera: Camera::new(),
             skydome_camera_transform_handler,
             main_camera_transform_handler,
@@ -56,6 +59,9 @@ impl SpectatorCameraController {
 
             tokio::select! {
                 _ = self.app_loop_state_watcher.wait_for_quit() => {
+                    break;
+                }
+                _ = self.spectator_camera_loop_state_watcher.wait_for_quit() => {
                     break;
                 }
                 _ = interval.tick() => {
