@@ -20,8 +20,8 @@ pub(super) struct SpectatorCameraController {
     renderer_client: RendererClient,
     spectator_camera_input: SpectatorCameraInput,
     mouse_sensitivity: f32,
-
-    current_turn_value: Vec2<f32>,
+    camera_vertical_angle_rad: f32,
+    weighted_turn_value: Vec2<f32>,
 }
 
 impl SpectatorCameraController {
@@ -41,9 +41,9 @@ impl SpectatorCameraController {
             main_camera_transform_handler,
             renderer_client,
             spectator_camera_input,
-
             mouse_sensitivity: 0.5,
-            current_turn_value: Vec2::zero(),
+            camera_vertical_angle_rad: 0.0,
+            weighted_turn_value: Vec2::zero(),
         }
     }
 
@@ -102,12 +102,22 @@ impl SpectatorCameraController {
 
         accumulated_camera_turn_input = -accumulated_camera_turn_input.yx();
 
-        self.current_turn_value = if accumulated_camera_turn_input.is_approx_zero() {
+        self.weighted_turn_value = if accumulated_camera_turn_input.is_approx_zero() {
             accumulated_camera_turn_input
         } else {
-            self.current_turn_value * (1.0 - self.mouse_sensitivity)
+            self.weighted_turn_value * (1.0 - self.mouse_sensitivity)
                 + accumulated_camera_turn_input * self.mouse_sensitivity
-        };
+        } * delta_time_in_secs;
+
+        const MIN_VERTICAL_ANGLE_RAD: f32 = -std::f32::consts::FRAC_PI_2;
+        const MAX_VERTICAL_ANGLE_RAD: f32 = std::f32::consts::FRAC_PI_2;
+        if self.camera_vertical_angle_rad + self.weighted_turn_value.x > MAX_VERTICAL_ANGLE_RAD {
+            self.weighted_turn_value.x = MAX_VERTICAL_ANGLE_RAD - self.camera_vertical_angle_rad
+        } else if self.camera_vertical_angle_rad + self.weighted_turn_value.x
+            < MIN_VERTICAL_ANGLE_RAD
+        {
+            self.weighted_turn_value.x = MIN_VERTICAL_ANGLE_RAD - self.camera_vertical_angle_rad
+        }
 
         // transform the camera
         let velocity = 0.5;
@@ -122,21 +132,20 @@ impl SpectatorCameraController {
         self.camera
             .move_by(corrected_moving_direction * velocity * delta_time_in_secs);
 
-        self.camera
-            .pitch(self.current_turn_value.x * delta_time_in_secs);
-        self.camera
-            .rotate_around_unit_y(self.current_turn_value.y * delta_time_in_secs);
+        self.camera_vertical_angle_rad += self.weighted_turn_value.x;
+        self.camera.pitch(self.weighted_turn_value.x);
+        self.camera.rotate_around_unit_y(self.weighted_turn_value.y);
 
         let _ = self
             .renderer_client
             .update_transform(
                 self.main_camera_transform_handler.clone(),
-                self.camera.transform,
+                *self.camera.transform_ref(),
             )
             .await
             .inspect_err(|e| log::error!("{e:?}"));
 
-        let mut skybox_camera_transform = self.camera.transform;
+        let mut skybox_camera_transform = *self.camera.transform_ref();
         skybox_camera_transform.position = Vec3::zero();
         let _ = self
             .renderer_client

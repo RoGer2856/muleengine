@@ -2,7 +2,7 @@ use vek::{Quaternion, Transform, Vec3};
 
 #[derive(Clone)]
 pub struct Camera {
-    pub transform: Transform<f32, f32, f32>,
+    transform: Transform<f32, f32, f32>,
 }
 
 impl Default for Camera {
@@ -20,6 +20,10 @@ impl Camera {
                 scale: Vec3::broadcast(1.0),
             },
         }
+    }
+
+    pub fn transform_ref(&self) -> &Transform<f32, f32, f32> {
+        &self.transform
     }
 
     pub fn move_by(&mut self, delta: Vec3<f32>) {
