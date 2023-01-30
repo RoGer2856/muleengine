@@ -1,2 +1,2 @@
+pub mod fps_camera;
 pub mod renderer_configuration;
-pub mod spectator_camera;

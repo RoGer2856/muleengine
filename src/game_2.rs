@@ -19,7 +19,7 @@ use vek::Vec2;
 
 use crate::{
     objects::Objects,
-    systems::{renderer_configuration::RendererConfiguration, spectator_camera},
+    systems::{fps_camera, renderer_configuration::RendererConfiguration},
 };
 
 pub struct Game2 {
@@ -99,7 +99,7 @@ impl Game2 {
                 app_context.service_container_ref().clone(),
             ));
 
-        spectator_camera::run(
+        fps_camera::run(
             window_context,
             app_context.service_container_ref().clone(),
             app_context.system_container_mut(),

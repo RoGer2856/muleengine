@@ -1,10 +1,10 @@
-mod spectator_camera_controller;
-mod spectator_camera_input;
-mod spectator_camera_input_provider;
+mod fps_camera_controller;
+mod fps_camera_input;
+mod fps_camera_input_provider;
 
-use spectator_camera_controller::*;
-use spectator_camera_input::*;
-use spectator_camera_input_provider::*;
+use fps_camera_controller::*;
+use fps_camera_input::*;
+use fps_camera_input_provider::*;
 
 use muleengine::{
     app_loop_state::{AppLoopState, AppLoopStateWatcher},
@@ -17,14 +17,14 @@ use muleengine::{
 
 use super::renderer_configuration::RendererConfiguration;
 
-pub struct SpectatorCameraLoopState(pub AppLoopState);
+pub struct FpsCameraLoopState(pub AppLoopState);
 
 pub fn run(
     window_context: ArcRwLock<dyn WindowContext>,
     service_container: ServiceContainer,
     system_container: &mut SystemContainer,
 ) {
-    let spectator_camera_input_system = SpectatorCameraInputSystem::new(window_context.clone());
+    let spectator_camera_input_system = FpsCameraInputSystem::new(window_context.clone());
     service_container.insert(spectator_camera_input_system.data());
     system_container.add_system(spectator_camera_input_system);
 
@@ -43,7 +43,7 @@ pub fn run(
             .clone();
 
         let spectator_camera_input = service_container
-            .get_service::<SpectatorCameraInput>()
+            .get_service::<FpsCameraInput>()
             .inspect_err(|e| log::error!("{e:?}"))
             .unwrap()
             .as_ref()
@@ -62,11 +62,11 @@ pub fn run(
         let main_camera_transform_handler =
             renderer_configuration.main_camera_transform_handler().await;
 
-        let spectator_camera_loop_state = SpectatorCameraLoopState(AppLoopState::new());
+        let spectator_camera_loop_state = FpsCameraLoopState(AppLoopState::new());
         let spectator_camera_loop_state_watcher = spectator_camera_loop_state.0.watcher();
         service_container.insert(spectator_camera_loop_state);
 
-        SpectatorCameraController::new(
+        FpsCameraController::new(
             app_loop_state_watcher,
             spectator_camera_loop_state_watcher,
             renderer_client,

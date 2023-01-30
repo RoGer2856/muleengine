@@ -9,38 +9,38 @@ use muleengine::{
 use tokio::time::{interval, Instant, MissedTickBehavior};
 use vek::{Vec2, Vec3};
 
-use super::spectator_camera_input::SpectatorCameraInput;
+use super::fps_camera_input::FpsCameraInput;
 
-pub(super) struct SpectatorCameraController {
+pub(super) struct FpsCameraController {
     app_loop_state_watcher: AppLoopStateWatcher,
-    spectator_camera_loop_state_watcher: AppLoopStateWatcher,
+    fps_camera_loop_state_watcher: AppLoopStateWatcher,
     camera: Camera,
     skydome_camera_transform_handler: TransformHandler,
     main_camera_transform_handler: TransformHandler,
     renderer_client: RendererClient,
-    spectator_camera_input: SpectatorCameraInput,
+    fps_camera_input: FpsCameraInput,
     mouse_sensitivity: f32,
     camera_vertical_angle_rad: f32,
     weighted_turn_value: Vec2<f32>,
 }
 
-impl SpectatorCameraController {
+impl FpsCameraController {
     pub(super) fn new(
         app_loop_state_watcher: AppLoopStateWatcher,
-        spectator_camera_loop_state_watcher: AppLoopStateWatcher,
+        fps_camera_loop_state_watcher: AppLoopStateWatcher,
         renderer_client: RendererClient,
         skydome_camera_transform_handler: TransformHandler,
         main_camera_transform_handler: TransformHandler,
-        spectator_camera_input: SpectatorCameraInput,
+        fps_camera_input: FpsCameraInput,
     ) -> Self {
         Self {
             app_loop_state_watcher,
-            spectator_camera_loop_state_watcher,
+            fps_camera_loop_state_watcher,
             camera: Camera::new(),
             skydome_camera_transform_handler,
             main_camera_transform_handler,
             renderer_client,
-            spectator_camera_input,
+            fps_camera_input,
             mouse_sensitivity: 0.5,
             camera_vertical_angle_rad: 0.0,
             weighted_turn_value: Vec2::zero(),
@@ -61,7 +61,7 @@ impl SpectatorCameraController {
                 _ = self.app_loop_state_watcher.wait_for_quit() => {
                     break;
                 }
-                _ = self.spectator_camera_loop_state_watcher.wait_for_quit() => {
+                _ = self.fps_camera_loop_state_watcher.wait_for_quit() => {
                     break;
                 }
                 _ = interval.tick() => {
@@ -77,7 +77,7 @@ impl SpectatorCameraController {
     async fn tick(&mut self, delta_time_in_secs: f32) {
         // moving the camera
         let mut moving_direction = Vec3::<f32>::zero();
-        while let Some(moving_input) = self.spectator_camera_input.moving_event_receiver.pop() {
+        while let Some(moving_input) = self.fps_camera_input.moving_event_receiver.pop() {
             moving_direction += moving_input;
         }
 
@@ -88,8 +88,7 @@ impl SpectatorCameraController {
         // turning the camera
         const TURNING_VELOCITY_RAD: f32 = std::f32::consts::FRAC_PI_2 * 0.1;
         let mut accumulated_camera_turn_input = Vec2::<f32>::zero();
-        while let Some(camera_turn_input) = self.spectator_camera_input.turning_event_receiver.pop()
-        {
+        while let Some(camera_turn_input) = self.fps_camera_input.turning_event_receiver.pop() {
             let direction = camera_turn_input
                 .try_normalized()
                 .unwrap_or_else(Vec2::zero);

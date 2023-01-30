@@ -5,11 +5,11 @@ use muleengine::{prelude::ArcRwLock, window_context::WindowContext};
 use muleengine::sync::mpmc;
 use vek::{Vec2, Vec3};
 
-use super::spectator_camera_input::SpectatorCameraInput;
+use super::fps_camera_input::FpsCameraInput;
 
-pub(super) struct SpectatorCameraInputSystem {
+pub(super) struct FpsCameraInputSystem {
     window_context: ArcRwLock<dyn WindowContext>,
-    data: SpectatorCameraInput,
+    data: FpsCameraInput,
 
     moving_event_sender: mpmc::Sender<Vec3<f32>>,
     turning_event_sender: mpmc::Sender<Vec2<f32>>,
@@ -17,7 +17,7 @@ pub(super) struct SpectatorCameraInputSystem {
     was_active_last_tick: bool,
 }
 
-impl SpectatorCameraInputSystem {
+impl FpsCameraInputSystem {
     pub fn new(window_context: ArcRwLock<dyn WindowContext>) -> Self {
         let turning_event_sender = mpmc::Sender::new();
         let turning_event_receiver = turning_event_sender.create_receiver();
@@ -27,7 +27,7 @@ impl SpectatorCameraInputSystem {
 
         Self {
             window_context,
-            data: SpectatorCameraInput {
+            data: FpsCameraInput {
                 moving_event_receiver,
                 turning_event_receiver,
             },
@@ -39,12 +39,12 @@ impl SpectatorCameraInputSystem {
         }
     }
 
-    pub fn data(&self) -> SpectatorCameraInput {
+    pub fn data(&self) -> FpsCameraInput {
         self.data.clone()
     }
 }
 
-impl System for SpectatorCameraInputSystem {
+impl System for FpsCameraInputSystem {
     fn tick(&mut self, _delta_time_in_secs: f32) {
         let mut window_context = self.window_context.write();
 
