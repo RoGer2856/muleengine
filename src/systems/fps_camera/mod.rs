@@ -1,23 +1,25 @@
+mod fps_camera_client;
+mod fps_camera_command;
 mod fps_camera_controller;
 mod fps_camera_input;
 mod fps_camera_input_provider;
 
+pub use fps_camera_client::*;
 use fps_camera_controller::*;
 use fps_camera_input::*;
 use fps_camera_input_provider::*;
 
 use muleengine::{
-    app_loop_state::{AppLoopState, AppLoopStateWatcher},
+    app_loop_state::AppLoopStateWatcher,
     prelude::{ArcRwLock, ResultInspector},
     renderer::renderer_client::RendererClient,
     service_container::ServiceContainer,
+    sync::command_channel::command_channel,
     system_container::SystemContainer,
     window_context::WindowContext,
 };
 
 use super::renderer_configuration::RendererConfiguration;
-
-pub struct FpsCameraLoopState(pub AppLoopState);
 
 pub fn run(
     window_context: ArcRwLock<dyn WindowContext>,
@@ -62,13 +64,14 @@ pub fn run(
         let main_camera_transform_handler =
             renderer_configuration.main_camera_transform_handler().await;
 
-        let spectator_camera_loop_state = FpsCameraLoopState(AppLoopState::new());
-        let spectator_camera_loop_state_watcher = spectator_camera_loop_state.0.watcher();
+        let (command_sender, command_receiver) = command_channel();
+
+        let spectator_camera_loop_state = FpsCameraClient::new(command_sender);
         service_container.insert(spectator_camera_loop_state);
 
         FpsCameraController::new(
             app_loop_state_watcher,
-            spectator_camera_loop_state_watcher,
+            command_receiver,
             renderer_client,
             skydome_camera_transform_handler,
             main_camera_transform_handler,

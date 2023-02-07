@@ -5,15 +5,16 @@ use muleengine::{
     camera::Camera,
     prelude::ResultInspector,
     renderer::{renderer_client::RendererClient, TransformHandler},
+    sync::command_channel::CommandReceiver,
 };
 use tokio::time::{interval, Instant, MissedTickBehavior};
 use vek::{Vec2, Vec3};
 
-use super::fps_camera_input::FpsCameraInput;
+use super::{fps_camera_command::FpsCameraCommand, fps_camera_input::FpsCameraInput};
 
 pub(super) struct FpsCameraController {
     app_loop_state_watcher: AppLoopStateWatcher,
-    fps_camera_loop_state_watcher: AppLoopStateWatcher,
+    command_receiver: CommandReceiver<FpsCameraCommand>,
     camera: Camera,
     skydome_camera_transform_handler: TransformHandler,
     main_camera_transform_handler: TransformHandler,
@@ -27,7 +28,7 @@ pub(super) struct FpsCameraController {
 impl FpsCameraController {
     pub(super) fn new(
         app_loop_state_watcher: AppLoopStateWatcher,
-        fps_camera_loop_state_watcher: AppLoopStateWatcher,
+        command_receiver: CommandReceiver<FpsCameraCommand>,
         renderer_client: RendererClient,
         skydome_camera_transform_handler: TransformHandler,
         main_camera_transform_handler: TransformHandler,
@@ -35,7 +36,7 @@ impl FpsCameraController {
     ) -> Self {
         Self {
             app_loop_state_watcher,
-            fps_camera_loop_state_watcher,
+            command_receiver,
             camera: Camera::new(),
             skydome_camera_transform_handler,
             main_camera_transform_handler,
@@ -54,6 +55,8 @@ impl FpsCameraController {
 
         let mut delta_time_secs = 0.0;
 
+        let mut should_run = true;
+
         loop {
             let start = Instant::now();
 
@@ -61,11 +64,23 @@ impl FpsCameraController {
                 _ = self.app_loop_state_watcher.wait_for_quit() => {
                     break;
                 }
-                _ = self.fps_camera_loop_state_watcher.wait_for_quit() => {
-                    break;
+                command = self.command_receiver.recv_async() => {
+                    match command {
+                        Ok(FpsCameraCommand::Stop) => {
+                            should_run = false;
+                        }
+                        Ok(FpsCameraCommand::Start) => {
+                            should_run = true;
+                        }
+                        Err(_) => {
+                            break;
+                        }
+                    }
                 }
                 _ = interval.tick() => {
-                    self.tick(delta_time_secs).await;
+                    if should_run {
+                        self.tick(delta_time_secs).await;
+                    }
                 }
             }
 
