@@ -135,7 +135,7 @@ impl MultiTypeDict {
         self.storage.get(&type_id).cloned()
     }
 
-    pub fn remove<ItemType>(&mut self) -> Option<MultiTypeDictItem<ItemType>>
+    pub fn remove<ItemType>(&mut self) -> Option<Arc<ItemType>>
     where
         ItemType: Any,
     {
@@ -143,6 +143,7 @@ impl MultiTypeDict {
 
         self.remove_by_type_id(type_id)
             .and_then(|item| item.downcast::<ItemType>())
+            .map(|item| item.as_arc_ref().clone())
     }
 
     pub fn remove_by_type_id(
@@ -268,19 +269,19 @@ mod tests {
         }
 
         assert_eq!(
-            *dict.remove::<A>().unwrap().as_arc_ref(),
-            Arc::new(A {
+            *dict.remove::<A>().unwrap(),
+            A {
                 value: "A1".to_string(),
-            })
+            }
         );
 
         assert!(dict.get_item_ref::<A>().is_none());
 
         assert_eq!(
-            *dict.remove::<B>().unwrap().as_arc_ref(),
-            Arc::new(B {
+            *dict.remove::<B>().unwrap(),
+            B {
                 value: "B".to_string(),
-            })
+            }
         );
 
         assert!(dict.get_item_ref::<B>().is_none());

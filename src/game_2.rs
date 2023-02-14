@@ -99,11 +99,7 @@ impl Game2 {
                 app_context.service_container_ref().clone(),
             ));
 
-        fps_camera::run(
-            window_context,
-            app_context.service_container_ref().clone(),
-            app_context.system_container_mut(),
-        );
+        fps_camera::run(window_context, app_context);
 
         {
             let service_container = app_context.service_container_ref().clone();

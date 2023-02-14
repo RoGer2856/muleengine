@@ -11,24 +11,23 @@ use fps_camera_input_provider::*;
 
 use muleengine::{
     app_loop_state::AppLoopStateWatcher,
+    application_runner::ApplicationContext,
     prelude::{ArcRwLock, ResultInspector},
     renderer::renderer_client::RendererClient,
-    service_container::ServiceContainer,
     sync::command_channel::command_channel,
-    system_container::SystemContainer,
     window_context::WindowContext,
 };
 
 use super::renderer_configuration::RendererConfiguration;
 
-pub fn run(
-    window_context: ArcRwLock<dyn WindowContext>,
-    service_container: ServiceContainer,
-    system_container: &mut SystemContainer,
-) {
-    let spectator_camera_input_system = FpsCameraInputSystem::new(window_context.clone());
-    service_container.insert(spectator_camera_input_system.data());
-    system_container.add_system(spectator_camera_input_system);
+pub fn run(window_context: ArcRwLock<dyn WindowContext>, app_context: &mut ApplicationContext) {
+    let service_container = app_context.service_container_ref().clone();
+    let sync_tasks = app_context.sync_tasks_ref().clone();
+    let system_container = app_context.system_container_mut();
+
+    let fps_camera_input_system = FpsCameraInputSystem::new(window_context.clone());
+    service_container.insert(fps_camera_input_system.data());
+    system_container.add_system(fps_camera_input_system);
 
     tokio::spawn(async move {
         let renderer_configuration = service_container
@@ -44,7 +43,7 @@ pub fn run(
             .as_ref()
             .clone();
 
-        let spectator_camera_input = service_container
+        let fps_camera_input = service_container
             .get_service::<FpsCameraInput>()
             .inspect_err(|e| log::error!("{e:?}"))
             .unwrap()
@@ -66,8 +65,8 @@ pub fn run(
 
         let (command_sender, command_receiver) = command_channel();
 
-        let spectator_camera_loop_state = FpsCameraClient::new(command_sender);
-        service_container.insert(spectator_camera_loop_state);
+        let fps_camera_client = FpsCameraClient::new(command_sender, sync_tasks);
+        service_container.insert(fps_camera_client.clone());
 
         FpsCameraController::new(
             app_loop_state_watcher,
@@ -75,12 +74,11 @@ pub fn run(
             renderer_client,
             skydome_camera_transform_handler,
             main_camera_transform_handler,
-            spectator_camera_input,
+            fps_camera_input,
         )
         .run()
         .await;
 
-        todo!("remove SpectatorCameraLoopState from service_container");
-        todo!("remove SpectatorCameraInputProvider from system_container");
+        fps_camera_client.remove_later();
     });
 }

@@ -128,6 +128,10 @@ impl ServiceContainer {
         service
     }
 
+    pub fn remove<ServiceType: Service>(&self) -> Option<Arc<ServiceType>> {
+        self.service_dict.write().remove::<ServiceType>()
+    }
+
     fn lock_service_type<ServiceType: Service>(&self) -> ServiceTypeGuard {
         let type_id = TypeId::of::<ServiceType>();
         let mut service_type_locks = self.service_type_locks.lock();

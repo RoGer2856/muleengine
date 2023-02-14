@@ -1,28 +1,41 @@
 use std::{panic, time::Duration};
 
-use tokio::time::{sleep_until, Instant};
+use tokio::{
+    sync::mpsc,
+    time::{sleep_until, Instant},
+};
 
 use crate::{
     app_loop_state::AppLoopState, fps_counter::FpsCounter, prelude::ResultInspector,
     service_container::ServiceContainer, stopwatch::Stopwatch, system_container::SystemContainer,
 };
 
-pub struct ApplicationContext {
-    system_container: SystemContainer,
-    service_container: ServiceContainer,
-}
+pub type BoxedTask = Box<dyn FnOnce(&mut ApplicationContext) + Send>;
 
-impl Default for ApplicationContext {
-    fn default() -> Self {
-        Self::new()
+#[derive(Clone)]
+pub struct SyncTaskSender(mpsc::UnboundedSender<BoxedTask>);
+
+impl SyncTaskSender {
+    pub fn add_task(&self, task: impl FnOnce(&mut ApplicationContext) + Send + 'static) {
+        let _ = self
+            .0
+            .send(Box::new(task))
+            .inspect_err(|_| log::error!("Could not add sync task, because receiver is destroyed"));
     }
 }
 
+pub struct ApplicationContext {
+    system_container: SystemContainer,
+    service_container: ServiceContainer,
+    sync_tasks: SyncTaskSender,
+}
+
 impl ApplicationContext {
-    pub fn new() -> Self {
+    pub fn new(sync_task_sender: mpsc::UnboundedSender<BoxedTask>) -> Self {
         Self {
             system_container: SystemContainer::new(),
             service_container: ServiceContainer::new(),
+            sync_tasks: SyncTaskSender(sync_task_sender),
         }
     }
 
@@ -36,6 +49,10 @@ impl ApplicationContext {
 
     pub fn service_container_ref(&self) -> &ServiceContainer {
         &self.service_container
+    }
+
+    pub fn sync_tasks_ref(&mut self) -> &SyncTaskSender {
+        &self.sync_tasks
     }
 }
 
@@ -74,7 +91,8 @@ pub async fn async_run<ApplicationType>(
 ) where
     ApplicationType: Application,
 {
-    let mut app_context = ApplicationContext::new();
+    let (sync_task_sender, mut sync_task_receiver) = mpsc::unbounded_channel();
+    let mut app_context = ApplicationContext::new(sync_task_sender);
 
     let mut application = application_creator_cb(&mut app_context);
 
@@ -94,6 +112,10 @@ pub async fn async_run<ApplicationType>(
     let mut delta_time_in_secs = 1.0 / 60.0;
 
     while application.should_run(&mut app_context) && app_loop_state_watcher.should_run() {
+        while let Ok(task) = sync_task_receiver.try_recv() {
+            task(&mut app_context);
+        }
+
         app_context.system_container.tick(delta_time_in_secs);
 
         application.tick(delta_time_in_secs, &mut app_context);

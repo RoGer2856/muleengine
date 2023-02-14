@@ -8,9 +8,9 @@ pub struct HeightMap {
 }
 
 impl HeightMap {
-    pub fn from_images<'a, 'b>(
-        relief_map_image: &'a Image,
-        mask_map_image: Option<&'b Image>,
+    pub fn from_images(
+        relief_map_image: &Image,
+        mask_map_image: Option<&Image>,
     ) -> Result<Self, &'static str> {
         #![allow(clippy::needless_range_loop)]
 
