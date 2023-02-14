@@ -5,7 +5,11 @@ use std::{
     sync::Arc,
 };
 
+use parking_lot::{Condvar, Mutex};
+
 use super::super::prelude::*;
+
+type ItemTypeLock = Arc<(Mutex<bool>, Condvar)>;
 
 pub struct SendableMultiTypeDictItem<ItemType: ?Sized> {
     type_id: TypeId,
@@ -23,6 +27,13 @@ impl<ItemType: ?Sized> Clone for SendableMultiTypeDictItem<ItemType> {
 
 pub struct SendableMultiTypeDict {
     storage: BTreeMap<TypeId, SendableMultiTypeDictItem<dyn Any + Send + Sync + 'static>>,
+    item_type_locks: ArcMutex<BTreeMap<TypeId, ItemTypeLock>>,
+}
+
+pub struct ItemTypeGuard {
+    item_type_locks: ArcMutex<BTreeMap<TypeId, ItemTypeLock>>,
+    type_id: TypeId,
+    lock: Arc<(Mutex<bool>, Condvar)>,
 }
 
 pub struct SendableMultiTypeDictIterator<'a> {
@@ -46,6 +57,7 @@ impl SendableMultiTypeDict {
     pub fn new() -> Self {
         Self {
             storage: BTreeMap::new(),
+            item_type_locks: Arc::new(Mutex::new(BTreeMap::new())),
         }
     }
 
@@ -113,6 +125,8 @@ impl SendableMultiTypeDict {
     where
         ItemType: Any + Send + Sync + 'static,
     {
+        let _item_type_guard = self.lock_item_type::<ItemType>();
+
         let type_id = TypeId::of::<ItemType>();
 
         let result = self
@@ -162,6 +176,33 @@ impl SendableMultiTypeDict {
             inner_iterator: self.storage.iter(),
         }
     }
+
+    fn lock_item_type<ItemType>(&self) -> ItemTypeGuard
+    where
+        ItemType: Any + Send + Sync + 'static,
+    {
+        let type_id = TypeId::of::<ItemType>();
+        let mut item_type_locks = self.item_type_locks.lock();
+        let entry = item_type_locks
+            .entry(type_id)
+            .or_insert_with(|| Arc::new((Mutex::new(false), Condvar::new())));
+
+        let entry = entry.clone();
+
+        drop(item_type_locks);
+
+        let mut item_type_locked = entry.0.lock();
+        while *item_type_locked {
+            entry.1.wait(&mut item_type_locked);
+        }
+        *item_type_locked = true;
+
+        ItemTypeGuard {
+            item_type_locks: self.item_type_locks.clone(),
+            type_id,
+            lock: entry.clone(),
+        }
+    }
 }
 
 impl SendableMultiTypeDictItem<dyn Any + Send + Sync + 'static> {
@@ -196,6 +237,22 @@ impl<ItemType: ?Sized> Deref for SendableMultiTypeDictItem<ItemType> {
 impl Default for SendableMultiTypeDict {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl Drop for ItemTypeGuard {
+    fn drop(&mut self) {
+        let mut item_type_locks = self.item_type_locks.lock();
+        // check that only item_type_locks and self contains this lock
+        if Arc::strong_count(&self.lock) == 2 {
+            // nobody tries to lock the item type
+            item_type_locks.remove(&self.type_id);
+        } else {
+            // somebody tries to lock the item type
+            let mut item_type_locked = self.lock.0.lock();
+            *item_type_locked = false;
+            self.lock.1.notify_one();
+        }
     }
 }
 
