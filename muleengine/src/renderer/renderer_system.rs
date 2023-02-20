@@ -17,14 +17,15 @@ use super::{
     renderer_command::Command,
     renderer_impl::{RendererImpl, RendererImplAsync},
     renderer_objects::{
-        renderer_camera::CameraHandler,
+        renderer_camera::RendererCameraHandler,
         renderer_layer::{RendererLayer, RendererLayerHandler},
     },
     renderer_pipeline_step::RendererPipelineStep,
     renderer_pipeline_step_impl::RendererPipelineStepImpl,
-    MaterialHandler, MeshHandler, RendererCamera, RendererError, RendererGroup,
-    RendererGroupHandler, RendererMaterial, RendererMesh, RendererObject, RendererObjectHandler,
-    RendererShader, RendererTransform, ShaderHandler, TransformHandler,
+    RendererCamera, RendererError, RendererGroup, RendererGroupHandler, RendererMaterial,
+    RendererMaterialHandler, RendererMesh, RendererMeshHandler, RendererObject,
+    RendererObjectHandler, RendererShader, RendererShaderHandler, RendererTransform,
+    RendererTransformHandler,
 };
 
 pub struct SyncRenderer {
@@ -231,7 +232,7 @@ impl RendererPri {
 
     fn create_renderer_layer(
         &mut self,
-        camera_handler: CameraHandler,
+        camera_handler: RendererCameraHandler,
         renderer_impl: &mut dyn RendererImpl,
     ) -> Result<RendererLayerHandler, RendererError> {
         let camera = self
@@ -383,11 +384,11 @@ impl RendererPri {
         &mut self,
         transform: Transform<f32, f32, f32>,
         renderer_impl: &mut dyn RendererImpl,
-    ) -> Result<TransformHandler, RendererError> {
+    ) -> Result<RendererTransformHandler, RendererError> {
         renderer_impl
             .create_transform(transform)
             .map(|transform| {
-                TransformHandler::new(
+                RendererTransformHandler::new(
                     self.renderer_transforms.write().create_object(transform),
                     self.command_sender.clone(),
                 )
@@ -397,7 +398,7 @@ impl RendererPri {
 
     fn update_transform(
         &mut self,
-        transform_handler: TransformHandler,
+        transform_handler: RendererTransformHandler,
         new_transform: Transform<f32, f32, f32>,
         renderer_impl: &mut dyn RendererImpl,
     ) -> Result<(), RendererError> {
@@ -438,11 +439,11 @@ impl RendererPri {
         &mut self,
         material: Material,
         renderer_impl: &mut dyn RendererImpl,
-    ) -> Result<MaterialHandler, RendererError> {
+    ) -> Result<RendererMaterialHandler, RendererError> {
         renderer_impl
             .create_material(material)
             .map(|material| {
-                MaterialHandler::new(
+                RendererMaterialHandler::new(
                     self.renderer_materials.write().create_object(material),
                     self.command_sender.clone(),
                 )
@@ -473,11 +474,11 @@ impl RendererPri {
         &mut self,
         shader_name: String,
         renderer_impl: &mut dyn RendererImpl,
-    ) -> Result<ShaderHandler, RendererError> {
+    ) -> Result<RendererShaderHandler, RendererError> {
         renderer_impl
             .create_shader(shader_name)
             .map(|shader| {
-                ShaderHandler::new(
+                RendererShaderHandler::new(
                     self.renderer_shaders.write().create_object(shader),
                     self.command_sender.clone(),
                 )
@@ -508,11 +509,11 @@ impl RendererPri {
         &mut self,
         mesh: Arc<Mesh>,
         renderer_impl: &mut dyn RendererImpl,
-    ) -> Result<MeshHandler, RendererError> {
+    ) -> Result<RendererMeshHandler, RendererError> {
         renderer_impl
             .create_mesh(mesh)
             .map(|mesh| {
-                MeshHandler::new(
+                RendererMeshHandler::new(
                     self.renderer_meshes.write().create_object(mesh),
                     self.command_sender.clone(),
                 )
@@ -541,10 +542,10 @@ impl RendererPri {
 
     fn create_renderer_object_from_mesh(
         &mut self,
-        mesh_handler: MeshHandler,
-        shader_handler: ShaderHandler,
-        material_handler: MaterialHandler,
-        transform_handler: TransformHandler,
+        mesh_handler: RendererMeshHandler,
+        shader_handler: RendererShaderHandler,
+        material_handler: RendererMaterialHandler,
+        transform_handler: RendererTransformHandler,
         renderer_impl: &mut dyn RendererImpl,
     ) -> Result<RendererObjectHandler, RendererError> {
         let mesh = self
@@ -795,9 +796,9 @@ impl RendererPri {
 
     fn create_camera(
         &mut self,
-        transform_handler: TransformHandler,
+        transform_handler: RendererTransformHandler,
         renderer_impl: &mut dyn RendererImpl,
-    ) -> Result<CameraHandler, RendererError> {
+    ) -> Result<RendererCameraHandler, RendererError> {
         let transform = self
             .renderer_transforms
             .read()
@@ -810,7 +811,7 @@ impl RendererPri {
         renderer_impl
             .create_camera(transform)
             .map(|camera| {
-                CameraHandler::new(
+                RendererCameraHandler::new(
                     self.renderer_cameras.write().create_object(camera),
                     self.command_sender.clone(),
                 )

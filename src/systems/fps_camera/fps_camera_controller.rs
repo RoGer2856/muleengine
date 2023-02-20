@@ -4,7 +4,7 @@ use muleengine::{
     app_loop_state::AppLoopStateWatcher,
     camera::Camera,
     prelude::ResultInspector,
-    renderer::{renderer_client::RendererClient, TransformHandler},
+    renderer::{renderer_client::RendererClient, RendererTransformHandler},
     sync::command_channel::CommandReceiver,
 };
 use tokio::time::{interval, Instant, MissedTickBehavior};
@@ -16,8 +16,8 @@ pub(super) struct FpsCameraController {
     app_loop_state_watcher: AppLoopStateWatcher,
     command_receiver: CommandReceiver<FpsCameraCommand>,
     camera: Camera,
-    skydome_camera_transform_handler: TransformHandler,
-    main_camera_transform_handler: TransformHandler,
+    skydome_camera_transform_handler: RendererTransformHandler,
+    main_camera_transform_handler: RendererTransformHandler,
     renderer_client: RendererClient,
     fps_camera_input: FpsCameraInput,
     mouse_sensitivity: f32,
@@ -30,8 +30,8 @@ impl FpsCameraController {
         app_loop_state_watcher: AppLoopStateWatcher,
         command_receiver: CommandReceiver<FpsCameraCommand>,
         renderer_client: RendererClient,
-        skydome_camera_transform_handler: TransformHandler,
-        main_camera_transform_handler: TransformHandler,
+        skydome_camera_transform_handler: RendererTransformHandler,
+        main_camera_transform_handler: RendererTransformHandler,
         fps_camera_input: FpsCameraInput,
     ) -> Self {
         Self {

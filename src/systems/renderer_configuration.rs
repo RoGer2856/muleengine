@@ -2,7 +2,8 @@ use muleengine::{
     prelude::ResultInspector,
     renderer::{
         renderer_client::RendererClient, renderer_pipeline_step::RendererPipelineStep,
-        CameraHandler, RendererGroupHandler, RendererLayerHandler, TransformHandler,
+        RendererCameraHandler, RendererGroupHandler, RendererLayerHandler,
+        RendererTransformHandler,
     },
     service_container::ServiceContainer,
     sync::async_item::AsyncItem,
@@ -10,11 +11,11 @@ use muleengine::{
 use vek::{Transform, Vec2};
 
 pub struct RendererConfigurationData {
-    skydome_camera_transform_handler: TransformHandler,
-    skydome_camera_handler: CameraHandler,
+    skydome_camera_transform_handler: RendererTransformHandler,
+    skydome_camera_handler: RendererCameraHandler,
 
-    main_camera_transform_handler: TransformHandler,
-    main_camera_handler: CameraHandler,
+    main_camera_transform_handler: RendererTransformHandler,
+    main_camera_handler: RendererCameraHandler,
 
     skydome_renderer_layer_handler: RendererLayerHandler,
     main_renderer_layer_handler: RendererLayerHandler,
@@ -160,7 +161,7 @@ impl RendererConfiguration {
         Self { data }
     }
 
-    pub async fn skydome_camera_transform_handler(&self) -> TransformHandler {
+    pub async fn skydome_camera_transform_handler(&self) -> RendererTransformHandler {
         self.data
             .read()
             .await
@@ -168,15 +169,15 @@ impl RendererConfiguration {
             .clone()
     }
 
-    pub async fn skydome_camera_handler(&self) -> CameraHandler {
+    pub async fn skydome_camera_handler(&self) -> RendererCameraHandler {
         self.data.read().await.skydome_camera_handler.clone()
     }
 
-    pub async fn main_camera_transform_handler(&self) -> TransformHandler {
+    pub async fn main_camera_transform_handler(&self) -> RendererTransformHandler {
         self.data.read().await.main_camera_transform_handler.clone()
     }
 
-    pub async fn main_camera_handler(&self) -> CameraHandler {
+    pub async fn main_camera_handler(&self) -> RendererCameraHandler {
         self.data.read().await.main_camera_handler.clone()
     }
 

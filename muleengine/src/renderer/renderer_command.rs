@@ -9,10 +9,12 @@ use crate::{
 };
 
 use super::{
-    renderer_objects::{renderer_camera::CameraHandler, renderer_layer::RendererLayerHandler},
+    renderer_objects::{
+        renderer_camera::RendererCameraHandler, renderer_layer::RendererLayerHandler,
+    },
     renderer_pipeline_step::RendererPipelineStep,
-    MaterialHandler, MeshHandler, RendererError, RendererGroupHandler, RendererObjectHandler,
-    ShaderHandler, TransformHandler,
+    RendererError, RendererGroupHandler, RendererMaterialHandler, RendererMeshHandler,
+    RendererObjectHandler, RendererShaderHandler, RendererTransformHandler,
 };
 
 pub enum Command {
@@ -21,7 +23,7 @@ pub enum Command {
         result_sender: oneshot::Sender<Result<(), RendererError>>,
     },
     CreateRendererLayer {
-        camera_handler: CameraHandler,
+        camera_handler: RendererCameraHandler,
         result_sender: oneshot::Sender<Result<RendererLayerHandler, RendererError>>,
     },
     ReleaseRendererLayer {
@@ -35,10 +37,10 @@ pub enum Command {
     },
     CreateTransform {
         transform: Transform<f32, f32, f32>,
-        result_sender: oneshot::Sender<Result<TransformHandler, RendererError>>,
+        result_sender: oneshot::Sender<Result<RendererTransformHandler, RendererError>>,
     },
     UpdateTransform {
-        transform_handler: TransformHandler,
+        transform_handler: RendererTransformHandler,
         new_transform: Transform<f32, f32, f32>,
         result_sender: oneshot::Sender<Result<(), RendererError>>,
     },
@@ -47,30 +49,30 @@ pub enum Command {
     },
     CreateMaterial {
         material: Material,
-        result_sender: oneshot::Sender<Result<MaterialHandler, RendererError>>,
+        result_sender: oneshot::Sender<Result<RendererMaterialHandler, RendererError>>,
     },
     ReleaseMaterial {
         object_pool_index: ObjectPoolIndex,
     },
     CreateShader {
         shader_name: String,
-        result_sender: oneshot::Sender<Result<ShaderHandler, RendererError>>,
+        result_sender: oneshot::Sender<Result<RendererShaderHandler, RendererError>>,
     },
     ReleaseShader {
         object_pool_index: ObjectPoolIndex,
     },
     CreateMesh {
         mesh: Arc<Mesh>,
-        result_sender: oneshot::Sender<Result<MeshHandler, RendererError>>,
+        result_sender: oneshot::Sender<Result<RendererMeshHandler, RendererError>>,
     },
     ReleaseMesh {
         object_pool_index: ObjectPoolIndex,
     },
     CreateRendererObjectFromMesh {
-        mesh_handler: MeshHandler,
-        shader_handler: ShaderHandler,
-        material_handler: MaterialHandler,
-        transform_handler: TransformHandler,
+        mesh_handler: RendererMeshHandler,
+        shader_handler: RendererShaderHandler,
+        material_handler: RendererMaterialHandler,
+        transform_handler: RendererTransformHandler,
         result_sender: oneshot::Sender<Result<RendererObjectHandler, RendererError>>,
     },
     ReleaseRendererObject {
@@ -97,8 +99,8 @@ pub enum Command {
         result_sender: oneshot::Sender<Result<(), RendererError>>,
     },
     CreateCamera {
-        transform_handler: TransformHandler,
-        result_sender: oneshot::Sender<Result<CameraHandler, RendererError>>,
+        transform_handler: RendererTransformHandler,
+        result_sender: oneshot::Sender<Result<RendererCameraHandler, RendererError>>,
     },
     ReleaseCamera {
         object_pool_index: ObjectPoolIndex,

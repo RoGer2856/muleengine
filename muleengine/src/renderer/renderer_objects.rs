@@ -80,7 +80,7 @@ macro_rules! renderer_object_mod {
 renderer_object_mod!(
     renderer_camera,
     RendererCamera,
-    CameraHandler,
+    RendererCameraHandler,
     ReleaseCamera,
     "RendererCamera"
 );
@@ -104,7 +104,7 @@ renderer_object_mod!(
 renderer_object_mod!(
     renderer_material,
     RendererMaterial,
-    MaterialHandler,
+    RendererMaterialHandler,
     ReleaseMaterial,
     "RendererMaterial"
 );
@@ -112,7 +112,7 @@ renderer_object_mod!(
 renderer_object_mod!(
     renderer_mesh,
     RendererMesh,
-    MeshHandler,
+    RendererMeshHandler,
     ReleaseMesh,
     "RendererMesh"
 );
@@ -128,7 +128,7 @@ renderer_object_mod!(
 renderer_object_mod!(
     renderer_shader,
     RendererShader,
-    ShaderHandler,
+    RendererShaderHandler,
     ReleaseShader,
     "RendererShader"
 );
@@ -136,7 +136,7 @@ renderer_object_mod!(
 renderer_object_mod!(
     renderer_transform,
     RendererTransform,
-    TransformHandler,
+    RendererTransformHandler,
     ReleaseTransform,
     "RendererTransform"
 );

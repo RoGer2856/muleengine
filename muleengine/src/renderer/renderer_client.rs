@@ -11,10 +11,10 @@ use crate::{
 };
 
 use super::{
-    renderer_command::Command, renderer_objects::renderer_camera::CameraHandler,
-    renderer_pipeline_step::RendererPipelineStep, MaterialHandler, MeshHandler, RendererError,
-    RendererGroupHandler, RendererLayerHandler, RendererObjectHandler, ShaderHandler,
-    TransformHandler,
+    renderer_command::Command, renderer_objects::renderer_camera::RendererCameraHandler,
+    renderer_pipeline_step::RendererPipelineStep, RendererError, RendererGroupHandler,
+    RendererLayerHandler, RendererMaterialHandler, RendererMeshHandler, RendererObjectHandler,
+    RendererShaderHandler, RendererTransformHandler,
 };
 
 #[derive(Clone)]
@@ -32,7 +32,7 @@ impl RendererClient {
     #[renderer_client_fn(Command::CreateRendererLayer)]
     pub async fn create_renderer_layer(
         &self,
-        camera_handler: CameraHandler,
+        camera_handler: RendererCameraHandler,
     ) -> Result<RendererLayerHandler, RendererError>;
 
     #[renderer_client_fn(Command::CreateRendererGroup)]
@@ -42,12 +42,12 @@ impl RendererClient {
     pub async fn create_transform(
         &self,
         transform: Transform<f32, f32, f32>,
-    ) -> Result<TransformHandler, RendererError>;
+    ) -> Result<RendererTransformHandler, RendererError>;
 
     #[renderer_client_fn(Command::UpdateTransform)]
     pub async fn update_transform(
         &self,
-        transform_handler: TransformHandler,
+        transform_handler: RendererTransformHandler,
         new_transform: Transform<f32, f32, f32>,
     ) -> Result<(), RendererError>;
 
@@ -55,21 +55,24 @@ impl RendererClient {
     pub async fn create_material(
         &self,
         material: Material,
-    ) -> Result<MaterialHandler, RendererError>;
+    ) -> Result<RendererMaterialHandler, RendererError>;
 
     #[renderer_client_fn(Command::CreateShader)]
-    pub async fn create_shader(&self, shader_name: String) -> Result<ShaderHandler, RendererError>;
+    pub async fn create_shader(
+        &self,
+        shader_name: String,
+    ) -> Result<RendererShaderHandler, RendererError>;
 
     #[renderer_client_fn(Command::CreateMesh)]
-    pub async fn create_mesh(&self, mesh: Arc<Mesh>) -> Result<MeshHandler, RendererError>;
+    pub async fn create_mesh(&self, mesh: Arc<Mesh>) -> Result<RendererMeshHandler, RendererError>;
 
     #[renderer_client_fn(Command::CreateRendererObjectFromMesh)]
     pub async fn create_renderer_object_from_mesh(
         &self,
-        mesh_handler: MeshHandler,
-        shader_handler: ShaderHandler,
-        material_handler: MaterialHandler,
-        transform_handler: TransformHandler,
+        mesh_handler: RendererMeshHandler,
+        shader_handler: RendererShaderHandler,
+        material_handler: RendererMaterialHandler,
+        transform_handler: RendererTransformHandler,
     ) -> Result<RendererObjectHandler, RendererError>;
 
     #[renderer_client_fn(Command::AddRendererGroupToLayer)]
@@ -103,6 +106,6 @@ impl RendererClient {
     #[renderer_client_fn(Command::CreateCamera)]
     pub async fn create_camera(
         &self,
-        transform_handler: TransformHandler,
-    ) -> Result<CameraHandler, RendererError>;
+        transform_handler: RendererTransformHandler,
+    ) -> Result<RendererCameraHandler, RendererError>;
 }
