@@ -91,10 +91,19 @@ impl SyncRenderer {
     }
 }
 
+#[derive(Debug)]
+pub struct InvalidNumberOfExecutors(pub String);
+
 impl AsyncRenderer {
-    pub fn new(number_of_executors: u8, renderer_impl: impl RendererImplAsync) -> Self {
+    pub fn new(
+        number_of_executors: u8,
+        renderer_impl: impl RendererImplAsync,
+    ) -> Result<Self, InvalidNumberOfExecutors> {
         if number_of_executors == 0 {
-            panic!("Number of executors given to Renderer::new_async(..) has to be more than 0");
+            return Err(InvalidNumberOfExecutors(
+                "Number of executors given to Renderer::new_async(..) has to be more than 0"
+                    .to_string(),
+            ));
         }
 
         let app_loop_state = AppLoopState::new();
@@ -143,7 +152,7 @@ impl AsyncRenderer {
             });
         }
 
-        ret
+        Ok(ret)
     }
 
     pub fn render(&mut self) {

@@ -409,7 +409,7 @@ pub fn init_test_async() -> (TestLoopAsync, TestLoopClient) {
     let renderer_impl = TestRendererImpl::new();
     let app_loop_state = AppLoopState::new();
     let app_loop_state_watcher = app_loop_state.watcher();
-    let renderer_system = AsyncRenderer::new(4, renderer_impl.clone());
+    let renderer_system = AsyncRenderer::new(4, renderer_impl.clone()).unwrap();
     let renderer_client = renderer_system.client();
 
     (
