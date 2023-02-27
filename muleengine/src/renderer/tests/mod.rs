@@ -59,6 +59,7 @@ async fn update_transform() {
                 .renderer_client()
                 .create_transform(transform)
                 .await
+                .unwrap()
                 .unwrap();
 
             transform.position += Vec3::new(1.0, 2.0, 3.0);
@@ -66,6 +67,7 @@ async fn update_transform() {
                 .renderer_client()
                 .update_transform(handler.clone(), transform)
                 .await
+                .unwrap()
                 .unwrap();
 
             assert_eq!(
@@ -213,24 +215,28 @@ async fn renderer_object_is_released_when_handlers_are_dropped() {
                 .renderer_client()
                 .create_transform(Transform::default())
                 .await
+                .unwrap()
                 .unwrap();
 
             let material_handler = test_client
                 .renderer_client()
                 .create_material(Material::default())
                 .await
+                .unwrap()
                 .unwrap();
 
             let shader_handler = test_client
                 .renderer_client()
                 .create_shader("some shader name".to_string())
                 .await
+                .unwrap()
                 .unwrap();
 
             let mesh_handler = test_client
                 .renderer_client()
                 .create_mesh(Arc::new(Mesh::default()))
                 .await
+                .unwrap()
                 .unwrap();
 
             let renderer_object_handler = test_client
@@ -242,6 +248,7 @@ async fn renderer_object_is_released_when_handlers_are_dropped() {
                     transform_handler,
                 )
                 .await
+                .unwrap()
                 .unwrap();
 
             *renderer_group_handler.write().await = Some(
@@ -249,6 +256,7 @@ async fn renderer_object_is_released_when_handlers_are_dropped() {
                     .renderer_client()
                     .create_renderer_group()
                     .await
+                    .unwrap()
                     .unwrap(),
             );
 
@@ -259,6 +267,7 @@ async fn renderer_object_is_released_when_handlers_are_dropped() {
                     renderer_group_handler.read().await.clone().unwrap(),
                 )
                 .await
+                .unwrap()
                 .unwrap();
 
             assert_eq!(1, test_client.renderer_impl().renderer_objects.read().len());

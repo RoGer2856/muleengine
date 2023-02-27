@@ -60,7 +60,7 @@ impl<T> ObjectPool<T> {
     pub fn create_object(&mut self, value: T) -> ObjectPoolIndex {
         match self.free_slots.pop() {
             Some(Reverse(index)) => {
-                let mut obj = &mut self.objects[index];
+                let obj = &mut self.objects[index];
                 obj.object = Some(value);
                 obj.version += 1;
 

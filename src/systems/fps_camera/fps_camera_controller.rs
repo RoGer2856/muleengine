@@ -4,7 +4,7 @@ use muleengine::{
     app_loop_state::AppLoopStateWatcher,
     camera::Camera,
     prelude::ResultInspector,
-    renderer::{renderer_client::RendererClient, RendererTransformHandler},
+    renderer::{renderer_system::RendererClient, RendererTransformHandler},
     sync::command_channel::CommandReceiver,
 };
 use tokio::time::{interval, Instant, MissedTickBehavior};

@@ -18,7 +18,7 @@ futures = "0.3"
 miniz_oxide = "0.7"
 minizip-sys = { git = "https://github.com/bytifex/minizip-sys.git" }
 
-renderer_client_fn = { path = "muleengine_build_macros/renderer_client_fn" }
+async_worker_fn = { path = "async-worker-fn" }
 
 [dev-dependencies]
 closure = "0.3.0"

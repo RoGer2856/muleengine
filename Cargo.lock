@@ -47,6 +47,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "async_worker_fn"
+version = "0.1.0"
+dependencies = [
+ "async_worker_macros",
+ "log",
+ "parking_lot",
+ "tokio",
+]
+
+[[package]]
+name = "async_worker_macros"
+version = "0.1.0"
+dependencies = [
+ "convert_case",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -168,6 +188,15 @@ name = "color_quant"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d7b894f5411737b7867f4827955924d7c254fc9f4d91a6aad6b097804b1018b"
+
+[[package]]
+name = "convert_case"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec182b0ca2f35d8fc196cf3404988fd8b8c739a4d270ff118a398feb0cbec1ca"
+dependencies = [
+ "unicode-segmentation",
+]
 
 [[package]]
 name = "crc32fast"
@@ -689,6 +718,7 @@ version = "0.1.0"
 dependencies = [
  "assimp",
  "assimp-sys",
+ "async_worker_fn",
  "closure",
  "env_logger",
  "futures",
@@ -697,7 +727,6 @@ dependencies = [
  "miniz_oxide 0.7.1",
  "minizip-sys",
  "parking_lot",
- "renderer_client_fn",
  "tempfile",
  "tokio",
  "vek",
@@ -920,15 +949,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3acd125665422973a33ac9d3dd2df85edad0f4ae9b00dafb1a05e43a9f5ef8e7"
 dependencies = [
  "winapi",
-]
-
-[[package]]
-name = "renderer_client_fn"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -1174,6 +1194,12 @@ name = "unicode-ident"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "84a22b9f218b40614adcb3f4ff08b703773ad44fa9423e4e0d346d5db86e4ebc"
+
+[[package]]
+name = "unicode-segmentation"
+version = "1.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1dd624098567895118886609431a7c3b8f516e41d30e0643f03d94592a147e36"
 
 [[package]]
 name = "vek"

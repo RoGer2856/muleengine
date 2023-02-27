@@ -13,7 +13,7 @@ use muleengine::{
     app_loop_state::AppLoopStateWatcher,
     application_runner::ApplicationContext,
     prelude::{ArcRwLock, ResultInspector},
-    renderer::renderer_client::RendererClient,
+    renderer::renderer_system::RendererClient,
     sync::command_channel::command_channel,
     window_context::WindowContext,
 };

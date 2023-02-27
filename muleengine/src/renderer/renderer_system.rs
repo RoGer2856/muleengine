@@ -1,5 +1,9 @@
 use std::{collections::BTreeSet, sync::Arc};
 
+use async_worker_fn::{
+    async_worker_impl,
+    command_channel::{CommandReceiver, CommandSender},
+};
 use parking_lot::RwLock;
 use vek::Transform;
 
@@ -8,13 +12,10 @@ use crate::{
     containers::object_pool::{ObjectPool, ObjectPoolIndex},
     mesh::{Material, Mesh},
     prelude::{ArcRwLock, OptionInspector, ResultInspector},
-    sync::command_channel::{command_channel, CommandReceiver, CommandSender},
     system_container::System,
 };
 
 use super::{
-    renderer_client::RendererClient,
-    renderer_command::Command,
     renderer_impl::{RendererImpl, RendererImplAsync},
     renderer_objects::{
         renderer_camera::RendererCameraHandler,
@@ -29,13 +30,12 @@ use super::{
 };
 
 pub struct SyncRenderer {
-    pub(super) renderer_pri: RendererPri,
-    pub(super) renderer_impl: Box<dyn RendererImpl>,
+    pub(super) renderer_pri: RendererPri<dyn RendererImpl>,
 }
 
 pub struct AsyncRenderer {
-    pub(super) renderer_pri: RendererPri,
-    pub(super) renderer_impl: Box<dyn RendererImplAsync>,
+    pub(super) renderer_pri: RendererPri<dyn RendererImplAsync>,
+    renderer_impl: Box<dyn RendererImplAsync>,
     app_loop_state: AppLoopState,
 }
 
@@ -55,8 +55,7 @@ pub(super) struct RendererObjectData {
     pub(super) contained_by_renderer_groups: BTreeSet<ObjectPoolIndex>,
 }
 
-#[derive(Clone)]
-pub(super) struct RendererPri {
+pub(super) struct RendererPri<T: RendererImpl + ?Sized> {
     pub(super) renderer_cameras: ArcRwLock<ObjectPool<ArcRwLock<dyn RendererCamera>>>,
     pub(super) renderer_layers: ArcRwLock<ObjectPool<RendererLayerData>>,
     pub(super) renderer_groups: ArcRwLock<ObjectPool<RendererGroupData>>,
@@ -66,8 +65,30 @@ pub(super) struct RendererPri {
     pub(super) renderer_meshes: ArcRwLock<ObjectPool<ArcRwLock<dyn RendererMesh>>>,
     pub(super) renderer_objects: ArcRwLock<ObjectPool<RendererObjectData>>,
 
-    pub(super) command_receiver: CommandReceiver<Command>,
-    pub(super) command_sender: CommandSender<Command>,
+    command_receiver: CommandReceiver<RendererSystemCommand>,
+    command_sender: CommandSender<RendererSystemCommand>,
+
+    renderer_impl: Box<T>,
+}
+
+impl Clone for RendererPri<dyn RendererImplAsync> {
+    fn clone(&self) -> Self {
+        Self {
+            renderer_cameras: self.renderer_cameras.clone(),
+            renderer_layers: self.renderer_layers.clone(),
+            renderer_groups: self.renderer_groups.clone(),
+            renderer_transforms: self.renderer_transforms.clone(),
+            renderer_materials: self.renderer_materials.clone(),
+            renderer_shaders: self.renderer_shaders.clone(),
+            renderer_meshes: self.renderer_meshes.clone(),
+            renderer_objects: self.renderer_objects.clone(),
+
+            command_receiver: self.command_receiver.clone(),
+            command_sender: self.command_sender.clone(),
+
+            renderer_impl: self.renderer_impl.box_clone(),
+        }
+    }
 }
 
 impl SyncRenderer {
@@ -77,13 +98,12 @@ impl SyncRenderer {
 
     pub fn new_from_box(renderer_impl: Box<dyn RendererImpl + 'static>) -> Self {
         Self {
-            renderer_pri: RendererPri::new(),
-            renderer_impl,
+            renderer_pri: RendererPri::new(renderer_impl),
         }
     }
 
     pub fn render(&mut self) {
-        self.renderer_impl.render();
+        self.renderer_pri.renderer_impl.render();
     }
 
     pub fn client(&self) -> RendererClient {
@@ -109,22 +129,21 @@ impl AsyncRenderer {
         let app_loop_state = AppLoopState::new();
         let app_loop_state_watcher = app_loop_state.watcher();
 
+        let renderer_impl = Box::new(renderer_impl);
         let ret = Self {
-            renderer_pri: RendererPri::new(),
-            renderer_impl: Box::new(renderer_impl),
+            renderer_pri: RendererPri::new(renderer_impl.box_clone()),
+            renderer_impl,
             app_loop_state,
         };
 
         for _ in 0..number_of_executors {
             let renderer_pri = ret.renderer_pri.clone();
-            let renderer_impl = ret.renderer_impl.box_clone();
             let app_loop_state_watcher = app_loop_state_watcher.clone();
 
             tokio::spawn(async move {
                 // the outer loop is there to restart the inner loop in case of a panic
                 while {
                     let mut renderer_pri = renderer_pri.clone();
-                    let mut renderer_impl = renderer_impl.box_clone();
                     let app_loop_state_watcher = app_loop_state_watcher.clone();
 
                     let task_result = tokio::spawn(async move {
@@ -134,7 +153,7 @@ impl AsyncRenderer {
                             tokio::select! {
                                 command = renderer_pri.command_receiver.recv_async() => {
                                     if let Ok(command) = command {
-                                        renderer_pri.execute_command(command, renderer_impl.as_renderer_impl_mut());
+                                        renderer_pri.execute_command(command);
                                     } else {
                                         log::error!("All the command senders are dropped");
                                         break;
@@ -164,9 +183,14 @@ impl AsyncRenderer {
     }
 }
 
-impl RendererPri {
-    pub fn new() -> Self {
-        let (sender, receiver) = command_channel();
+#[async_worker_impl(
+    client_name = RendererClient,
+    channel_creator_fn = renderer_command_channel,
+    command_type = RendererSystemCommand
+)]
+impl<T: RendererImpl + ?Sized> RendererPri<T> {
+    pub fn new(renderer_impl: Box<T>) -> Self {
+        let (sender, receiver) = renderer_command_channel();
 
         Self {
             renderer_cameras: Arc::new(RwLock::new(ObjectPool::new())),
@@ -180,19 +204,19 @@ impl RendererPri {
 
             command_receiver: receiver,
             command_sender: sender,
+
+            renderer_impl,
         }
     }
 
     pub fn client(&self) -> RendererClient {
-        RendererClient {
-            command_sender: self.command_sender.clone(),
-        }
+        RendererClient::new(self.command_sender.clone())
     }
 
+    #[async_worker_fn]
     fn set_renderer_pipeline(
         &mut self,
         steps: Vec<RendererPipelineStep>,
-        renderer_impl: &mut dyn RendererImpl,
     ) -> Result<(), RendererError> {
         let mut steps_impl = Vec::with_capacity(steps.capacity());
         for step in steps {
@@ -234,15 +258,15 @@ impl RendererPri {
             steps_impl.push(step_impl);
         }
 
-        renderer_impl
+        self.renderer_impl
             .set_renderer_pipeline(steps_impl)
             .map_err(RendererError::RendererImplError)
     }
 
+    #[async_worker_fn]
     fn create_renderer_layer(
         &mut self,
         camera_handler: RendererCameraHandler,
-        renderer_impl: &mut dyn RendererImpl,
     ) -> Result<RendererLayerHandler, RendererError> {
         let camera = self
             .renderer_cameras
@@ -251,7 +275,7 @@ impl RendererPri {
             .ok_or(RendererError::InvalidRendererCameraHandler(camera_handler))?
             .clone();
 
-        renderer_impl
+        self.renderer_impl
             .create_renderer_layer(camera)
             .map(|renderer_layer| {
                 RendererLayerHandler::new(
@@ -261,17 +285,14 @@ impl RendererPri {
                             renderer_layer,
                             added_renderer_groups: BTreeSet::new(),
                         }),
-                    self.command_sender.clone(),
+                    self.client(),
                 )
             })
             .map_err(RendererError::RendererImplError)
     }
 
-    fn release_renderer_layer(
-        &mut self,
-        object_pool_index: ObjectPoolIndex,
-        renderer_impl: &mut dyn RendererImpl,
-    ) {
+    #[async_worker_fn]
+    fn release_renderer_layer(&mut self, object_pool_index: ObjectPoolIndex) {
         let renderer_layer_data = self
             .renderer_layers
             .write()
@@ -284,7 +305,7 @@ impl RendererPri {
                     .get_mut(renderer_group_index)
                     .inspect_none(|| log::warn!("ReleaseRendererLayer, msg = found invalid renderer group index"))
                     .map(|renderer_group_data| {
-                        let _ = renderer_impl.remove_renderer_group_from_layer(
+                        let _ = self.renderer_impl.remove_renderer_group_from_layer(
                             renderer_group_data.renderer_group.clone(),
                             renderer_layer_data.renderer_layer.clone()
                         ).inspect_err(|e| {
@@ -299,7 +320,8 @@ impl RendererPri {
                     });
             }
 
-            let _ = renderer_impl
+            let _ = self
+                .renderer_impl
                 .release_renderer_layer(renderer_layer_data.renderer_layer.clone())
                 .inspect_err(|e| log::error!("ReleaseRendererLayer, msg = {e}"));
         } else {
@@ -307,11 +329,9 @@ impl RendererPri {
         }
     }
 
-    fn create_renderer_group(
-        &mut self,
-        renderer_impl: &mut dyn RendererImpl,
-    ) -> Result<RendererGroupHandler, RendererError> {
-        renderer_impl
+    #[async_worker_fn]
+    fn create_renderer_group(&mut self) -> Result<RendererGroupHandler, RendererError> {
+        self.renderer_impl
             .create_renderer_group()
             .map(|renderer_group| {
                 RendererGroupHandler::new(
@@ -322,17 +342,14 @@ impl RendererPri {
                             added_renderer_objects: BTreeSet::new(),
                             contained_by_renderer_layers: BTreeSet::new(),
                         }),
-                    self.command_sender.clone(),
+                    self.client(),
                 )
             })
             .map_err(RendererError::RendererImplError)
     }
 
-    fn release_renderer_group(
-        &mut self,
-        object_pool_index: ObjectPoolIndex,
-        renderer_impl: &mut dyn RendererImpl,
-    ) {
+    #[async_worker_fn]
+    fn release_renderer_group(&mut self, object_pool_index: ObjectPoolIndex) {
         let renderer_group_data = self
             .renderer_groups
             .write()
@@ -345,7 +362,7 @@ impl RendererPri {
                     .get_mut(renderer_object_index)
                     .inspect_none(|| log::warn!("ReleaseRendererGroup, msg = found invalid renderer object index"))
                     .map(|renderer_object_data| {
-                        let _ = renderer_impl.remove_renderer_object_from_group(
+                        let _ = self.renderer_impl.remove_renderer_object_from_group(
                             renderer_object_data.renderer_object.clone(),
                             renderer_group_data.renderer_group.clone(),
                         ).inspect_err(|e| {
@@ -366,7 +383,7 @@ impl RendererPri {
                     .get_mut(renderer_layer_index)
                     .inspect_none(|| log::warn!("ReleaseRendererGroup, msg = found invalid renderer layer index"))
                     .map(|renderer_layer_data| {
-                        let _ = renderer_impl.remove_renderer_group_from_layer(
+                        let _ = self.renderer_impl.remove_renderer_group_from_layer(
                             renderer_group_data.renderer_group.clone(),
                             renderer_layer_data.renderer_layer.clone(),
                         ).inspect_err(|e| {
@@ -381,7 +398,8 @@ impl RendererPri {
                     });
             }
 
-            let _ = renderer_impl
+            let _ = self
+                .renderer_impl
                 .release_renderer_group(renderer_group_data.renderer_group.clone())
                 .inspect_err(|e| log::error!("ReleaseRendererGroup, msg = {e}"));
         } else {
@@ -389,27 +407,27 @@ impl RendererPri {
         }
     }
 
+    #[async_worker_fn]
     fn create_transform(
         &mut self,
         transform: Transform<f32, f32, f32>,
-        renderer_impl: &mut dyn RendererImpl,
     ) -> Result<RendererTransformHandler, RendererError> {
-        renderer_impl
+        self.renderer_impl
             .create_transform(transform)
             .map(|transform| {
                 RendererTransformHandler::new(
                     self.renderer_transforms.write().create_object(transform),
-                    self.command_sender.clone(),
+                    self.client(),
                 )
             })
             .map_err(RendererError::RendererImplError)
     }
 
+    #[async_worker_fn]
     fn update_transform(
         &mut self,
         transform_handler: RendererTransformHandler,
         new_transform: Transform<f32, f32, f32>,
-        renderer_impl: &mut dyn RendererImpl,
     ) -> Result<(), RendererError> {
         let transform = self
             .renderer_transforms
@@ -420,23 +438,21 @@ impl RendererPri {
             ))?
             .clone();
 
-        renderer_impl
+        self.renderer_impl
             .update_transform(transform, new_transform)
             .map_err(RendererError::RendererImplError)
     }
 
-    fn release_transform(
-        &mut self,
-        object_pool_index: ObjectPoolIndex,
-        renderer_impl: &mut dyn RendererImpl,
-    ) {
+    #[async_worker_fn]
+    fn release_transform(&mut self, object_pool_index: ObjectPoolIndex) {
         let transform = self
             .renderer_transforms
             .write()
             .release_object(object_pool_index);
 
         if let Some(transform) = transform {
-            let _ = renderer_impl
+            let _ = self
+                .renderer_impl
                 .release_transform(transform)
                 .inspect_err(|e| log::error!("ReleaseTransform, msg = {e}"));
         } else {
@@ -444,34 +460,32 @@ impl RendererPri {
         }
     }
 
+    #[async_worker_fn]
     fn create_material(
         &mut self,
         material: Material,
-        renderer_impl: &mut dyn RendererImpl,
     ) -> Result<RendererMaterialHandler, RendererError> {
-        renderer_impl
+        self.renderer_impl
             .create_material(material)
             .map(|material| {
                 RendererMaterialHandler::new(
                     self.renderer_materials.write().create_object(material),
-                    self.command_sender.clone(),
+                    self.client(),
                 )
             })
             .map_err(RendererError::RendererImplError)
     }
 
-    fn release_material(
-        &mut self,
-        object_pool_index: ObjectPoolIndex,
-        renderer_impl: &mut dyn RendererImpl,
-    ) {
+    #[async_worker_fn]
+    fn release_material(&mut self, object_pool_index: ObjectPoolIndex) {
         let material = self
             .renderer_materials
             .write()
             .release_object(object_pool_index);
 
         if let Some(material) = material {
-            let _ = renderer_impl
+            let _ = self
+                .renderer_impl
                 .release_material(material)
                 .inspect_err(|e| log::error!("ReleaseMaterial, msg = {e}"));
         } else {
@@ -479,34 +493,32 @@ impl RendererPri {
         }
     }
 
+    #[async_worker_fn]
     fn create_shader(
         &mut self,
         shader_name: String,
-        renderer_impl: &mut dyn RendererImpl,
     ) -> Result<RendererShaderHandler, RendererError> {
-        renderer_impl
+        self.renderer_impl
             .create_shader(shader_name)
             .map(|shader| {
                 RendererShaderHandler::new(
                     self.renderer_shaders.write().create_object(shader),
-                    self.command_sender.clone(),
+                    self.client(),
                 )
             })
             .map_err(RendererError::RendererImplError)
     }
 
-    fn release_shader(
-        &mut self,
-        object_pool_index: ObjectPoolIndex,
-        renderer_impl: &mut dyn RendererImpl,
-    ) {
+    #[async_worker_fn]
+    fn release_shader(&mut self, object_pool_index: ObjectPoolIndex) {
         let shader = self
             .renderer_shaders
             .write()
             .release_object(object_pool_index);
 
         if let Some(shader) = shader {
-            let _ = renderer_impl
+            let _ = self
+                .renderer_impl
                 .release_shader(shader)
                 .inspect_err(|e| log::error!("ReleaseShader, msg = {e}"));
         } else {
@@ -514,34 +526,29 @@ impl RendererPri {
         }
     }
 
-    fn create_mesh(
-        &mut self,
-        mesh: Arc<Mesh>,
-        renderer_impl: &mut dyn RendererImpl,
-    ) -> Result<RendererMeshHandler, RendererError> {
-        renderer_impl
+    #[async_worker_fn]
+    fn create_mesh(&mut self, mesh: Arc<Mesh>) -> Result<RendererMeshHandler, RendererError> {
+        self.renderer_impl
             .create_mesh(mesh)
             .map(|mesh| {
                 RendererMeshHandler::new(
                     self.renderer_meshes.write().create_object(mesh),
-                    self.command_sender.clone(),
+                    self.client(),
                 )
             })
             .map_err(RendererError::RendererImplError)
     }
 
-    fn release_mesh(
-        &mut self,
-        object_pool_index: ObjectPoolIndex,
-        renderer_impl: &mut dyn RendererImpl,
-    ) {
+    #[async_worker_fn]
+    fn release_mesh(&mut self, object_pool_index: ObjectPoolIndex) {
         let mesh = self
             .renderer_meshes
             .write()
             .release_object(object_pool_index);
 
         if let Some(mesh) = mesh {
-            let _ = renderer_impl
+            let _ = self
+                .renderer_impl
                 .release_mesh(mesh)
                 .inspect_err(|e| log::error!("ReleaseMesh, msg = {e}"));
         } else {
@@ -549,13 +556,13 @@ impl RendererPri {
         }
     }
 
+    #[async_worker_fn]
     fn create_renderer_object_from_mesh(
         &mut self,
         mesh_handler: RendererMeshHandler,
         shader_handler: RendererShaderHandler,
         material_handler: RendererMaterialHandler,
         transform_handler: RendererTransformHandler,
-        renderer_impl: &mut dyn RendererImpl,
     ) -> Result<RendererObjectHandler, RendererError> {
         let mesh = self
             .renderer_meshes
@@ -589,7 +596,7 @@ impl RendererPri {
             ))?
             .clone();
 
-        renderer_impl
+        self.renderer_impl
             .create_renderer_object_from_mesh(mesh, shader, material, transform)
             .map(|renderer_object| {
                 RendererObjectHandler::new(
@@ -599,17 +606,14 @@ impl RendererPri {
                             renderer_object,
                             contained_by_renderer_groups: BTreeSet::new(),
                         }),
-                    self.command_sender.clone(),
+                    self.client(),
                 )
             })
             .map_err(RendererError::RendererImplError)
     }
 
-    fn release_renderer_object(
-        &mut self,
-        object_pool_index: ObjectPoolIndex,
-        renderer_impl: &mut dyn RendererImpl,
-    ) {
+    #[async_worker_fn]
+    fn release_renderer_object(&mut self, object_pool_index: ObjectPoolIndex) {
         let renderer_object_data = self
             .renderer_objects
             .write()
@@ -622,7 +626,7 @@ impl RendererPri {
                     .get_mut(renderer_group_index)
                     .inspect_none(|| log::warn!("ReleaseRendererObject, msg = found invalid renderer group index"))
                     .map(|renderer_group_data| {
-                        let _ = renderer_impl.remove_renderer_object_from_group(
+                        let _ = self.renderer_impl.remove_renderer_object_from_group(
                             renderer_object_data.renderer_object.clone(),
                             renderer_group_data.renderer_group.clone()
                         ).inspect_err(|e| {
@@ -637,7 +641,8 @@ impl RendererPri {
                     });
             }
 
-            let _ = renderer_impl
+            let _ = self
+                .renderer_impl
                 .release_renderer_object(renderer_object_data.renderer_object.clone())
                 .inspect_err(|e| log::error!("ReleaseRendererObject, msg = {e}"));
         } else {
@@ -645,11 +650,11 @@ impl RendererPri {
         }
     }
 
+    #[async_worker_fn]
     fn add_renderer_group_to_layer(
         &mut self,
         renderer_group_handler: RendererGroupHandler,
         renderer_layer_handler: RendererLayerHandler,
-        renderer_impl: &mut dyn RendererImpl,
     ) -> Result<(), RendererError> {
         let mut renderer_groups = self.renderer_groups.write();
         let renderer_group_data = renderer_groups
@@ -665,7 +670,7 @@ impl RendererPri {
                 RendererError::InvalidRendererLayerHandler(renderer_layer_handler.clone())
             })?;
 
-        renderer_impl
+        self.renderer_impl
             .add_renderer_group_to_layer(
                 renderer_group_data.renderer_group.clone(),
                 renderer_layer_data.renderer_layer.clone(),
@@ -681,11 +686,11 @@ impl RendererPri {
             .map_err(RendererError::RendererImplError)
     }
 
+    #[async_worker_fn]
     fn remove_renderer_group_from_layer(
         &mut self,
         renderer_group_handler: RendererGroupHandler,
         renderer_layer_handler: RendererLayerHandler,
-        renderer_impl: &mut dyn RendererImpl,
     ) -> Result<(), RendererError> {
         let mut renderer_groups = self.renderer_groups.write();
         let renderer_group_data = renderer_groups
@@ -701,7 +706,7 @@ impl RendererPri {
                 RendererError::InvalidRendererLayerHandler(renderer_layer_handler.clone())
             })?;
 
-        renderer_impl
+        self.renderer_impl
             .remove_renderer_group_from_layer(
                 renderer_group_data.renderer_group.clone(),
                 renderer_layer_data.renderer_layer.clone(),
@@ -724,11 +729,11 @@ impl RendererPri {
             .map_err(RendererError::RendererImplError)
     }
 
+    #[async_worker_fn]
     fn add_renderer_object_to_group(
         &mut self,
         renderer_object_handler: RendererObjectHandler,
         renderer_group_handler: RendererGroupHandler,
-        renderer_impl: &mut dyn RendererImpl,
     ) -> Result<(), RendererError> {
         let mut renderer_objects = self.renderer_objects.write();
         let renderer_object_data = renderer_objects
@@ -744,7 +749,7 @@ impl RendererPri {
                 RendererError::InvalidRendererGroupHandler(renderer_group_handler.clone())
             })?;
 
-        renderer_impl
+        self.renderer_impl
             .add_renderer_object_to_group(
                 renderer_object_data.renderer_object.clone(),
                 renderer_group_data.renderer_group.clone(),
@@ -760,11 +765,11 @@ impl RendererPri {
             .map_err(RendererError::RendererImplError)
     }
 
+    #[async_worker_fn]
     fn remove_renderer_object_from_group(
         &mut self,
         renderer_object_handler: RendererObjectHandler,
         renderer_group_handler: RendererGroupHandler,
-        renderer_impl: &mut dyn RendererImpl,
     ) -> Result<(), RendererError> {
         let mut renderer_objects = self.renderer_objects.write();
         let renderer_object_data = renderer_objects
@@ -780,7 +785,7 @@ impl RendererPri {
                 RendererError::InvalidRendererGroupHandler(renderer_group_handler.clone())
             })?;
 
-        renderer_impl
+        self.renderer_impl
             .remove_renderer_object_from_group(
                 renderer_object_data.renderer_object.clone(),
                 renderer_group_data.renderer_group.clone(),
@@ -803,10 +808,10 @@ impl RendererPri {
             .map_err(RendererError::RendererImplError)
     }
 
+    #[async_worker_fn]
     fn create_camera(
         &mut self,
         transform_handler: RendererTransformHandler,
-        renderer_impl: &mut dyn RendererImpl,
     ) -> Result<RendererCameraHandler, RendererError> {
         let transform = self
             .renderer_transforms
@@ -817,221 +822,41 @@ impl RendererPri {
             ))?
             .clone();
 
-        renderer_impl
+        self.renderer_impl
             .create_camera(transform)
             .map(|camera| {
                 RendererCameraHandler::new(
                     self.renderer_cameras.write().create_object(camera),
-                    self.command_sender.clone(),
+                    self.client(),
                 )
             })
             .map_err(RendererError::RendererImplError)
     }
 
-    fn release_camera(
-        &mut self,
-        object_pool_index: ObjectPoolIndex,
-        renderer_impl: &mut dyn RendererImpl,
-    ) {
+    #[async_worker_fn]
+    fn release_camera(&mut self, object_pool_index: ObjectPoolIndex) {
         let camera = self
             .renderer_cameras
             .write()
             .release_object(object_pool_index);
 
         if let Some(camera) = camera {
-            let _ = renderer_impl
+            let _ = self
+                .renderer_impl
                 .release_camera(camera)
                 .inspect_err(|e| log::error!("ReleaseCamera, msg = {e}"));
         } else {
             log::error!("ReleaseCamera, msg = could not find camera");
         }
     }
-
-    fn execute_command(&mut self, command: Command, renderer_impl: &mut dyn RendererImpl) {
-        match command {
-            Command::SetRendererPipeline {
-                steps,
-                result_sender,
-            } => {
-                let _ = result_sender
-                    .send(self.set_renderer_pipeline(steps, renderer_impl))
-                    .inspect_err(|e| log::error!("SetRendererPipeline response, msg = {e:?}"));
-            }
-            Command::CreateRendererLayer {
-                camera_handler,
-                result_sender,
-            } => {
-                let _ = result_sender
-                    .send(self.create_renderer_layer(camera_handler, renderer_impl))
-                    .inspect_err(|e| log::error!("CreateRendererLayer response, msg = {e:?}"));
-            }
-            Command::ReleaseRendererLayer { object_pool_index } => {
-                self.release_renderer_layer(object_pool_index, renderer_impl);
-            }
-            Command::CreateRendererGroup { result_sender } => {
-                let _ = result_sender
-                    .send(self.create_renderer_group(renderer_impl))
-                    .inspect_err(|e| log::error!("CreateRendererGroup response, msg = {e:?}"));
-            }
-            Command::ReleaseRendererGroup { object_pool_index } => {
-                self.release_renderer_group(object_pool_index, renderer_impl);
-            }
-            Command::CreateTransform {
-                transform,
-                result_sender,
-            } => {
-                let _ = result_sender
-                    .send(self.create_transform(transform, renderer_impl))
-                    .inspect_err(|e| log::error!("CreateTransform response, msg = {e:?}"));
-            }
-            Command::UpdateTransform {
-                transform_handler,
-                new_transform,
-                result_sender,
-            } => {
-                let _ = result_sender
-                    .send(self.update_transform(transform_handler, new_transform, renderer_impl))
-                    .inspect_err(|e| log::error!("UpdateTransform response, msg = {e:?}"));
-            }
-            Command::ReleaseTransform { object_pool_index } => {
-                self.release_transform(object_pool_index, renderer_impl);
-            }
-            Command::CreateMaterial {
-                material,
-                result_sender,
-            } => {
-                let _ = result_sender
-                    .send(self.create_material(material, renderer_impl))
-                    .inspect_err(|e| log::error!("CreateMaterial response, msg = {e:?}"));
-            }
-            Command::ReleaseMaterial { object_pool_index } => {
-                self.release_material(object_pool_index, renderer_impl);
-            }
-            Command::CreateShader {
-                shader_name,
-                result_sender,
-            } => {
-                let _ = result_sender
-                    .send(self.create_shader(shader_name, renderer_impl))
-                    .inspect_err(|e| log::error!("CreateShader response, msg = {e:?}"));
-            }
-            Command::ReleaseShader { object_pool_index } => {
-                self.release_shader(object_pool_index, renderer_impl);
-            }
-            Command::CreateMesh {
-                mesh,
-                result_sender,
-            } => {
-                let _ = result_sender
-                    .send(self.create_mesh(mesh, renderer_impl))
-                    .inspect_err(|e| log::error!("CreateMesh response, msg = {e:?}"));
-            }
-            Command::ReleaseMesh { object_pool_index } => {
-                self.release_mesh(object_pool_index, renderer_impl);
-            }
-            Command::CreateRendererObjectFromMesh {
-                mesh_handler,
-                shader_handler,
-                material_handler,
-                transform_handler,
-                result_sender,
-            } => {
-                let _ = result_sender
-                    .send(self.create_renderer_object_from_mesh(
-                        mesh_handler,
-                        shader_handler,
-                        material_handler,
-                        transform_handler,
-                        renderer_impl,
-                    ))
-                    .inspect_err(|e| {
-                        log::error!("CreateRendererObjectFromMesh response, msg = {e:?}")
-                    });
-            }
-            Command::ReleaseRendererObject { object_pool_index } => {
-                self.release_renderer_object(object_pool_index, renderer_impl);
-            }
-            Command::AddRendererGroupToLayer {
-                renderer_group_handler,
-                renderer_layer_handler,
-                result_sender,
-            } => {
-                let _ = result_sender
-                    .send(self.add_renderer_group_to_layer(
-                        renderer_group_handler,
-                        renderer_layer_handler,
-                        renderer_impl,
-                    ))
-                    .inspect_err(|e| log::error!("AddRendererGroupToLayer response, msg = {e:?}"));
-            }
-            Command::RemoveRendererGroupFromLayer {
-                renderer_group_handler,
-                renderer_layer_handler,
-                result_sender,
-            } => {
-                let _ = result_sender
-                    .send(self.remove_renderer_group_from_layer(
-                        renderer_group_handler,
-                        renderer_layer_handler,
-                        renderer_impl,
-                    ))
-                    .inspect_err(|e| {
-                        log::error!("RemoveRendererGroupFromLayer response, msg = {e:?}")
-                    });
-            }
-            Command::AddRendererObjectToGroup {
-                renderer_object_handler,
-                renderer_group_handler,
-                result_sender,
-            } => {
-                let _ = result_sender
-                    .send(self.add_renderer_object_to_group(
-                        renderer_object_handler,
-                        renderer_group_handler,
-                        renderer_impl,
-                    ))
-                    .inspect_err(|e| log::error!("AddRendererObjectToGroup response, msg = {e:?}"));
-            }
-            Command::RemoveRendererObjectFromGroup {
-                renderer_object_handler,
-                renderer_group_handler,
-                result_sender,
-            } => {
-                let _ = result_sender
-                    .send(self.remove_renderer_object_from_group(
-                        renderer_object_handler,
-                        renderer_group_handler,
-                        renderer_impl,
-                    ))
-                    .inspect_err(|e| {
-                        log::error!("RemoveRendererObjectFromGroup response, msg = {e:?}")
-                    });
-            }
-            Command::CreateCamera {
-                transform_handler,
-                result_sender,
-            } => {
-                let _ = result_sender
-                    .send(self.create_camera(transform_handler, renderer_impl))
-                    .inspect_err(|e| log::error!("CreateCamera response, msg = {e:?}"));
-            }
-            Command::ReleaseCamera { object_pool_index } => {
-                self.release_camera(object_pool_index, renderer_impl);
-            }
-        }
-    }
-
-    fn execute_command_queue(&mut self, renderer_impl: &mut dyn RendererImpl) {
-        while let Ok(command) = self.command_receiver.try_recv() {
-            self.execute_command(command, renderer_impl);
-        }
-    }
 }
 
 impl System for SyncRenderer {
     fn tick(&mut self, _delta_time_in_secs: f32) {
-        self.renderer_pri
-            .execute_command_queue(self.renderer_impl.as_mut());
+        let mut command_receiver = self.renderer_pri.command_receiver.clone();
+        let _ = self
+            .renderer_pri
+            .execute_command_queue(&mut command_receiver);
 
         self.render();
     }
