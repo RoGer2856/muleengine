@@ -1,8 +1,6 @@
 #[cfg(test)]
 mod tests;
 
-pub mod renderer_client;
-mod renderer_command;
 pub mod renderer_impl;
 mod renderer_objects;
 pub mod renderer_pipeline_step;

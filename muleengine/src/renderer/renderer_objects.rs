@@ -1,13 +1,12 @@
 macro_rules! renderer_object_mod {
-    ( $mod_name:ident, $trait_name:ident, $handler_name:ident, $command:ident, $trait_name_literal:literal ) => {
+    ( $mod_name:ident, $trait_name:ident, $handler_name:ident, $release_fn:ident, $trait_name_literal:literal ) => {
         pub mod $mod_name {
             use std::{cmp::Ordering, fmt::Debug, sync::Arc};
 
             use crate::{
                 containers::object_pool::ObjectPoolIndex,
                 prelude::{AsAny, ResultInspector},
-                renderer::renderer_command::Command,
-                sync::command_channel::CommandSender,
+                renderer::renderer_system::RendererClient,
             };
 
             pub trait $trait_name: AsAny + Sync + Send + 'static {}
@@ -15,7 +14,7 @@ macro_rules! renderer_object_mod {
             #[derive(Clone)]
             pub(crate) struct HandlerDestructor {
                 pub(crate) object_pool_index: ObjectPoolIndex,
-                command_sender: CommandSender<Command>,
+                renderer_client: RendererClient,
             }
 
             #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
@@ -24,11 +23,11 @@ macro_rules! renderer_object_mod {
             impl $handler_name {
                 pub fn new(
                     object_pool_index: ObjectPoolIndex,
-                    command_sender: CommandSender<Command>,
+                    renderer_client: RendererClient,
                 ) -> Self {
                     Self(Arc::new(HandlerDestructor {
                         object_pool_index,
-                        command_sender,
+                        renderer_client,
                     }))
                 }
             }
@@ -63,14 +62,12 @@ macro_rules! renderer_object_mod {
 
             impl Drop for HandlerDestructor {
                 fn drop(&mut self) {
-                    let _ = self
-                        .command_sender
-                        .send(Command::$command {
-                            object_pool_index: self.object_pool_index,
-                        })
-                        .inspect_err(|e| {
+                    let fut = self.renderer_client.$release_fn(self.object_pool_index);
+                    tokio::spawn(async move {
+                        let _ = fut.await.inspect_err(|e| {
                             log::error!("Release {}, msg = {e:?}", $trait_name_literal)
                         });
+                    });
                 }
             }
         }
@@ -81,7 +78,7 @@ renderer_object_mod!(
     renderer_camera,
     RendererCamera,
     RendererCameraHandler,
-    ReleaseCamera,
+    release_camera,
     "RendererCamera"
 );
 
@@ -89,7 +86,7 @@ renderer_object_mod!(
     renderer_group,
     RendererGroup,
     RendererGroupHandler,
-    ReleaseRendererGroup,
+    release_renderer_group,
     "RendererGroup"
 );
 
@@ -97,7 +94,7 @@ renderer_object_mod!(
     renderer_layer,
     RendererLayer,
     RendererLayerHandler,
-    ReleaseRendererLayer,
+    release_renderer_layer,
     "RendererLayer"
 );
 
@@ -105,7 +102,7 @@ renderer_object_mod!(
     renderer_material,
     RendererMaterial,
     RendererMaterialHandler,
-    ReleaseMaterial,
+    release_material,
     "RendererMaterial"
 );
 
@@ -113,7 +110,7 @@ renderer_object_mod!(
     renderer_mesh,
     RendererMesh,
     RendererMeshHandler,
-    ReleaseMesh,
+    release_mesh,
     "RendererMesh"
 );
 
@@ -121,7 +118,7 @@ renderer_object_mod!(
     renderer_object,
     RendererObject,
     RendererObjectHandler,
-    ReleaseRendererObject,
+    release_renderer_object,
     "RendererObject"
 );
 
@@ -129,7 +126,7 @@ renderer_object_mod!(
     renderer_shader,
     RendererShader,
     RendererShaderHandler,
-    ReleaseShader,
+    release_shader,
     "RendererShader"
 );
 
@@ -137,6 +134,6 @@ renderer_object_mod!(
     renderer_transform,
     RendererTransform,
     RendererTransformHandler,
-    ReleaseTransform,
+    release_transform,
     "RendererTransform"
 );

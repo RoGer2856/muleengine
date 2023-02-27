@@ -12,9 +12,9 @@ use crate::{
     mesh::{Material, Mesh},
     prelude::ArcRwLock,
     renderer::{
-        renderer_client::RendererClient,
         renderer_impl::RendererImpl,
         renderer_pipeline_step_impl,
+        renderer_system::RendererClient,
         renderer_system::{AsyncRenderer, SyncRenderer},
         RendererCamera, RendererGroup, RendererLayer, RendererMaterial, RendererMesh,
         RendererObject, RendererShader, RendererTransform,

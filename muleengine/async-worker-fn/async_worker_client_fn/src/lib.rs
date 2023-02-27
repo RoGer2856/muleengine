@@ -80,7 +80,7 @@ impl Parse for CommandType {
 }
 
 #[proc_macro_attribute]
-pub fn renderer_client_fn(args: TokenStream, input: TokenStream) -> TokenStream {
+pub fn async_worker_client_fn(args: TokenStream, input: TokenStream) -> TokenStream {
     let command_type: CommandType = syn::parse_macro_input!(args);
 
     let fn_signature: RendererClientFnSignature = syn::parse_macro_input!(input);

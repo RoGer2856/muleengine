@@ -1,5 +1,5 @@
 [package]
-name = "renderer_client_fn"
+name = "async_worker_client_fn"
 version = "0.1.0"
 edition = "2021"
 

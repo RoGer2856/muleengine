@@ -1,7 +1,7 @@
 use muleengine::{
     prelude::ResultInspector,
     renderer::{
-        renderer_client::RendererClient, renderer_pipeline_step::RendererPipelineStep,
+        renderer_pipeline_step::RendererPipelineStep, renderer_system::RendererClient,
         RendererCameraHandler, RendererGroupHandler, RendererLayerHandler,
         RendererTransformHandler,
     },
@@ -35,33 +35,39 @@ impl RendererConfigurationData {
             .create_transform(Transform::default())
             .await
             .inspect_err(|e| log::error!("{e:?}"))
+            .unwrap()
             .unwrap();
         let skydome_camera_handler = renderer_client
             .create_camera(skydome_camera_transform_handler.clone())
             .await
             .inspect_err(|e| log::error!("{e:?}"))
+            .unwrap()
             .unwrap();
 
         let main_camera_transform_handler = renderer_client
             .create_transform(Transform::default())
             .await
             .inspect_err(|e| log::error!("{e:?}"))
+            .unwrap()
             .unwrap();
         let main_camera_handler = renderer_client
             .create_camera(main_camera_transform_handler.clone())
             .await
             .inspect_err(|e| log::error!("{e:?}"))
+            .unwrap()
             .unwrap();
 
         let skydome_renderer_layer_handler = renderer_client
             .create_renderer_layer(skydome_camera_handler.clone())
             .await
             .inspect_err(|e| log::error!("{e:?}"))
+            .unwrap()
             .unwrap();
         let skydome_renderer_group_handler = renderer_client
             .create_renderer_group()
             .await
             .inspect_err(|e| log::error!("{e:?}"))
+            .unwrap()
             .unwrap();
         renderer_client
             .add_renderer_group_to_layer(
@@ -70,17 +76,20 @@ impl RendererConfigurationData {
             )
             .await
             .inspect_err(|e| log::error!("{e:?}"))
+            .unwrap()
             .unwrap();
 
         let main_renderer_layer_handler = renderer_client
             .create_renderer_layer(main_camera_handler.clone())
             .await
             .inspect_err(|e| log::error!("{e:?}"))
+            .unwrap()
             .unwrap();
         let main_renderer_group_handler = renderer_client
             .create_renderer_group()
             .await
             .inspect_err(|e| log::error!("{e:?}"))
+            .unwrap()
             .unwrap();
         renderer_client
             .add_renderer_group_to_layer(
@@ -89,6 +98,7 @@ impl RendererConfigurationData {
             )
             .await
             .inspect_err(|e| log::error!("{e:?}"))
+            .unwrap()
             .unwrap();
 
         renderer_client
@@ -121,6 +131,7 @@ impl RendererConfigurationData {
             ])
             .await
             .inspect_err(|e| log::error!("{e:?}"))
+            .unwrap()
             .unwrap();
 
         Self {

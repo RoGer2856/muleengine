@@ -5,7 +5,7 @@ use muleengine::{
     mesh::{Material, MaterialTexture, MaterialTextureType, TextureMapMode},
     mesh_creator,
     prelude::ResultInspector,
-    renderer::{renderer_client::RendererClient, RendererObjectHandler},
+    renderer::{renderer_system::RendererClient, RendererObjectHandler},
     service_container::ServiceContainer,
 };
 use vek::{Transform, Vec3};
@@ -61,24 +61,28 @@ impl Objects {
                 .create_shader("Assets/shaders/lit_wo_normal".to_string())
                 .await
                 .inspect_err(|e| log::error!("{e:?}"))
+                .unwrap()
                 .unwrap();
             let material_handler = self
                 .renderer_client
                 .create_material(mesh.get_material().clone())
                 .await
                 .inspect_err(|e| log::error!("{e:?}"))
+                .unwrap()
                 .unwrap();
             let mesh_handler = self
                 .renderer_client
                 .create_mesh(mesh)
                 .await
                 .inspect_err(|e| log::error!("{e:?}"))
+                .unwrap()
                 .unwrap();
             let transform_handler = self
                 .renderer_client
                 .create_transform(transform)
                 .await
                 .inspect_err(|e| log::error!("{e:?}"))
+                .unwrap()
                 .unwrap();
             let renderer_object_handler = self
                 .renderer_client
@@ -90,6 +94,7 @@ impl Objects {
                 )
                 .await
                 .inspect_err(|e| log::error!("{e:?}"))
+                .unwrap()
                 .unwrap();
             self.renderer_object_handlers
                 .push(renderer_object_handler.clone());
@@ -100,6 +105,7 @@ impl Objects {
                 )
                 .await
                 .inspect_err(|e| log::error!("{e:?}"))
+                .unwrap()
                 .unwrap();
 
             transform.position.x = -2.0;
@@ -108,6 +114,7 @@ impl Objects {
                 .update_transform(transform_handler, transform)
                 .await
                 .inspect_err(|e| log::error!("{e:?}"))
+                .unwrap()
                 .unwrap();
         }
 
@@ -136,12 +143,14 @@ impl Objects {
                 .create_shader("Assets/shaders/lit_normal".to_string())
                 .await
                 .inspect_err(|e| log::error!("{e:?}"))
+                .unwrap()
                 .unwrap();
             let transform_handler = self
                 .renderer_client
                 .create_transform(transform)
                 .await
                 .inspect_err(|e| log::error!("{e:?}"))
+                .unwrap()
                 .unwrap();
             for mesh in scene.meshes_ref().iter() {
                 match &mesh {
@@ -151,12 +160,14 @@ impl Objects {
                             .create_material(mesh.get_material().clone())
                             .await
                             .inspect_err(|e| log::error!("{e:?}"))
+                            .unwrap()
                             .unwrap();
                         let mesh_handler = self
                             .renderer_client
                             .create_mesh(mesh.clone())
                             .await
                             .inspect_err(|e| log::error!("{e:?}"))
+                            .unwrap()
                             .unwrap();
                         let renderer_object_handler = self
                             .renderer_client
@@ -168,6 +179,7 @@ impl Objects {
                             )
                             .await
                             .inspect_err(|e| log::error!("{e:?}"))
+                            .unwrap()
                             .unwrap();
                         self.renderer_object_handlers
                             .push(renderer_object_handler.clone());
@@ -178,6 +190,7 @@ impl Objects {
                             )
                             .await
                             .inspect_err(|e| log::error!("{e:?}"))
+                            .unwrap()
                             .unwrap();
                     }
                     Err(e) => {
@@ -225,6 +238,7 @@ impl Objects {
                 .create_shader("Assets/shaders/unlit".to_string())
                 .await
                 .inspect_err(|e| log::error!("{e:?}"))
+                .unwrap()
                 .unwrap();
 
             let transform_handler = self
@@ -232,6 +246,7 @@ impl Objects {
                 .create_transform(transform)
                 .await
                 .inspect_err(|e| log::error!("{e:?}"))
+                .unwrap()
                 .unwrap();
 
             for (index, texture_path) in texture_paths.iter().enumerate() {
@@ -260,12 +275,14 @@ impl Objects {
                     .create_material(material)
                     .await
                     .inspect_err(|e| log::error!("{e:?}"))
+                    .unwrap()
                     .unwrap();
                 let mesh_handler = self
                     .renderer_client
                     .create_mesh(mesh)
                     .await
                     .inspect_err(|e| log::error!("{e:?}"))
+                    .unwrap()
                     .unwrap();
                 let renderer_object_handler = self
                     .renderer_client
@@ -277,6 +294,7 @@ impl Objects {
                     )
                     .await
                     .inspect_err(|e| log::error!("{e:?}"))
+                    .unwrap()
                     .unwrap();
                 self.renderer_object_handlers
                     .push(renderer_object_handler.clone());
@@ -287,6 +305,7 @@ impl Objects {
                     )
                     .await
                     .inspect_err(|e| log::error!("{e:?}"))
+                    .unwrap()
                     .unwrap();
             }
         } else {
