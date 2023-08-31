@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 log = "0.4"
-vek = "0.15"
+vek = "0.16"
 image = "0.24"
 assimp = "0.3.1"
 assimp-sys = "0.3.1"
@@ -17,8 +17,9 @@ tokio = { version = "1.20", features = ["full"] }
 futures = "0.3"
 miniz_oxide = "0.7"
 minizip-sys = { git = "https://github.com/bytifex/minizip-sys.git" }
+serde = { version = "1.0", features = ["derive"] }
 
-async_worker_fn = { path = "async-worker-fn" }
+method-taskifier = { path = "method-taskifier" }
 
 [dev-dependencies]
 closure = "0.3.0"

@@ -1,14 +1,14 @@
 use std::{collections::BTreeSet, sync::Arc};
 
-use async_worker_fn::{
-    async_worker_impl,
-    command_channel::{CommandReceiver, CommandSender},
+use method_taskifier::{
+    method_taskifier_impl,
+    task_channel::{TaskReceiver, TaskSender},
+    AsyncWorkerRunner, InvalidNumberOfExecutors,
 };
 use parking_lot::RwLock;
 use vek::Transform;
 
 use crate::{
-    app_loop_state::AppLoopState,
     containers::object_pool::{ObjectPool, ObjectPoolIndex},
     mesh::{Material, Mesh},
     prelude::{ArcRwLock, OptionInspector, ResultInspector},
@@ -36,7 +36,7 @@ pub struct SyncRenderer {
 pub struct AsyncRenderer {
     pub(super) renderer_pri: RendererPri<dyn RendererImplAsync>,
     renderer_impl: Box<dyn RendererImplAsync>,
-    app_loop_state: AppLoopState,
+    worker_runner: AsyncWorkerRunner,
 }
 
 pub(super) struct RendererLayerData {
@@ -65,8 +65,8 @@ pub(super) struct RendererPri<T: RendererImpl + ?Sized> {
     pub(super) renderer_meshes: ArcRwLock<ObjectPool<ArcRwLock<dyn RendererMesh>>>,
     pub(super) renderer_objects: ArcRwLock<ObjectPool<RendererObjectData>>,
 
-    command_receiver: CommandReceiver<RendererSystemCommand>,
-    command_sender: CommandSender<RendererSystemCommand>,
+    task_receiver: TaskReceiver<renderer_decoupler::ChanneledTask>,
+    task_sender: TaskSender<renderer_decoupler::ChanneledTask>,
 
     renderer_impl: Box<T>,
 }
@@ -83,8 +83,8 @@ impl Clone for RendererPri<dyn RendererImplAsync> {
             renderer_meshes: self.renderer_meshes.clone(),
             renderer_objects: self.renderer_objects.clone(),
 
-            command_receiver: self.command_receiver.clone(),
-            command_sender: self.command_sender.clone(),
+            task_receiver: self.task_receiver.clone(),
+            task_sender: self.task_sender.clone(),
 
             renderer_impl: self.renderer_impl.box_clone(),
         }
@@ -106,91 +106,57 @@ impl SyncRenderer {
         self.renderer_pri.renderer_impl.render();
     }
 
-    pub fn client(&self) -> RendererClient {
+    pub fn client(&self) -> renderer_decoupler::Client {
         self.renderer_pri.client()
     }
 }
-
-#[derive(Debug)]
-pub struct InvalidNumberOfExecutors(pub String);
 
 impl AsyncRenderer {
     pub fn new(
         number_of_executors: u8,
         renderer_impl: impl RendererImplAsync,
     ) -> Result<Self, InvalidNumberOfExecutors> {
-        if number_of_executors == 0 {
-            return Err(InvalidNumberOfExecutors(
-                "Number of executors given to Renderer::new_async(..) has to be more than 0"
-                    .to_string(),
-            ));
-        }
-
-        let app_loop_state = AppLoopState::new();
-        let app_loop_state_watcher = app_loop_state.watcher();
-
         let renderer_impl = Box::new(renderer_impl);
-        let ret = Self {
-            renderer_pri: RendererPri::new(renderer_impl.box_clone()),
-            renderer_impl,
-            app_loop_state,
+        let renderer_pri = RendererPri::new(renderer_impl.box_clone());
+
+        let task_receiver = renderer_pri.task_receiver.clone();
+
+        let worker_runner = {
+            let renderer_pri = renderer_pri.clone();
+            let task_receiver = task_receiver.clone();
+            AsyncWorkerRunner::run_worker(number_of_executors, move || {
+                let mut renderer_pri = renderer_pri.clone();
+                let mut task_receiver = task_receiver.clone();
+                || async move {
+                    let _ = renderer_pri
+                        .execute_channeled_tasks_from_queue_until_clients_dropped(
+                            &mut task_receiver,
+                        )
+                        .await;
+                }
+            })?
         };
 
-        for _ in 0..number_of_executors {
-            let renderer_pri = ret.renderer_pri.clone();
-            let app_loop_state_watcher = app_loop_state_watcher.clone();
-
-            tokio::spawn(async move {
-                // the outer loop is there to restart the inner loop in case of a panic
-                while {
-                    let mut renderer_pri = renderer_pri.clone();
-                    let app_loop_state_watcher = app_loop_state_watcher.clone();
-
-                    let task_result = tokio::spawn(async move {
-                        log::info!("Starting AsyncRenderer executor");
-
-                        loop {
-                            tokio::select! {
-                                command = renderer_pri.command_receiver.recv_async() => {
-                                    if let Ok(command) = command {
-                                        renderer_pri.execute_command(command);
-                                    } else {
-                                        log::error!("All the command senders are dropped");
-                                        break;
-                                    }
-                                }
-                                _ = app_loop_state_watcher.wait_for_quit() => {
-                                    break;
-                                }
-                            }
-                        }
-                    });
-
-                    task_result.await.is_err()
-                } {}
-            });
-        }
-
-        Ok(ret)
+        Ok(Self {
+            renderer_pri,
+            renderer_impl,
+            worker_runner,
+        })
     }
 
     pub fn render(&mut self) {
         self.renderer_impl.render();
     }
 
-    pub fn client(&self) -> RendererClient {
+    pub fn client(&self) -> renderer_decoupler::Client {
         self.renderer_pri.client()
     }
 }
 
-#[async_worker_impl(
-    client_name = RendererClient,
-    channel_creator_fn = renderer_command_channel,
-    command_type = RendererSystemCommand
-)]
+#[method_taskifier_impl(module_name = renderer_decoupler)]
 impl<T: RendererImpl + ?Sized> RendererPri<T> {
     pub fn new(renderer_impl: Box<T>) -> Self {
-        let (sender, receiver) = renderer_command_channel();
+        let (sender, receiver) = renderer_decoupler::channel();
 
         Self {
             renderer_cameras: Arc::new(RwLock::new(ObjectPool::new())),
@@ -202,18 +168,18 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
             renderer_meshes: Arc::new(RwLock::new(ObjectPool::new())),
             renderer_objects: Arc::new(RwLock::new(ObjectPool::new())),
 
-            command_receiver: receiver,
-            command_sender: sender,
+            task_receiver: receiver,
+            task_sender: sender,
 
             renderer_impl,
         }
     }
 
-    pub fn client(&self) -> RendererClient {
-        RendererClient::new(self.command_sender.clone())
+    pub fn client(&self) -> renderer_decoupler::Client {
+        renderer_decoupler::Client::new(self.task_sender.clone())
     }
 
-    #[async_worker_fn]
+    #[method_taskifier_fn]
     fn set_renderer_pipeline(
         &mut self,
         steps: Vec<RendererPipelineStep>,
@@ -263,7 +229,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
             .map_err(RendererError::RendererImplError)
     }
 
-    #[async_worker_fn]
+    #[method_taskifier_fn]
     fn create_renderer_layer(
         &mut self,
         camera_handler: RendererCameraHandler,
@@ -291,7 +257,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
             .map_err(RendererError::RendererImplError)
     }
 
-    #[async_worker_fn]
+    #[method_taskifier_fn]
     fn release_renderer_layer(&mut self, object_pool_index: ObjectPoolIndex) {
         let renderer_layer_data = self
             .renderer_layers
@@ -329,7 +295,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
         }
     }
 
-    #[async_worker_fn]
+    #[method_taskifier_fn]
     fn create_renderer_group(&mut self) -> Result<RendererGroupHandler, RendererError> {
         self.renderer_impl
             .create_renderer_group()
@@ -348,7 +314,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
             .map_err(RendererError::RendererImplError)
     }
 
-    #[async_worker_fn]
+    #[method_taskifier_fn]
     fn release_renderer_group(&mut self, object_pool_index: ObjectPoolIndex) {
         let renderer_group_data = self
             .renderer_groups
@@ -407,7 +373,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
         }
     }
 
-    #[async_worker_fn]
+    #[method_taskifier_fn]
     fn create_transform(
         &mut self,
         transform: Transform<f32, f32, f32>,
@@ -423,7 +389,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
             .map_err(RendererError::RendererImplError)
     }
 
-    #[async_worker_fn]
+    #[method_taskifier_fn]
     fn update_transform(
         &mut self,
         transform_handler: RendererTransformHandler,
@@ -443,7 +409,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
             .map_err(RendererError::RendererImplError)
     }
 
-    #[async_worker_fn]
+    #[method_taskifier_fn]
     fn release_transform(&mut self, object_pool_index: ObjectPoolIndex) {
         let transform = self
             .renderer_transforms
@@ -460,7 +426,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
         }
     }
 
-    #[async_worker_fn]
+    #[method_taskifier_fn]
     fn create_material(
         &mut self,
         material: Material,
@@ -476,7 +442,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
             .map_err(RendererError::RendererImplError)
     }
 
-    #[async_worker_fn]
+    #[method_taskifier_fn]
     fn release_material(&mut self, object_pool_index: ObjectPoolIndex) {
         let material = self
             .renderer_materials
@@ -493,7 +459,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
         }
     }
 
-    #[async_worker_fn]
+    #[method_taskifier_fn]
     fn create_shader(
         &mut self,
         shader_name: String,
@@ -509,7 +475,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
             .map_err(RendererError::RendererImplError)
     }
 
-    #[async_worker_fn]
+    #[method_taskifier_fn]
     fn release_shader(&mut self, object_pool_index: ObjectPoolIndex) {
         let shader = self
             .renderer_shaders
@@ -526,7 +492,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
         }
     }
 
-    #[async_worker_fn]
+    #[method_taskifier_fn]
     fn create_mesh(&mut self, mesh: Arc<Mesh>) -> Result<RendererMeshHandler, RendererError> {
         self.renderer_impl
             .create_mesh(mesh)
@@ -539,7 +505,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
             .map_err(RendererError::RendererImplError)
     }
 
-    #[async_worker_fn]
+    #[method_taskifier_fn]
     fn release_mesh(&mut self, object_pool_index: ObjectPoolIndex) {
         let mesh = self
             .renderer_meshes
@@ -556,7 +522,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
         }
     }
 
-    #[async_worker_fn]
+    #[method_taskifier_fn]
     fn create_renderer_object_from_mesh(
         &mut self,
         mesh_handler: RendererMeshHandler,
@@ -612,7 +578,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
             .map_err(RendererError::RendererImplError)
     }
 
-    #[async_worker_fn]
+    #[method_taskifier_fn]
     fn release_renderer_object(&mut self, object_pool_index: ObjectPoolIndex) {
         let renderer_object_data = self
             .renderer_objects
@@ -650,7 +616,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
         }
     }
 
-    #[async_worker_fn]
+    #[method_taskifier_fn]
     fn add_renderer_group_to_layer(
         &mut self,
         renderer_group_handler: RendererGroupHandler,
@@ -686,7 +652,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
             .map_err(RendererError::RendererImplError)
     }
 
-    #[async_worker_fn]
+    #[method_taskifier_fn]
     fn remove_renderer_group_from_layer(
         &mut self,
         renderer_group_handler: RendererGroupHandler,
@@ -729,7 +695,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
             .map_err(RendererError::RendererImplError)
     }
 
-    #[async_worker_fn]
+    #[method_taskifier_fn]
     fn add_renderer_object_to_group(
         &mut self,
         renderer_object_handler: RendererObjectHandler,
@@ -765,7 +731,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
             .map_err(RendererError::RendererImplError)
     }
 
-    #[async_worker_fn]
+    #[method_taskifier_fn]
     fn remove_renderer_object_from_group(
         &mut self,
         renderer_object_handler: RendererObjectHandler,
@@ -808,7 +774,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
             .map_err(RendererError::RendererImplError)
     }
 
-    #[async_worker_fn]
+    #[method_taskifier_fn]
     fn create_camera(
         &mut self,
         transform_handler: RendererTransformHandler,
@@ -833,7 +799,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
             .map_err(RendererError::RendererImplError)
     }
 
-    #[async_worker_fn]
+    #[method_taskifier_fn]
     fn release_camera(&mut self, object_pool_index: ObjectPoolIndex) {
         let camera = self
             .renderer_cameras
@@ -853,10 +819,10 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
 
 impl System for SyncRenderer {
     fn tick(&mut self, _delta_time_in_secs: f32) {
-        let mut command_receiver = self.renderer_pri.command_receiver.clone();
+        let mut task_receiver = self.renderer_pri.task_receiver.clone();
         let _ = self
             .renderer_pri
-            .execute_command_queue(&mut command_receiver);
+            .execute_remaining_channeled_tasks_from_queue(&mut task_receiver);
 
         self.render();
     }
@@ -870,6 +836,6 @@ impl System for AsyncRenderer {
 
 impl Drop for AsyncRenderer {
     fn drop(&mut self) {
-        self.app_loop_state.stop_loop();
+        self.worker_runner.stop();
     }
 }

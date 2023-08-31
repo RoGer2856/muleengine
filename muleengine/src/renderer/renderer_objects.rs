@@ -6,7 +6,7 @@ macro_rules! renderer_object_mod {
             use crate::{
                 containers::object_pool::ObjectPoolIndex,
                 prelude::{AsAny, ResultInspector},
-                renderer::renderer_system::RendererClient,
+                renderer::renderer_system::renderer_decoupler,
             };
 
             pub trait $trait_name: AsAny + Sync + Send + 'static {}
@@ -14,7 +14,7 @@ macro_rules! renderer_object_mod {
             #[derive(Clone)]
             pub(crate) struct HandlerDestructor {
                 pub(crate) object_pool_index: ObjectPoolIndex,
-                renderer_client: RendererClient,
+                renderer_client: renderer_decoupler::Client,
             }
 
             #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
@@ -23,7 +23,7 @@ macro_rules! renderer_object_mod {
             impl $handler_name {
                 pub fn new(
                     object_pool_index: ObjectPoolIndex,
-                    renderer_client: RendererClient,
+                    renderer_client: renderer_decoupler::Client,
                 ) -> Self {
                     Self(Arc::new(HandlerDestructor {
                         object_pool_index,

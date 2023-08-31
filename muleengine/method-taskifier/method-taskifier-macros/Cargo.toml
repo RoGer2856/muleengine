@@ -1,5 +1,5 @@
 [package]
-name = "async_worker_macros"
+name = "method-taskifier-macros"
 version = "0.1.0"
 edition = "2021"
 

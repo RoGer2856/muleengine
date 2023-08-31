@@ -1,7 +1,7 @@
 use muleengine::{
     prelude::ResultInspector,
     renderer::{
-        renderer_pipeline_step::RendererPipelineStep, renderer_system::RendererClient,
+        renderer_pipeline_step::RendererPipelineStep, renderer_system::renderer_decoupler,
         RendererCameraHandler, RendererGroupHandler, RendererLayerHandler,
         RendererTransformHandler,
     },
@@ -30,7 +30,7 @@ pub struct RendererConfiguration {
 }
 
 impl RendererConfigurationData {
-    pub async fn new(renderer_client: RendererClient) -> Self {
+    pub async fn new(renderer_client: renderer_decoupler::Client) -> Self {
         let skydome_camera_transform_handler = renderer_client
             .create_transform(Transform::default())
             .await
@@ -158,7 +158,7 @@ impl RendererConfiguration {
             let data = data.clone();
             tokio::spawn(async move {
                 let renderer_client = service_container
-                    .get_service::<RendererClient>()
+                    .get_service::<renderer_decoupler::Client>()
                     .inspect_err(|e| log::error!("{e:?}"))
                     .unwrap()
                     .as_ref()

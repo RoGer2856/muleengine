@@ -1,5 +1,5 @@
 [package]
-name = "async_worker_fn"
+name = "method-taskifier"
 version = "0.1.0"
 edition = "2021"
 
@@ -9,4 +9,5 @@ edition = "2021"
 tokio = { version = "*", features = [ "full" ]}
 log = "0.4"
 parking_lot = "0.12"
-async_worker_macros = { path = "async_worker_macros" }
+serde = { version = "1.0", features = ["derive"] }
+method-taskifier-macros = { path = "method-taskifier-macros" }

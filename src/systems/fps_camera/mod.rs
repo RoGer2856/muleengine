@@ -13,7 +13,7 @@ use muleengine::{
     app_loop_state::AppLoopStateWatcher,
     application_runner::ApplicationContext,
     prelude::{ArcRwLock, ResultInspector},
-    renderer::renderer_system::RendererClient,
+    renderer::renderer_system::renderer_decoupler,
     sync::command_channel::command_channel,
     window_context::WindowContext,
 };
@@ -37,7 +37,7 @@ pub fn run(window_context: ArcRwLock<dyn WindowContext>, app_context: &mut Appli
             .clone();
 
         let renderer_client = service_container
-            .get_service::<RendererClient>()
+            .get_service::<renderer_decoupler::Client>()
             .inspect_err(|e| log::error!("{e:?}"))
             .unwrap()
             .as_ref()

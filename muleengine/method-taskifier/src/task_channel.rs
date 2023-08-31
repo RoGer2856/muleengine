@@ -34,16 +34,16 @@ struct Shared<T: Send> {
     queue_watcher_sender: Arc<watch::Sender<()>>,
 }
 
-pub struct CommandSender<T: Send> {
+pub struct TaskSender<T: Send> {
     shared: Shared<T>,
 }
 
-pub struct CommandReceiver<T: Send> {
+pub struct TaskReceiver<T: Send> {
     shared: Shared<T>,
     queue_watcher_receiver: watch::Receiver<()>,
 }
 
-pub fn command_channel<T: Send>() -> (CommandSender<T>, CommandReceiver<T>) {
+pub fn task_channel<T: Send>() -> (TaskSender<T>, TaskReceiver<T>) {
     let (sender, receiver) = watch::channel(());
 
     let shared = Shared {
@@ -53,20 +53,20 @@ pub fn command_channel<T: Send>() -> (CommandSender<T>, CommandReceiver<T>) {
     };
 
     (
-        CommandSender {
+        TaskSender {
             shared: shared.clone(),
         },
-        CommandReceiver {
+        TaskReceiver {
             shared,
             queue_watcher_receiver: receiver,
         },
     )
 }
 
-impl<T: Send> CommandSender<T> {
-    pub fn send(&self, command: T) -> Result<(), SendError> {
+impl<T: Send> TaskSender<T> {
+    pub fn send(&self, task: T) -> Result<(), SendError> {
         if self.shared.queue_watcher_sender.receiver_count() != 0 {
-            self.shared.queue.lock().push_back(command);
+            self.shared.queue.lock().push_back(task);
             let _ = self.shared.queue_watcher_sender.send(());
 
             Ok(())
@@ -76,12 +76,12 @@ impl<T: Send> CommandSender<T> {
     }
 }
 
-impl<T: Send> CommandReceiver<T> {
+impl<T: Send> TaskReceiver<T> {
     pub async fn recv_async(&mut self) -> Result<T, RecvError> {
         loop {
             if self.queue_watcher_receiver.changed().await.is_ok() {
                 match self.try_pop() {
-                    Ok(command) => break Ok(command),
+                    Ok(task) => break Ok(task),
                     Err(TryRecvError::Disconnected) => break Err(RecvError::Disconnected),
                     Err(TryRecvError::Empty) => (),
                 }
@@ -111,9 +111,9 @@ impl<T: Send> CommandReceiver<T> {
 
     pub fn try_pop(&self) -> Result<T, TryRecvError> {
         let mut queue_guard = self.shared.queue.lock();
-        if let Some(command) = queue_guard.pop_front() {
+        if let Some(task) = queue_guard.pop_front() {
             let _ = self.shared.queue_watcher_sender.send(());
-            Ok(command)
+            Ok(task)
         } else if self.shared.sender_count.load(atomic::Ordering::SeqCst) == 0 {
             Err(TryRecvError::Disconnected)
         } else {
@@ -132,7 +132,7 @@ impl<T: Send> Clone for Shared<T> {
     }
 }
 
-impl<T: Send> Clone for CommandSender<T> {
+impl<T: Send> Clone for TaskSender<T> {
     fn clone(&self) -> Self {
         self.shared
             .sender_count
@@ -143,7 +143,7 @@ impl<T: Send> Clone for CommandSender<T> {
     }
 }
 
-impl<T: Send> Drop for CommandSender<T> {
+impl<T: Send> Drop for TaskSender<T> {
     fn drop(&mut self) {
         self.shared
             .sender_count
@@ -153,7 +153,7 @@ impl<T: Send> Drop for CommandSender<T> {
     }
 }
 
-impl<T: Send> Clone for CommandReceiver<T> {
+impl<T: Send> Clone for TaskReceiver<T> {
     fn clone(&self) -> Self {
         Self {
             shared: self.shared.clone(),
@@ -162,7 +162,7 @@ impl<T: Send> Clone for CommandReceiver<T> {
     }
 }
 
-impl<T: Send> Drop for CommandReceiver<T> {
+impl<T: Send> Drop for TaskReceiver<T> {
     fn drop(&mut self) {
         // if this is the last receiver, then empty the queue
         if self.shared.queue_watcher_sender.receiver_count() == 1 {
@@ -183,24 +183,21 @@ mod tests {
 
     use crate::prelude::ArcMutex;
 
-    use super::{command_channel, CommandReceiver};
+    use super::{task_channel, TaskReceiver};
 
     #[derive(Debug, Clone, Copy, Eq, PartialEq)]
-    struct Command(usize);
+    struct Task(usize);
 
-    async fn run_worker(
-        received_values: ArcMutex<Vec<Command>>,
-        mut receiver: CommandReceiver<Command>,
-    ) {
-        while let Ok(command) = receiver.recv_async().await {
-            received_values.lock().push(command);
+    async fn run_worker(received_values: ArcMutex<Vec<Task>>, mut receiver: TaskReceiver<Task>) {
+        while let Ok(task) = receiver.recv_async().await {
+            received_values.lock().push(task);
         }
     }
 
     async fn run_test(number_of_workers: usize) {
-        let received_values = Arc::new(Mutex::new(Vec::<Command>::new()));
+        let received_values = Arc::new(Mutex::new(Vec::<Task>::new()));
 
-        let (sender, receiver) = command_channel();
+        let (sender, receiver) = task_channel();
 
         let mut workers = Vec::new();
         for _ in 0..number_of_workers {
@@ -209,7 +206,7 @@ mod tests {
             workers.push(tokio::spawn(run_worker(received_values, receiver)));
         }
 
-        sender.send(Command(7)).unwrap();
+        sender.send(Task(7)).unwrap();
 
         drop(sender);
 
@@ -219,7 +216,7 @@ mod tests {
 
         let received_values = received_values.lock();
         assert_eq!(received_values.len(), 1);
-        assert_eq!(*received_values.get(0).unwrap(), Command(7));
+        assert_eq!(*received_values.get(0).unwrap(), Task(7));
     }
 
     #[tokio::test(flavor = "current_thread")]

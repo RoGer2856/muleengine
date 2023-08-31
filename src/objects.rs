@@ -5,7 +5,7 @@ use muleengine::{
     mesh::{Material, MaterialTexture, MaterialTextureType, TextureMapMode},
     mesh_creator,
     prelude::ResultInspector,
-    renderer::{renderer_system::RendererClient, RendererObjectHandler},
+    renderer::{renderer_system::renderer_decoupler, RendererObjectHandler},
     service_container::ServiceContainer,
 };
 use vek::{Transform, Vec3};
@@ -15,7 +15,7 @@ use crate::systems::renderer_configuration::RendererConfiguration;
 pub struct Objects {
     renderer_object_handlers: Vec<RendererObjectHandler>,
     renderer_configuration: Arc<RendererConfiguration>,
-    renderer_client: RendererClient,
+    renderer_client: renderer_decoupler::Client,
     asset_container: AssetContainer,
 }
 
@@ -28,7 +28,7 @@ impl Objects {
                 .inspect_err(|e| log::error!("{e:?}"))
                 .unwrap(),
             renderer_client: service_container
-                .get_service::<RendererClient>()
+                .get_service::<renderer_decoupler::Client>()
                 .inspect_err(|e| log::error!("{e:?}"))
                 .unwrap()
                 .as_ref()
