@@ -1,10 +1,10 @@
-use std::sync::Arc;
+use std::{rc::Rc, sync::Arc};
 
 use muleengine::{
     asset_container::AssetContainer,
     containers::object_pool::ObjectPool,
     mesh::{Material, Mesh},
-    prelude::ArcRwLock,
+    prelude::{ArcRwLock, RcRwLock},
     renderer::{
         renderer_impl::RendererImpl, renderer_pipeline_step_impl::RendererPipelineStepImpl,
         RendererCamera, RendererGroup, RendererLayer, RendererMaterial, RendererMesh,
@@ -42,14 +42,14 @@ pub struct Renderer {
     renderer_pipeline_steps: Vec<RendererPipelineStepObject>,
 
     renderer_cameras: ObjectPool<(ArcRwLock<GLCamera>, TransformObserver)>,
-    renderer_layers: ObjectPool<ArcRwLock<RendererLayerObject>>,
-    renderer_groups: ObjectPool<ArcRwLock<RendererGroupObject>>,
-    renderer_transforms: ObjectPool<ArcRwLock<Observable<Transform<f32, f32, f32>>>>,
+    renderer_layers: ObjectPool<RcRwLock<RendererLayerObject>>,
+    renderer_groups: ObjectPool<RcRwLock<RendererGroupObject>>,
+    renderer_transforms: ObjectPool<RcRwLock<Observable<Transform<f32, f32, f32>>>>,
     renderer_materials: ObjectPool<ArcRwLock<RendererMaterialObject>>,
     renderer_shaders: ObjectPool<ArcRwLock<RendererShaderObject>>,
-    renderer_meshes: ObjectPool<ArcRwLock<RendererMeshObject>>,
+    renderer_meshes: ObjectPool<RcRwLock<RendererMeshObject>>,
 
-    mesh_renderer_objects: ObjectPool<(ArcRwLock<GLDrawableMesh>, TransformObserver)>,
+    mesh_renderer_objects: ObjectPool<(RcRwLock<GLDrawableMesh>, TransformObserver)>,
 
     screen_clear_color: Vec4<f32>,
 
@@ -356,7 +356,7 @@ impl RendererImpl for Renderer {
                 .0
         };
 
-        let renderer_layer = Arc::new(RwLock::new(RendererLayerObject::new(camera.clone())));
+        let renderer_layer = Rc::new(RwLock::new(RendererLayerObject::new(camera.clone())));
         let index = self.renderer_layers.create_object(renderer_layer);
 
         Ok(Arc::new(RwLock::new(RendererLayerIndex(index))))
@@ -458,7 +458,7 @@ impl RendererImpl for Renderer {
     }
 
     fn create_renderer_group(&mut self) -> Result<ArcRwLock<dyn RendererGroup>, String> {
-        let renderer_group = Arc::new(RwLock::new(RendererGroupObject::new()));
+        let renderer_group = Rc::new(RwLock::new(RendererGroupObject::new()));
         let index = self.renderer_groups.create_object(renderer_group);
 
         Ok(Arc::new(RwLock::new(RendererGroupIndex(index))))
@@ -487,7 +487,7 @@ impl RendererImpl for Renderer {
         let renderer_transform = Observable::new(transform);
         let index = self
             .renderer_transforms
-            .create_object(Arc::new(RwLock::new(renderer_transform)));
+            .create_object(Rc::new(RwLock::new(renderer_transform)));
 
         Ok(Arc::new(RwLock::new(RendererTransformIndex(index))))
     }
@@ -584,7 +584,7 @@ impl RendererImpl for Renderer {
     fn create_mesh(&mut self, mesh: Arc<Mesh>) -> Result<ArcRwLock<dyn RendererMesh>, String> {
         let gl_mesh = self.gl_mesh_container.get_gl_mesh(mesh);
 
-        let renderer_mesh = Arc::new(RwLock::new(RendererMeshObject::new(gl_mesh)));
+        let renderer_mesh = Rc::new(RwLock::new(RendererMeshObject::new(gl_mesh)));
         let index = self.renderer_meshes.create_object(renderer_mesh);
 
         Ok(Arc::new(RwLock::new(RendererMeshIndex(index))))
@@ -660,7 +660,7 @@ impl RendererImpl for Renderer {
             })?
         };
 
-        let mesh_renderer_object = Arc::new(RwLock::new(GLDrawableMesh::new(
+        let mesh_renderer_object = Rc::new(RwLock::new(GLDrawableMesh::new(
             mesh.read().gl_mesh().clone(),
             material.read().gl_material().clone(),
             **transform.read(),

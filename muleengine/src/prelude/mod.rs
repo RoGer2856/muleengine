@@ -2,12 +2,16 @@ mod result_option_inspect;
 
 use std::{
     any::{Any, TypeId},
+    rc::Rc,
     sync::Arc,
 };
 
 use parking_lot::{Mutex, RwLock};
 
 pub use result_option_inspect::*;
+
+pub type RcMutex<T> = Rc<Mutex<T>>;
+pub type RcRwLock<T> = Rc<RwLock<T>>;
 
 pub type ArcMutex<T> = Arc<Mutex<T>>;
 pub type ArcRwLock<T> = Arc<RwLock<T>>;

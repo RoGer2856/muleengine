@@ -14,7 +14,7 @@ impl<PtrType: ?Sized> SendablePtr<PtrType> {
     pub fn new(ptr: *const PtrType) -> Self {
         Self {
             ptr: ptr as *const () as usize,
-            _marker: PhantomData::default(),
+            _marker: PhantomData,
         }
     }
 
@@ -33,10 +33,7 @@ impl<PtrType: ?Sized> Display for SendablePtr<PtrType> {
 
 impl<PtrType: ?Sized> Clone for SendablePtr<PtrType> {
     fn clone(&self) -> Self {
-        Self {
-            ptr: self.ptr,
-            _marker: self._marker,
-        }
+        *self
     }
 }
 

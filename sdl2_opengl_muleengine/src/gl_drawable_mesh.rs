@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{rc::Rc, sync::Arc};
 
 use vek::{Mat4, Transform, Vec3};
 
@@ -13,7 +13,7 @@ use super::{
 };
 
 pub struct GLDrawableMesh {
-    gl_mesh: Arc<GLMesh>,
+    gl_mesh: Rc<GLMesh>,
     material: Arc<GLMaterial>,
     object_matrix: Mat4<f32>,
     bone_transforms: Option<Vec<Mat4<f32>>>,
@@ -23,7 +23,7 @@ pub struct GLDrawableMesh {
 
 impl GLDrawableMesh {
     pub fn new(
-        gl_mesh: Arc<GLMesh>,
+        gl_mesh: Rc<GLMesh>,
         material: Arc<GLMaterial>,
         transform: Transform<f32, f32, f32>,
         gl_mesh_shader_program: Arc<GLMeshShaderProgram>,

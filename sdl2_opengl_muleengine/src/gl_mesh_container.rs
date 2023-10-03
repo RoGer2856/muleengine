@@ -1,12 +1,12 @@
-use std::collections::BTreeMap;
 use std::sync::Arc;
+use std::{collections::BTreeMap, rc::Rc};
 
 use muleengine::mesh::{Mesh, MeshConvertError, Scene};
 
 use super::gl_mesh::GLMesh;
 
 pub struct GLMeshContainer {
-    meshes: BTreeMap<*const Mesh, Arc<GLMesh>>,
+    meshes: BTreeMap<*const Mesh, Rc<GLMesh>>,
 }
 
 impl Default for GLMeshContainer {
@@ -24,8 +24,8 @@ impl GLMeshContainer {
 
     pub fn get_gl_meshes_from_scene(
         &mut self,
-        scene: Arc<Scene>,
-    ) -> Vec<Result<Arc<GLMesh>, MeshConvertError>> {
+        scene: Rc<Scene>,
+    ) -> Vec<Result<Rc<GLMesh>, MeshConvertError>> {
         let mut ret = Vec::new();
 
         for mesh in scene.meshes_ref().iter() {
@@ -43,11 +43,11 @@ impl GLMeshContainer {
         ret
     }
 
-    pub fn get_gl_mesh(&mut self, mesh: Arc<Mesh>) -> Arc<GLMesh> {
+    pub fn get_gl_mesh(&mut self, mesh: Arc<Mesh>) -> Rc<GLMesh> {
         let mesh = self
             .meshes
             .entry(&*mesh)
-            .or_insert_with(|| Arc::new(GLMesh::new(mesh)));
+            .or_insert_with(|| Rc::new(GLMesh::new(mesh)));
 
         mesh.clone()
     }

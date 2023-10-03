@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{rc::Rc, sync::Arc};
 
 use vek::{Mat4, Vec4};
 
@@ -27,7 +27,7 @@ pub struct GLMesh {
 }
 
 pub struct RendererMeshObject {
-    gl_mesh: Arc<GLMesh>,
+    gl_mesh: Rc<GLMesh>,
 }
 
 impl GLMesh {
@@ -128,11 +128,11 @@ impl GLMesh {
 }
 
 impl RendererMeshObject {
-    pub fn new(gl_mesh: Arc<GLMesh>) -> Self {
+    pub fn new(gl_mesh: Rc<GLMesh>) -> Self {
         Self { gl_mesh }
     }
 
-    pub fn gl_mesh(&self) -> &Arc<GLMesh> {
+    pub fn gl_mesh(&self) -> &Rc<GLMesh> {
         &self.gl_mesh
     }
 }

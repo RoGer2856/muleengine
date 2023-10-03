@@ -1,4 +1,4 @@
-use muleengine::prelude::ArcRwLock;
+use muleengine::prelude::RcRwLock;
 use vek::Vec2;
 
 use super::renderer_layer_object::RendererLayerObject;
@@ -13,7 +13,7 @@ pub(crate) enum RendererPipelineStepObject {
         viewport_end_ndc: Vec2<f32>,
     },
     Draw {
-        renderer_layer: ArcRwLock<RendererLayerObject>,
+        renderer_layer: RcRwLock<RendererLayerObject>,
 
         viewport_start_ndc: Vec2<f32>,
         viewport_end_ndc: Vec2<f32>,

@@ -57,7 +57,7 @@ impl<T> Observable<T> {
         Observer {
             observer_index,
             to_be_deleted_observers: self.to_be_deleted_observers.clone(),
-            _phantom: PhantomData::default(),
+            _phantom: PhantomData,
         }
     }
 

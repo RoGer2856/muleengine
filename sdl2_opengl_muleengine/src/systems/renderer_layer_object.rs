@@ -1,13 +1,13 @@
 use std::collections::BTreeMap;
 
-use muleengine::prelude::ArcRwLock;
+use muleengine::prelude::{ArcRwLock, RcRwLock};
 use vek::Mat4;
 
 use super::{gl_camera::GLCamera, renderer_group_object::RendererGroupObject};
 
 pub(crate) struct RendererLayerObject {
     camera: ArcRwLock<GLCamera>,
-    renderer_groups: BTreeMap<*const RendererGroupObject, ArcRwLock<RendererGroupObject>>,
+    renderer_groups: BTreeMap<*const RendererGroupObject, RcRwLock<RendererGroupObject>>,
 }
 
 impl RendererLayerObject {
@@ -20,16 +20,16 @@ impl RendererLayerObject {
 
     pub fn add_renderer_group(
         &mut self,
-        renderer_group: ArcRwLock<RendererGroupObject>,
-    ) -> Option<ArcRwLock<RendererGroupObject>> {
+        renderer_group: RcRwLock<RendererGroupObject>,
+    ) -> Option<RcRwLock<RendererGroupObject>> {
         self.renderer_groups
             .insert(renderer_group.data_ptr(), renderer_group)
     }
 
     pub fn remove_renderer_group(
         &mut self,
-        renderer_group: &ArcRwLock<RendererGroupObject>,
-    ) -> Option<ArcRwLock<RendererGroupObject>> {
+        renderer_group: &RcRwLock<RendererGroupObject>,
+    ) -> Option<RcRwLock<RendererGroupObject>> {
         let ptr: *const RendererGroupObject = renderer_group.data_ptr();
         self.renderer_groups.remove(&ptr)
     }

@@ -1,12 +1,12 @@
 use std::collections::BTreeMap;
 
-use muleengine::prelude::ArcRwLock;
+use muleengine::prelude::RcRwLock;
 use vek::{Mat4, Vec3};
 
 use crate::gl_drawable_mesh::GLDrawableMesh;
 
 pub(crate) struct RendererGroupObject {
-    mesh_renderer_objects: BTreeMap<*const GLDrawableMesh, ArcRwLock<GLDrawableMesh>>,
+    mesh_renderer_objects: BTreeMap<*const GLDrawableMesh, RcRwLock<GLDrawableMesh>>,
 }
 
 impl Default for RendererGroupObject {
@@ -24,16 +24,16 @@ impl RendererGroupObject {
 
     pub fn add_mesh_renderer_object(
         &mut self,
-        renderer_object: ArcRwLock<GLDrawableMesh>,
-    ) -> Option<ArcRwLock<GLDrawableMesh>> {
+        renderer_object: RcRwLock<GLDrawableMesh>,
+    ) -> Option<RcRwLock<GLDrawableMesh>> {
         self.mesh_renderer_objects
             .insert(renderer_object.data_ptr(), renderer_object)
     }
 
     pub fn remove_mesh_renderer_object(
         &mut self,
-        renderer_object: &ArcRwLock<GLDrawableMesh>,
-    ) -> Option<ArcRwLock<GLDrawableMesh>> {
+        renderer_object: &RcRwLock<GLDrawableMesh>,
+    ) -> Option<RcRwLock<GLDrawableMesh>> {
         let ptr: *const GLDrawableMesh = renderer_object.data_ptr();
         self.mesh_renderer_objects.remove(&ptr)
     }
