@@ -13,9 +13,9 @@ use crate::{
 pub type BoxedTask = Box<dyn FnOnce(&mut ApplicationContext) + Send>;
 
 #[derive(Clone)]
-pub struct SyncTaskSender(mpsc::UnboundedSender<BoxedTask>);
+pub struct ClosureTaskSender(mpsc::UnboundedSender<BoxedTask>);
 
-impl SyncTaskSender {
+impl ClosureTaskSender {
     pub fn add_task(&self, task: impl FnOnce(&mut ApplicationContext) + Send + 'static) {
         let _ = self
             .0
@@ -27,7 +27,7 @@ impl SyncTaskSender {
 pub struct ApplicationContext {
     system_container: SystemContainer,
     service_container: ServiceContainer,
-    sync_tasks: SyncTaskSender,
+    closure_tasks: ClosureTaskSender,
 }
 
 impl ApplicationContext {
@@ -35,7 +35,7 @@ impl ApplicationContext {
         Self {
             system_container: SystemContainer::new(),
             service_container: ServiceContainer::new(),
-            sync_tasks: SyncTaskSender(sync_task_sender),
+            closure_tasks: ClosureTaskSender(sync_task_sender),
         }
     }
 
@@ -51,8 +51,8 @@ impl ApplicationContext {
         &self.service_container
     }
 
-    pub fn sync_tasks_ref(&mut self) -> &SyncTaskSender {
-        &self.sync_tasks
+    pub fn closure_tasks_ref(&mut self) -> &ClosureTaskSender {
+        &self.closure_tasks
     }
 }
 

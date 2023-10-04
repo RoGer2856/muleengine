@@ -439,6 +439,7 @@ version = "0.1.0"
 dependencies = [
  "env_logger",
  "log",
+ "method-taskifier",
  "muleengine",
  "parking_lot",
  "sdl2_opengl_muleengine",

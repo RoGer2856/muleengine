@@ -13,6 +13,7 @@ vek = "0.16"
 parking_lot = "*"
 muleengine = { path = "muleengine" }
 sdl2_opengl_muleengine = { path = "sdl2_opengl_muleengine" }
+method-taskifier = { git = "https://github.com/bytifex/method-taskifier.git" }
 
 [workspace]
 members = [

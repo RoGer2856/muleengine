@@ -1,11 +1,11 @@
 use std::time::Duration;
 
+use method_taskifier::task_channel::TaskReceiver;
 use muleengine::{
     app_loop_state::AppLoopStateWatcher,
     camera::Camera,
     prelude::ResultInspector,
     renderer::{renderer_system::renderer_decoupler, RendererTransformHandler},
-    sync::command_channel::CommandReceiver,
 };
 use tokio::time::{interval, Instant, MissedTickBehavior};
 use vek::{Vec2, Vec3};
@@ -14,7 +14,7 @@ use super::{fps_camera_command::FpsCameraCommand, fps_camera_input::FpsCameraInp
 
 pub(super) struct FpsCameraController {
     app_loop_state_watcher: AppLoopStateWatcher,
-    command_receiver: CommandReceiver<FpsCameraCommand>,
+    task_receiver: TaskReceiver<FpsCameraCommand>,
     camera: Camera,
     skydome_camera_transform_handler: RendererTransformHandler,
     main_camera_transform_handler: RendererTransformHandler,
@@ -28,7 +28,7 @@ pub(super) struct FpsCameraController {
 impl FpsCameraController {
     pub(super) fn new(
         app_loop_state_watcher: AppLoopStateWatcher,
-        command_receiver: CommandReceiver<FpsCameraCommand>,
+        task_receiver: TaskReceiver<FpsCameraCommand>,
         renderer_client: renderer_decoupler::Client,
         skydome_camera_transform_handler: RendererTransformHandler,
         main_camera_transform_handler: RendererTransformHandler,
@@ -36,7 +36,7 @@ impl FpsCameraController {
     ) -> Self {
         Self {
             app_loop_state_watcher,
-            command_receiver,
+            task_receiver,
             camera: Camera::new(),
             skydome_camera_transform_handler,
             main_camera_transform_handler,
@@ -64,8 +64,8 @@ impl FpsCameraController {
                 _ = self.app_loop_state_watcher.wait_for_quit() => {
                     break;
                 }
-                command = self.command_receiver.recv_async() => {
-                    match command {
+                task = self.task_receiver.recv_async() => {
+                    match task {
                         Ok(FpsCameraCommand::Stop) => {
                             should_run = false;
                         }

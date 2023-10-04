@@ -1,7 +1,5 @@
-use muleengine::{
-    application_runner::SyncTaskSender, prelude::ResultInspector,
-    sync::command_channel::CommandSender,
-};
+use method_taskifier::task_channel::TaskSender;
+use muleengine::{application_runner::ClosureTaskSender, prelude::ResultInspector};
 
 use super::{
     fps_camera_command::FpsCameraCommand, fps_camera_input_provider::FpsCameraInputSystem,
@@ -9,37 +7,37 @@ use super::{
 
 #[derive(Clone)]
 pub struct FpsCameraClient {
-    command_sender: CommandSender<FpsCameraCommand>,
-    sync_tasks: SyncTaskSender,
+    task_sender: TaskSender<FpsCameraCommand>,
+    closure_task_sender: ClosureTaskSender,
 }
 
 impl FpsCameraClient {
     pub(super) fn new(
-        command_sender: CommandSender<FpsCameraCommand>,
-        sync_tasks: SyncTaskSender,
+        task_sender: TaskSender<FpsCameraCommand>,
+        closure_task_sender: ClosureTaskSender,
     ) -> Self {
         Self {
-            command_sender,
-            sync_tasks,
+            task_sender,
+            closure_task_sender,
         }
     }
 
     pub fn stop(&self) {
         let _ = self
-            .command_sender
+            .task_sender
             .send(FpsCameraCommand::Stop)
             .inspect_err(|e| log::error!("{e:?}"));
     }
 
     pub fn start(&self) {
         let _ = self
-            .command_sender
+            .task_sender
             .send(FpsCameraCommand::Start)
             .inspect_err(|e| log::error!("{e:?}"));
     }
 
     pub fn remove_later(&self) {
-        self.sync_tasks.add_task(|app_context| {
+        self.closure_task_sender.add_task(|app_context| {
             app_context
                 .system_container_mut()
                 .remove::<FpsCameraInputSystem>();
