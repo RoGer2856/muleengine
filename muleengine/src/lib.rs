@@ -26,9 +26,11 @@ pub mod mesh_creator;
 pub mod prelude;
 pub mod renderer;
 pub mod scene_container;
-pub mod sendable_ptr;
 pub mod service_container;
 pub mod stopwatch;
 pub mod sync;
 pub mod system_container;
 pub mod window_context;
+
+#[cfg(test)]
+pub mod test_utils;

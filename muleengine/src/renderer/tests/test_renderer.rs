@@ -19,18 +19,21 @@ use crate::{
         RendererCamera, RendererGroup, RendererLayer, RendererMaterial, RendererMesh,
         RendererObject, RendererShader, RendererTransform,
     },
-    sendable_ptr::SendablePtr,
     system_container::System,
+    test_utils::sendable_ptr::SendablePtr,
 };
 
 #[derive(Clone)]
 pub struct TestRendererImpl {
+    pub renderer_steps: Vec<renderer_pipeline_step_impl::RendererPipelineStepImpl>,
     pub renderer_groups: ArcRwLock<BTreeMap<SendablePtr<dyn RendererGroup>, TestRendererGroupImpl>>,
+    pub renderer_layers: ArcRwLock<BTreeMap<SendablePtr<dyn RendererLayer>, TestRendererLayerImpl>>,
     pub transforms:
         ArcRwLock<BTreeMap<SendablePtr<dyn RendererTransform>, Transform<f32, f32, f32>>>,
     pub materials: ArcRwLock<BTreeMap<SendablePtr<dyn RendererMaterial>, Material>>,
     pub shaders: ArcRwLock<BTreeMap<SendablePtr<dyn RendererShader>, String>>,
     pub meshes: ArcRwLock<BTreeMap<SendablePtr<dyn RendererMesh>, Arc<Mesh>>>,
+    pub cameras: ArcRwLock<BTreeSet<SendablePtr<dyn RendererCamera>>>,
 
     pub renderer_objects: ArcRwLock<BTreeSet<SendablePtr<dyn RendererObject>>>,
 }
@@ -38,13 +41,43 @@ pub struct TestRendererImpl {
 impl TestRendererImpl {
     pub fn new() -> Self {
         Self {
+            renderer_steps: Vec::new(),
             renderer_groups: Arc::new(RwLock::new(BTreeMap::new())),
+            renderer_layers: Arc::new(RwLock::new(BTreeMap::new())),
             transforms: Arc::new(RwLock::new(BTreeMap::new())),
             materials: Arc::new(RwLock::new(BTreeMap::new())),
             shaders: Arc::new(RwLock::new(BTreeMap::new())),
             meshes: Arc::new(RwLock::new(BTreeMap::new())),
+            cameras: Arc::new(RwLock::new(BTreeSet::new())),
             renderer_objects: Arc::new(RwLock::new(BTreeSet::new())),
         }
+    }
+}
+
+#[derive(Clone)]
+pub struct TestRendererLayerImpl {
+    pub renderer_groups: ArcRwLock<BTreeSet<SendablePtr<dyn RendererGroup>>>,
+}
+
+impl RendererLayer for TestRendererLayerImpl {}
+
+impl TestRendererLayerImpl {
+    pub fn new() -> Self {
+        Self {
+            renderer_groups: Arc::new(RwLock::new(BTreeSet::new())),
+        }
+    }
+
+    pub fn add_renderer_group(&mut self, renderer_group: ArcRwLock<dyn RendererGroup>) -> bool {
+        self.renderer_groups
+            .write()
+            .insert(SendablePtr::new(renderer_group.data_ptr()))
+    }
+
+    pub fn remove_renderer_group(&mut self, renderer_group: &ArcRwLock<dyn RendererGroup>) -> bool {
+        self.renderer_groups
+            .write()
+            .remove(&SendablePtr::new(renderer_group.data_ptr()))
     }
 }
 
@@ -90,6 +123,9 @@ impl RendererShader for TestRendererShaderImpl {}
 pub struct TestRendererMeshImpl;
 impl RendererMesh for TestRendererMeshImpl {}
 
+pub struct TestRendererCameraImpl;
+impl RendererCamera for TestRendererCameraImpl {}
+
 pub struct TestRendererObjectImpl;
 impl RendererObject for TestRendererObjectImpl {}
 
@@ -98,21 +134,36 @@ impl RendererImpl for TestRendererImpl {
         &mut self,
         steps: Vec<renderer_pipeline_step_impl::RendererPipelineStepImpl>,
     ) -> Result<(), String> {
-        todo!();
+        self.renderer_steps = steps;
+        Ok(())
     }
 
     fn create_renderer_layer(
         &mut self,
         camera: ArcRwLock<dyn RendererCamera>,
     ) -> Result<ArcRwLock<dyn RendererLayer>, String> {
-        todo!();
+        self.cameras
+            .read()
+            .get(&SendablePtr::new(camera.data_ptr()))
+            .ok_or_else(|| "Creating renderer layer, msg = could not find camera".to_string())?;
+
+        let renderer_layer = Arc::new(RwLock::new(TestRendererLayerImpl::new()));
+        self.renderer_layers.write().insert(
+            SendablePtr::new(renderer_layer.data_ptr()),
+            renderer_layer.read().clone(),
+        );
+        Ok(renderer_layer)
     }
 
     fn release_renderer_layer(
         &mut self,
         renderer_layer: ArcRwLock<dyn RendererLayer>,
     ) -> Result<(), String> {
-        todo!();
+        self.renderer_layers
+            .write()
+            .remove(&SendablePtr::new(renderer_layer.data_ptr()))
+            .ok_or_else(|| "Releasing renderer layer, msg = could not find RendererLayer")?;
+        Ok(())
     }
 
     fn add_renderer_group_to_layer(
@@ -120,7 +171,22 @@ impl RendererImpl for TestRendererImpl {
         renderer_group: ArcRwLock<dyn RendererGroup>,
         renderer_layer: ArcRwLock<dyn RendererLayer>,
     ) -> Result<(), String> {
-        todo!();
+        self.renderer_groups
+            .read()
+            .get(&SendablePtr::new(renderer_group.data_ptr()))
+            .ok_or_else(|| {
+                "Adding renderer group to layer, msg = could not find renderer group".to_string()
+            })?;
+
+        self.renderer_layers
+            .write()
+            .get_mut(&SendablePtr::new(renderer_layer.data_ptr()))
+            .ok_or_else(|| {
+                "Adding renderer group to layer, msg = could not find renderer layer".to_string()
+            })?
+            .add_renderer_group(renderer_group);
+
+        Ok(())
     }
 
     fn remove_renderer_group_from_layer(
@@ -128,7 +194,24 @@ impl RendererImpl for TestRendererImpl {
         renderer_group: ArcRwLock<dyn RendererGroup>,
         renderer_layer: ArcRwLock<dyn RendererLayer>,
     ) -> Result<(), String> {
-        todo!();
+        self.renderer_groups
+            .read()
+            .get(&SendablePtr::new(renderer_group.data_ptr()))
+            .ok_or_else(|| {
+                "Removing renderer group from layer, msg = could not find renderer group"
+                    .to_string()
+            })?;
+
+        self.renderer_layers
+            .write()
+            .get_mut(&SendablePtr::new(renderer_layer.data_ptr()))
+            .ok_or_else(|| {
+                "Removing renderer group from layer, msg = could not find renderer layer"
+                    .to_string()
+            })?
+            .remove_renderer_group(&renderer_group);
+
+        Ok(())
     }
 
     fn create_renderer_group(&mut self) -> Result<ArcRwLock<dyn RendererGroup>, String> {
@@ -320,14 +403,13 @@ impl RendererImpl for TestRendererImpl {
                 "Adding renderer object to group, msg = could not find renderer object".to_string()
             })?;
 
-        let mut renderer_groups = self.renderer_groups.write();
-        let renderer_group = renderer_groups
+        self.renderer_groups
+            .write()
             .get_mut(&SendablePtr::new(renderer_group.data_ptr()))
             .ok_or_else(|| {
                 "Adding renderer object to group, msg = could not find renderer group".to_string()
-            })?;
-
-        renderer_group.add_renderer_object(renderer_object);
+            })?
+            .add_renderer_object(renderer_object);
 
         Ok(())
     }
@@ -337,15 +419,13 @@ impl RendererImpl for TestRendererImpl {
         renderer_object: ArcRwLock<dyn RendererObject>,
         renderer_group: ArcRwLock<dyn RendererGroup>,
     ) -> Result<(), String> {
-        let mut renderer_groups = self.renderer_groups.write();
-        let renderer_group = renderer_groups
+        self.renderer_groups
+            .write()
             .get_mut(&SendablePtr::new(renderer_group.data_ptr()))
             .ok_or_else(|| {
                 "Removing renderer object from group, msg = could not find renderer group"
                     .to_string()
-            })?;
-
-        renderer_group
+            })?
             .remove_renderer_object(&renderer_object)
             .then(|| ())
             .ok_or_else(|| {
@@ -358,11 +438,25 @@ impl RendererImpl for TestRendererImpl {
         &mut self,
         transform: ArcRwLock<dyn RendererTransform>,
     ) -> Result<ArcRwLock<dyn RendererCamera>, String> {
-        todo!();
+        self.transforms
+            .read()
+            .get(&SendablePtr::new(transform.data_ptr()))
+            .ok_or_else(|| "Creating camera, msg = could not find transform".to_string())?;
+
+        let camera = Arc::new(RwLock::new(TestRendererCameraImpl));
+        self.cameras
+            .write()
+            .insert(SendablePtr::new(camera.data_ptr()));
+        Ok(camera)
     }
 
     fn release_camera(&mut self, camera: ArcRwLock<dyn RendererCamera>) -> Result<(), String> {
-        todo!();
+        self.cameras
+            .write()
+            .remove(&SendablePtr::new(camera.data_ptr()))
+            .then_some(())
+            .ok_or_else(|| "Releasing camera, msg = could not find RendererCamera")?;
+        Ok(())
     }
 
     fn render(&mut self) {}
