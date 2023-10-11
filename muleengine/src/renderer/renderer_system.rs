@@ -179,7 +179,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
         renderer_decoupler::Client::new(self.task_sender.clone())
     }
 
-    #[method_taskifier_fn]
+    #[method_taskifier_worker_fn]
     fn set_renderer_pipeline(
         &mut self,
         steps: Vec<RendererPipelineStep>,
@@ -229,7 +229,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
             .map_err(RendererError::RendererImplError)
     }
 
-    #[method_taskifier_fn]
+    #[method_taskifier_worker_fn]
     fn create_renderer_layer(
         &mut self,
         camera_handler: RendererCameraHandler,
@@ -257,7 +257,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
             .map_err(RendererError::RendererImplError)
     }
 
-    #[method_taskifier_fn]
+    #[method_taskifier_worker_fn]
     fn release_renderer_layer(&mut self, object_pool_index: ObjectPoolIndex) {
         let renderer_layer_data = self
             .renderer_layers
@@ -295,7 +295,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
         }
     }
 
-    #[method_taskifier_fn]
+    #[method_taskifier_worker_fn]
     fn create_renderer_group(&mut self) -> Result<RendererGroupHandler, RendererError> {
         self.renderer_impl
             .create_renderer_group()
@@ -314,7 +314,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
             .map_err(RendererError::RendererImplError)
     }
 
-    #[method_taskifier_fn]
+    #[method_taskifier_worker_fn]
     fn release_renderer_group(&mut self, object_pool_index: ObjectPoolIndex) {
         let renderer_group_data = self
             .renderer_groups
@@ -373,7 +373,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
         }
     }
 
-    #[method_taskifier_fn]
+    #[method_taskifier_worker_fn]
     fn create_transform(
         &mut self,
         transform: Transform<f32, f32, f32>,
@@ -389,7 +389,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
             .map_err(RendererError::RendererImplError)
     }
 
-    #[method_taskifier_fn]
+    #[method_taskifier_worker_fn]
     fn update_transform(
         &mut self,
         transform_handler: RendererTransformHandler,
@@ -409,7 +409,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
             .map_err(RendererError::RendererImplError)
     }
 
-    #[method_taskifier_fn]
+    #[method_taskifier_worker_fn]
     fn release_transform(&mut self, object_pool_index: ObjectPoolIndex) {
         let transform = self
             .renderer_transforms
@@ -426,7 +426,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
         }
     }
 
-    #[method_taskifier_fn]
+    #[method_taskifier_worker_fn]
     fn create_material(
         &mut self,
         material: Material,
@@ -442,7 +442,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
             .map_err(RendererError::RendererImplError)
     }
 
-    #[method_taskifier_fn]
+    #[method_taskifier_worker_fn]
     fn release_material(&mut self, object_pool_index: ObjectPoolIndex) {
         let material = self
             .renderer_materials
@@ -459,7 +459,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
         }
     }
 
-    #[method_taskifier_fn]
+    #[method_taskifier_worker_fn]
     fn create_shader(
         &mut self,
         shader_name: String,
@@ -475,7 +475,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
             .map_err(RendererError::RendererImplError)
     }
 
-    #[method_taskifier_fn]
+    #[method_taskifier_worker_fn]
     fn release_shader(&mut self, object_pool_index: ObjectPoolIndex) {
         let shader = self
             .renderer_shaders
@@ -492,7 +492,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
         }
     }
 
-    #[method_taskifier_fn]
+    #[method_taskifier_worker_fn]
     fn create_mesh(&mut self, mesh: Arc<Mesh>) -> Result<RendererMeshHandler, RendererError> {
         self.renderer_impl
             .create_mesh(mesh)
@@ -505,7 +505,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
             .map_err(RendererError::RendererImplError)
     }
 
-    #[method_taskifier_fn]
+    #[method_taskifier_worker_fn]
     fn release_mesh(&mut self, object_pool_index: ObjectPoolIndex) {
         let mesh = self
             .renderer_meshes
@@ -522,7 +522,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
         }
     }
 
-    #[method_taskifier_fn]
+    #[method_taskifier_worker_fn]
     fn create_renderer_object_from_mesh(
         &mut self,
         mesh_handler: RendererMeshHandler,
@@ -578,7 +578,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
             .map_err(RendererError::RendererImplError)
     }
 
-    #[method_taskifier_fn]
+    #[method_taskifier_worker_fn]
     fn release_renderer_object(&mut self, object_pool_index: ObjectPoolIndex) {
         let renderer_object_data = self
             .renderer_objects
@@ -616,7 +616,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
         }
     }
 
-    #[method_taskifier_fn]
+    #[method_taskifier_worker_fn]
     fn add_renderer_group_to_layer(
         &mut self,
         renderer_group_handler: RendererGroupHandler,
@@ -652,7 +652,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
             .map_err(RendererError::RendererImplError)
     }
 
-    #[method_taskifier_fn]
+    #[method_taskifier_worker_fn]
     fn remove_renderer_group_from_layer(
         &mut self,
         renderer_group_handler: RendererGroupHandler,
@@ -695,7 +695,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
             .map_err(RendererError::RendererImplError)
     }
 
-    #[method_taskifier_fn]
+    #[method_taskifier_worker_fn]
     fn add_renderer_object_to_group(
         &mut self,
         renderer_object_handler: RendererObjectHandler,
@@ -731,7 +731,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
             .map_err(RendererError::RendererImplError)
     }
 
-    #[method_taskifier_fn]
+    #[method_taskifier_worker_fn]
     fn remove_renderer_object_from_group(
         &mut self,
         renderer_object_handler: RendererObjectHandler,
@@ -774,7 +774,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
             .map_err(RendererError::RendererImplError)
     }
 
-    #[method_taskifier_fn]
+    #[method_taskifier_worker_fn]
     fn create_camera(
         &mut self,
         transform_handler: RendererTransformHandler,
@@ -799,7 +799,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
             .map_err(RendererError::RendererImplError)
     }
 
-    #[method_taskifier_fn]
+    #[method_taskifier_worker_fn]
     fn release_camera(&mut self, object_pool_index: ObjectPoolIndex) {
         let camera = self
             .renderer_cameras
