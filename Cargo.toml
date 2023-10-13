@@ -14,6 +14,7 @@ parking_lot = "*"
 muleengine = { path = "muleengine" }
 sdl2_opengl_muleengine = { path = "sdl2_opengl_muleengine" }
 method-taskifier = { git = "https://github.com/bytifex/method-taskifier.git" }
+rapier3d = { version = "0.17", features = ["enhanced-determinism", "wasm-bindgen"] }
 
 [workspace]
 members = [

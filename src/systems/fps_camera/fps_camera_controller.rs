@@ -10,6 +10,8 @@ use muleengine::{
 use tokio::time::{interval, Instant, MissedTickBehavior};
 use vek::{Vec2, Vec3};
 
+use crate::systems::fps_camera::fps_camera_input::VelocityChangeEvent;
+
 use super::{fps_camera_command::FpsCameraCommand, fps_camera_input::FpsCameraInput};
 
 pub(super) struct FpsCameraController {
@@ -23,6 +25,7 @@ pub(super) struct FpsCameraController {
     mouse_sensitivity: f32,
     camera_vertical_angle_rad: f32,
     weighted_turn_value: Vec2<f32>,
+    moving_velocity: f32,
 }
 
 impl FpsCameraController {
@@ -45,6 +48,7 @@ impl FpsCameraController {
             mouse_sensitivity: 0.5,
             camera_vertical_angle_rad: 0.0,
             weighted_turn_value: Vec2::zero(),
+            moving_velocity: 0.5,
         }
     }
 
@@ -90,6 +94,18 @@ impl FpsCameraController {
     }
 
     async fn tick(&mut self, delta_time_in_secs: f32) {
+        // accelerating or decelerating the camera
+        while let Some(event) = self.fps_camera_input.velocity_change_event_receiver.pop() {
+            match event {
+                VelocityChangeEvent::Accelerate => {
+                    self.moving_velocity *= 1.5;
+                }
+                VelocityChangeEvent::Decelerate => {
+                    self.moving_velocity /= 1.5;
+                }
+            }
+        }
+
         // moving the camera
         let mut moving_direction = Vec3::<f32>::zero();
         while let Some(moving_input) = self.fps_camera_input.moving_event_receiver.pop() {
@@ -134,8 +150,6 @@ impl FpsCameraController {
         }
 
         // transform the camera
-        let velocity = 0.5;
-
         let mut axis_z = self.camera.axis_z();
         axis_z.y = 0.0;
         let axis_z = axis_z.try_normalized().unwrap_or_else(Vec3::zero);
@@ -144,7 +158,7 @@ impl FpsCameraController {
             + axis_z * moving_direction.z;
 
         self.camera
-            .move_by(corrected_moving_direction * velocity * delta_time_in_secs);
+            .move_by(corrected_moving_direction * self.moving_velocity * delta_time_in_secs);
 
         self.camera_vertical_angle_rad += self.weighted_turn_value.x;
         self.camera.pitch(self.weighted_turn_value.x);

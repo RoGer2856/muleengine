@@ -42,8 +42,139 @@ impl Objects {
         }
     }
 
+    pub async fn add_cube(&mut self, position: Vec3<f32>, dimensions: Vec3<f32>) {
+        let transform = Transform::<f32, f32, f32> {
+            position,
+            scale: dimensions,
+            ..Transform::<f32, f32, f32>::default()
+        };
+
+        let mesh = Arc::new(mesh_creator::rectangle3d::create(1.0, 1.0, 1.0));
+
+        let shader_handler = self
+            .renderer_client
+            .create_shader("Assets/shaders/lit_wo_normal".to_string())
+            .await
+            .inspect_err(|e| log::error!("{e:?}"))
+            .unwrap()
+            .unwrap();
+        let material_handler = self
+            .renderer_client
+            .create_material(mesh.get_material().clone())
+            .await
+            .inspect_err(|e| log::error!("{e:?}"))
+            .unwrap()
+            .unwrap();
+        let mesh_handler = self
+            .renderer_client
+            .create_mesh(mesh)
+            .await
+            .inspect_err(|e| log::error!("{e:?}"))
+            .unwrap()
+            .unwrap();
+        let transform_handler = self
+            .renderer_client
+            .create_transform(transform)
+            .await
+            .inspect_err(|e| log::error!("{e:?}"))
+            .unwrap()
+            .unwrap();
+        let renderer_object_handler = self
+            .renderer_client
+            .create_renderer_object_from_mesh(
+                mesh_handler,
+                shader_handler,
+                material_handler,
+                transform_handler.clone(),
+            )
+            .await
+            .inspect_err(|e| log::error!("{e:?}"))
+            .unwrap()
+            .unwrap();
+        self.renderer_object_handlers
+            .push(renderer_object_handler.clone());
+        self.renderer_client
+            .add_renderer_object_to_group(
+                renderer_object_handler,
+                self.renderer_configuration
+                    .main_renderer_group_handler()
+                    .await
+                    .clone(),
+            )
+            .await
+            .inspect_err(|e| log::error!("{e:?}"))
+            .unwrap()
+            .unwrap();
+    }
+
+    pub async fn add_sphere(&mut self, position: Vec3<f32>, radius: f32) {
+        let transform = Transform::<f32, f32, f32> {
+            position,
+            scale: Vec3::broadcast(radius * 2.0),
+            ..Transform::<f32, f32, f32>::default()
+        };
+
+        let mesh = Arc::new(mesh_creator::sphere::create(0.5, 16));
+
+        let shader_handler = self
+            .renderer_client
+            .create_shader("Assets/shaders/lit_wo_normal".to_string())
+            .await
+            .inspect_err(|e| log::error!("{e:?}"))
+            .unwrap()
+            .unwrap();
+        let material_handler = self
+            .renderer_client
+            .create_material(mesh.get_material().clone())
+            .await
+            .inspect_err(|e| log::error!("{e:?}"))
+            .unwrap()
+            .unwrap();
+        let mesh_handler = self
+            .renderer_client
+            .create_mesh(mesh)
+            .await
+            .inspect_err(|e| log::error!("{e:?}"))
+            .unwrap()
+            .unwrap();
+        let transform_handler = self
+            .renderer_client
+            .create_transform(transform)
+            .await
+            .inspect_err(|e| log::error!("{e:?}"))
+            .unwrap()
+            .unwrap();
+        let renderer_object_handler = self
+            .renderer_client
+            .create_renderer_object_from_mesh(
+                mesh_handler,
+                shader_handler,
+                material_handler,
+                transform_handler.clone(),
+            )
+            .await
+            .inspect_err(|e| log::error!("{e:?}"))
+            .unwrap()
+            .unwrap();
+        self.renderer_object_handlers
+            .push(renderer_object_handler.clone());
+        self.renderer_client
+            .add_renderer_object_to_group(
+                renderer_object_handler,
+                self.renderer_configuration
+                    .main_renderer_group_handler()
+                    .await
+                    .clone(),
+            )
+            .await
+            .inspect_err(|e| log::error!("{e:?}"))
+            .unwrap()
+            .unwrap();
+    }
+
     pub async fn populate_with_objects(&mut self) {
         self.add_skybox().await;
+        self.add_physics_objects().await;
 
         let main_renderer_group_handler = self
             .renderer_configuration
@@ -201,7 +332,33 @@ impl Objects {
         }
     }
 
-    pub async fn add_skybox(&mut self) {
+    async fn add_physics_objects(&mut self) {
+        let position_offset = Vec3::new(0.0, 0.0, -30.0);
+        let cube_dimensions = Vec3::broadcast(1.0);
+        let sphere_radius = 0.5;
+        let space_between_objects = 3.0;
+        let mut is_cube = true;
+        for x in 0..5 {
+            for y in 0..5 {
+                for z in 0..5 {
+                    let position = Vec3::new(
+                        x as f32 * space_between_objects,
+                        y as f32 * space_between_objects,
+                        z as f32 * space_between_objects,
+                    ) + position_offset;
+                    if is_cube {
+                        self.add_cube(position, cube_dimensions).await;
+                    } else {
+                        self.add_sphere(position, sphere_radius).await;
+                    }
+
+                    is_cube = !is_cube;
+                }
+            }
+        }
+    }
+
+    async fn add_skybox(&mut self) {
         let transform = Transform::<f32, f32, f32>::default();
 
         let scene_path = "Assets/objects/skybox/Skybox.obj";

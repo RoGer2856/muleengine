@@ -1,16 +1,19 @@
 use muleengine::system_container::System;
-use muleengine::window_context::{Key, MouseButton};
+use muleengine::window_context::{Event, EventReceiver, Key, MouseButton};
 use muleengine::{prelude::ArcRwLock, window_context::WindowContext};
 
 use muleengine::sync::mpmc;
 use vek::{Vec2, Vec3};
 
-use super::fps_camera_input::FpsCameraInput;
+use super::fps_camera_input::{FpsCameraInput, VelocityChangeEvent};
 
 pub(super) struct FpsCameraInputSystem {
     window_context: ArcRwLock<dyn WindowContext>,
     data: FpsCameraInput,
 
+    event_receiver: EventReceiver,
+
+    velocity_change_event_sender: mpmc::Sender<VelocityChangeEvent>,
     moving_event_sender: mpmc::Sender<Vec3<f32>>,
     turning_event_sender: mpmc::Sender<Vec2<f32>>,
 
@@ -19,19 +22,28 @@ pub(super) struct FpsCameraInputSystem {
 
 impl FpsCameraInputSystem {
     pub fn new(window_context: ArcRwLock<dyn WindowContext>) -> Self {
+        let velocity_change_event_sender = mpmc::Sender::new();
+        let velocity_change_event_receiver = velocity_change_event_sender.create_receiver();
+
         let turning_event_sender = mpmc::Sender::new();
         let turning_event_receiver = turning_event_sender.create_receiver();
 
         let moving_event_sender = mpmc::Sender::new();
         let moving_event_receiver = moving_event_sender.create_receiver();
 
+        let event_receiver = window_context.read().event_receiver();
+
         Self {
             window_context,
             data: FpsCameraInput {
+                velocity_change_event_receiver,
                 moving_event_receiver,
                 turning_event_receiver,
             },
 
+            event_receiver,
+
+            velocity_change_event_sender,
             moving_event_sender,
             turning_event_sender,
 
@@ -47,6 +59,18 @@ impl FpsCameraInputSystem {
 impl System for FpsCameraInputSystem {
     fn tick(&mut self, _delta_time_in_secs: f32) {
         let mut window_context = self.window_context.write();
+
+        while let Some(event) = self.event_receiver.pop() {
+            if let Event::MouseWheel { amount } = event {
+                if amount > 0 {
+                    self.velocity_change_event_sender
+                        .send(VelocityChangeEvent::Accelerate);
+                } else if amount < 0 {
+                    self.velocity_change_event_sender
+                        .send(VelocityChangeEvent::Decelerate);
+                }
+            }
+        }
 
         let should_be_active = window_context.is_mouse_button_pressed(MouseButton::Right);
         if should_be_active {
