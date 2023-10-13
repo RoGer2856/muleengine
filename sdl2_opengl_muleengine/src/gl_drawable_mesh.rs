@@ -14,7 +14,7 @@ use super::{
 
 pub struct GLDrawableMesh {
     gl_mesh: Rc<GLMesh>,
-    material: Arc<GLMaterial>,
+    gl_material: Arc<GLMaterial>,
     object_matrix: Mat4<f32>,
     bone_transforms: Option<Vec<Mat4<f32>>>,
     vertex_array_object: VertexArrayObject,
@@ -28,43 +28,12 @@ impl GLDrawableMesh {
         transform: Transform<f32, f32, f32>,
         gl_mesh_shader_program: Arc<GLMeshShaderProgram>,
     ) -> Self {
-        let vertex_array_object = VertexArrayObject::new(|vao_interface| {
-            vao_interface.use_index_buffer_object(&gl_mesh.index_buffer_object);
-
-            if let Some(attribute) = &gl_mesh_shader_program.attributes.position {
-                vao_interface.bind_vbo_to_shader_attrib(&gl_mesh.positions_vbo, attribute);
-            }
-
-            if let Some(attribute) = &gl_mesh_shader_program.attributes.normal {
-                vao_interface.bind_vbo_to_shader_attrib(&gl_mesh.normals_vbo, attribute);
-            }
-
-            if let Some(attribute) = &gl_mesh_shader_program.attributes.tangent {
-                vao_interface.bind_vbo_to_shader_attrib(&gl_mesh.tangents_vbo, attribute);
-            }
-
-            if let Some(attribute) = &gl_mesh_shader_program.attributes.uv_channels {
-                for i in 0..gl_mesh.uv_channel_vbos.len() {
-                    let uv_channel_vbo = &gl_mesh.uv_channel_vbos[i];
-                    vao_interface.bind_vbo_to_shader_attrib_array(uv_channel_vbo, attribute, i);
-                }
-            }
-
-            if let Some(attribute) = &gl_mesh_shader_program.attributes.bone_ids {
-                vao_interface.bind_vbo_to_shader_attrib(&gl_mesh.bone_ids_vbo, attribute);
-            }
-
-            if let Some(attribute) = &gl_mesh_shader_program.attributes.bone_weights {
-                vao_interface.bind_vbo_to_shader_attrib(&gl_mesh.bone_weights_vbo, attribute);
-            }
-        });
-
         Self {
+            vertex_array_object: create_vao(&gl_mesh, &gl_mesh_shader_program),
             gl_mesh,
-            material,
+            gl_material: material,
             object_matrix: transform.into(),
             bone_transforms: None,
-            vertex_array_object,
             gl_mesh_shader_program,
         }
     }
@@ -115,7 +84,7 @@ impl GLDrawableMesh {
 
         self.use_texture(
             &mut texture_layer_counter,
-            find_texture_with_min_uv_id(&self.material.textures, MaterialTextureType::Albedo),
+            find_texture_with_min_uv_id(&self.gl_material.textures, MaterialTextureType::Albedo),
             self.gl_mesh_shader_program
                 .uniforms
                 .use_albedo_texture
@@ -129,7 +98,7 @@ impl GLDrawableMesh {
 
         self.use_texture(
             &mut texture_layer_counter,
-            find_texture_with_min_uv_id(&self.material.textures, MaterialTextureType::Normal),
+            find_texture_with_min_uv_id(&self.gl_material.textures, MaterialTextureType::Normal),
             self.gl_mesh_shader_program
                 .uniforms
                 .use_normal_texture
@@ -143,7 +112,10 @@ impl GLDrawableMesh {
 
         self.use_texture(
             &mut texture_layer_counter,
-            find_texture_with_min_uv_id(&self.material.textures, MaterialTextureType::Displacement),
+            find_texture_with_min_uv_id(
+                &self.gl_material.textures,
+                MaterialTextureType::Displacement,
+            ),
             self.gl_mesh_shader_program
                 .uniforms
                 .use_displacement_texture
@@ -159,19 +131,19 @@ impl GLDrawableMesh {
         );
 
         if let Some(uniform) = &self.gl_mesh_shader_program.uniforms.opacity {
-            uniform.send_uniform_1f(self.material.opacity);
+            uniform.send_uniform_1f(self.gl_material.opacity);
         }
 
         if let Some(uniform) = &self.gl_mesh_shader_program.uniforms.albedo_color {
-            uniform.send_uniform_3fv(self.material.albedo_color.as_slice(), 1);
+            uniform.send_uniform_3fv(self.gl_material.albedo_color.as_slice(), 1);
         }
 
         if let Some(uniform) = &self.gl_mesh_shader_program.uniforms.emissive_color {
-            uniform.send_uniform_3fv(self.material.emissive_color.as_slice(), 1);
+            uniform.send_uniform_3fv(self.gl_material.emissive_color.as_slice(), 1);
         }
 
         if let Some(uniform) = &self.gl_mesh_shader_program.uniforms.shininess_color {
-            uniform.send_uniform_3fv(self.material.shininess_color.as_slice(), 1);
+            uniform.send_uniform_3fv(self.gl_material.shininess_color.as_slice(), 1);
         }
 
         self.vertex_array_object.use_vao(|| {
@@ -214,6 +186,20 @@ impl GLDrawableMesh {
     pub fn set_transform(&mut self, transform: &Transform<f32, f32, f32>) {
         self.object_matrix = (*transform).into();
     }
+
+    pub fn set_gl_material(&mut self, gl_material: Arc<GLMaterial>) {
+        self.gl_material = gl_material;
+    }
+
+    pub fn set_gl_mesh(&mut self, gl_mesh: Rc<GLMesh>) {
+        self.gl_mesh = gl_mesh;
+        self.vertex_array_object = create_vao(&self.gl_mesh, &self.gl_mesh_shader_program);
+    }
+
+    pub fn set_gl_mesh_shader_program(&mut self, gl_mesh_shader_program: Arc<GLMeshShaderProgram>) {
+        self.gl_mesh_shader_program = gl_mesh_shader_program;
+        self.vertex_array_object = create_vao(&self.gl_mesh, &self.gl_mesh_shader_program);
+    }
 }
 
 fn find_texture_with_min_uv_id(
@@ -224,4 +210,37 @@ fn find_texture_with_min_uv_id(
         .iter()
         .filter(|texture| texture.texture_type == texture_type)
         .min_by(|item0, item1| item0.uv_channel_id.cmp(&item1.uv_channel_id))
+}
+
+fn create_vao(gl_mesh: &GLMesh, gl_mesh_shader_program: &GLMeshShaderProgram) -> VertexArrayObject {
+    VertexArrayObject::new(|vao_interface| {
+        vao_interface.use_index_buffer_object(&gl_mesh.index_buffer_object);
+
+        if let Some(attribute) = &gl_mesh_shader_program.attributes.position {
+            vao_interface.bind_vbo_to_shader_attrib(&gl_mesh.positions_vbo, attribute);
+        }
+
+        if let Some(attribute) = &gl_mesh_shader_program.attributes.normal {
+            vao_interface.bind_vbo_to_shader_attrib(&gl_mesh.normals_vbo, attribute);
+        }
+
+        if let Some(attribute) = &gl_mesh_shader_program.attributes.tangent {
+            vao_interface.bind_vbo_to_shader_attrib(&gl_mesh.tangents_vbo, attribute);
+        }
+
+        if let Some(attribute) = &gl_mesh_shader_program.attributes.uv_channels {
+            for i in 0..gl_mesh.uv_channel_vbos.len() {
+                let uv_channel_vbo = &gl_mesh.uv_channel_vbos[i];
+                vao_interface.bind_vbo_to_shader_attrib_array(uv_channel_vbo, attribute, i);
+            }
+        }
+
+        if let Some(attribute) = &gl_mesh_shader_program.attributes.bone_ids {
+            vao_interface.bind_vbo_to_shader_attrib(&gl_mesh.bone_ids_vbo, attribute);
+        }
+
+        if let Some(attribute) = &gl_mesh_shader_program.attributes.bone_weights {
+            vao_interface.bind_vbo_to_shader_attrib(&gl_mesh.bone_weights_vbo, attribute);
+        }
+    })
 }

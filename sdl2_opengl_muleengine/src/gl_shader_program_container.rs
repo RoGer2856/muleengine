@@ -7,7 +7,6 @@ use crate::gl_shader_program::{GLShaderProgram, GLShaderProgramError};
 
 use super::gl_mesh_shader_program::GLMeshShaderProgram;
 
-#[derive(Clone)]
 pub struct GLShaderProgramContainer {
     shader_programs: HashMap<String, Arc<GLShaderProgram>>,
     mesh_shader_programs: HashMap<*const GLShaderProgram, Arc<GLMeshShaderProgram>>,
@@ -49,17 +48,10 @@ impl GLShaderProgramContainer {
     pub fn get_mesh_shader_program(
         &mut self,
         gl_shader_program: Arc<GLShaderProgram>,
-    ) -> Result<Arc<GLMeshShaderProgram>, GLShaderProgramError> {
-        let ref_object: *const GLShaderProgram = &*gl_shader_program;
-        if let Some(shader_program) = self.mesh_shader_programs.get(&ref_object) {
-            Ok(shader_program.clone())
-        } else {
-            let ptr: *const GLShaderProgram = &*gl_shader_program;
-            let gl_mesh_shader_program = Arc::new(GLMeshShaderProgram::new(gl_shader_program)?);
-            self.mesh_shader_programs
-                .insert(ptr, gl_mesh_shader_program.clone());
-
-            Ok(gl_mesh_shader_program)
-        }
+    ) -> Arc<GLMeshShaderProgram> {
+        self.mesh_shader_programs
+            .entry(&*gl_shader_program)
+            .or_insert_with(|| Arc::new(GLMeshShaderProgram::new(gl_shader_program)))
+            .clone()
     }
 }

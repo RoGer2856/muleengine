@@ -1,13 +1,10 @@
 #![allow(clippy::type_complexity)]
 
 use std::collections::VecDeque;
-use std::sync::Arc;
-
-use parking_lot::Mutex;
 
 use crate::{
     containers::object_pool::{ObjectPool, ObjectPoolIndex},
-    prelude::ArcMutex,
+    prelude::{arc_mutex_new, ArcMutex},
 };
 
 struct ReceiverQueue<T> {
@@ -59,8 +56,8 @@ where
 {
     pub fn new() -> Self {
         Self {
-            receiver_queues: Arc::new(Mutex::new(ObjectPool::new())),
-            to_be_removed: Arc::new(Mutex::new(Vec::new())),
+            receiver_queues: arc_mutex_new(ObjectPool::new()),
+            to_be_removed: arc_mutex_new(Vec::new()),
         }
     }
 
@@ -111,7 +108,7 @@ where
     }
 
     pub fn create_receiver(&self) -> Receiver<T> {
-        let queue = Arc::new(Mutex::new(ReceiverQueue::<T>::new()));
+        let queue = arc_mutex_new(ReceiverQueue::<T>::new());
         let queue_id = self
             .receiver_queues
             .receiver_queues
@@ -142,7 +139,7 @@ where
     }
 
     pub fn create_receiver(&self) -> Receiver<T> {
-        let queue = Arc::new(Mutex::new(ReceiverQueue::<T>::new()));
+        let queue = arc_mutex_new(ReceiverQueue::<T>::new());
         let queue_id = self
             .receiver_queues
             .receiver_queues

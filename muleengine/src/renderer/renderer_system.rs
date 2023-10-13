@@ -5,13 +5,12 @@ use method_taskifier::{
     task_channel::{TaskReceiver, TaskSender},
     AsyncWorkerRunner, InvalidNumberOfExecutors,
 };
-use parking_lot::RwLock;
 use vek::Transform;
 
 use crate::{
     containers::object_pool::{ObjectPool, ObjectPoolIndex},
     mesh::{Material, Mesh},
-    prelude::{ArcRwLock, OptionInspector, ResultInspector},
+    prelude::{arc_rw_lock_new, ArcRwLock, OptionInspector, ResultInspector},
     system_container::System,
 };
 
@@ -159,14 +158,14 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
         let (sender, receiver) = renderer_decoupler::channel();
 
         Self {
-            renderer_cameras: Arc::new(RwLock::new(ObjectPool::new())),
-            renderer_layers: Arc::new(RwLock::new(ObjectPool::new())),
-            renderer_groups: Arc::new(RwLock::new(ObjectPool::new())),
-            renderer_transforms: Arc::new(RwLock::new(ObjectPool::new())),
-            renderer_materials: Arc::new(RwLock::new(ObjectPool::new())),
-            renderer_shaders: Arc::new(RwLock::new(ObjectPool::new())),
-            renderer_meshes: Arc::new(RwLock::new(ObjectPool::new())),
-            renderer_objects: Arc::new(RwLock::new(ObjectPool::new())),
+            renderer_cameras: arc_rw_lock_new(ObjectPool::new()),
+            renderer_layers: arc_rw_lock_new(ObjectPool::new()),
+            renderer_groups: arc_rw_lock_new(ObjectPool::new()),
+            renderer_transforms: arc_rw_lock_new(ObjectPool::new()),
+            renderer_materials: arc_rw_lock_new(ObjectPool::new()),
+            renderer_shaders: arc_rw_lock_new(ObjectPool::new()),
+            renderer_meshes: arc_rw_lock_new(ObjectPool::new()),
+            renderer_objects: arc_rw_lock_new(ObjectPool::new()),
 
             task_receiver: receiver,
             task_sender: sender,
@@ -443,6 +442,26 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
     }
 
     #[method_taskifier_worker_fn]
+    fn update_material(
+        &mut self,
+        material_handler: RendererMaterialHandler,
+        new_material: Material,
+    ) -> Result<(), RendererError> {
+        let material = self
+            .renderer_materials
+            .read()
+            .get_ref(material_handler.0.object_pool_index)
+            .ok_or(RendererError::InvalidRendererMaterialHandler(
+                material_handler,
+            ))?
+            .clone();
+
+        self.renderer_impl
+            .update_material(material, new_material)
+            .map_err(RendererError::RendererImplError)
+    }
+
+    #[method_taskifier_worker_fn]
     fn release_material(&mut self, object_pool_index: ObjectPoolIndex) {
         let material = self
             .renderer_materials
@@ -476,6 +495,24 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
     }
 
     #[method_taskifier_worker_fn]
+    fn update_shader(
+        &mut self,
+        shader_handler: RendererShaderHandler,
+        new_shader_name: String,
+    ) -> Result<(), RendererError> {
+        let shader = self
+            .renderer_shaders
+            .read()
+            .get_ref(shader_handler.0.object_pool_index)
+            .ok_or(RendererError::InvalidRendererShaderHandler(shader_handler))?
+            .clone();
+
+        self.renderer_impl
+            .update_shader(shader, new_shader_name)
+            .map_err(RendererError::RendererImplError)
+    }
+
+    #[method_taskifier_worker_fn]
     fn release_shader(&mut self, object_pool_index: ObjectPoolIndex) {
         let shader = self
             .renderer_shaders
@@ -502,6 +539,24 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
                     self.client(),
                 )
             })
+            .map_err(RendererError::RendererImplError)
+    }
+
+    #[method_taskifier_worker_fn]
+    fn update_mesh(
+        &mut self,
+        mesh_handler: RendererMeshHandler,
+        new_mesh: Arc<Mesh>,
+    ) -> Result<(), RendererError> {
+        let mesh = self
+            .renderer_meshes
+            .read()
+            .get_ref(mesh_handler.0.object_pool_index)
+            .ok_or(RendererError::InvalidRendererMeshHandler(mesh_handler))?
+            .clone();
+
+        self.renderer_impl
+            .update_mesh(mesh, new_mesh)
             .map_err(RendererError::RendererImplError)
     }
 

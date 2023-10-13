@@ -1,7 +1,6 @@
 use std::{any::type_name, sync::Arc};
 
-use crate::prelude::ArcRwLock;
-use parking_lot::RwLock;
+use crate::prelude::{arc_rw_lock_new, ArcRwLock};
 use tokio::sync::Notify;
 
 use super::containers::sendable_multi_type_dict::{
@@ -45,7 +44,7 @@ impl ServiceMissingError {
 impl ServiceContainer {
     pub fn new() -> Self {
         Self {
-            service_dict: Arc::new(RwLock::new(SendableMultiTypeDict::new())),
+            service_dict: arc_rw_lock_new(SendableMultiTypeDict::new()),
             service_dict_notify: Arc::new(Notify::new()),
         }
     }

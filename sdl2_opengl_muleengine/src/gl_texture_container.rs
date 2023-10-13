@@ -5,7 +5,6 @@ use muleengine::image::Image;
 
 use super::opengl_utils::texture_2d::Texture2D;
 
-#[derive(Clone)]
 pub struct GLTextureContainer {
     textures_2d: HashMap<*const Image, (Arc<Image>, Arc<Texture2D>)>,
 }

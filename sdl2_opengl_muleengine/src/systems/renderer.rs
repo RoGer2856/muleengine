@@ -1,10 +1,10 @@
-use std::{rc::Rc, sync::Arc};
+use std::sync::Arc;
 
 use muleengine::{
     asset_container::AssetContainer,
     containers::object_pool::ObjectPool,
     mesh::{Material, Mesh},
-    prelude::{ArcRwLock, RcRwLock},
+    prelude::{arc_mutex_new, arc_rw_lock_new, rc_rw_lock_new, ArcMutex, ArcRwLock, RcRwLock},
     renderer::{
         renderer_impl::RendererImpl, renderer_pipeline_step_impl::RendererPipelineStepImpl,
         RendererCamera, RendererGroup, RendererLayer, RendererMaterial, RendererMesh,
@@ -13,7 +13,6 @@ use muleengine::{
     sync::observable_fn::{Observable, Observer},
     window_context::WindowContext,
 };
-use parking_lot::RwLock;
 use vek::{Mat4, Transform, Vec2, Vec4};
 
 use crate::{
@@ -37,6 +36,9 @@ use super::{
 };
 
 type TransformObserver = Observer<Transform<f32, f32, f32>>;
+type MaterialObserver = Observer<RendererMaterialObject>;
+type ShaderObserver = Observer<RendererShaderObject>;
+type MeshObserver = Observer<RendererMeshObject>;
 
 pub struct Renderer {
     renderer_pipeline_steps: Vec<RendererPipelineStepObject>,
@@ -45,11 +47,17 @@ pub struct Renderer {
     renderer_layers: ObjectPool<RcRwLock<RendererLayerObject>>,
     renderer_groups: ObjectPool<RcRwLock<RendererGroupObject>>,
     renderer_transforms: ObjectPool<RcRwLock<Observable<Transform<f32, f32, f32>>>>,
-    renderer_materials: ObjectPool<ArcRwLock<RendererMaterialObject>>,
-    renderer_shaders: ObjectPool<ArcRwLock<RendererShaderObject>>,
-    renderer_meshes: ObjectPool<RcRwLock<RendererMeshObject>>,
+    renderer_materials: ObjectPool<ArcRwLock<Observable<RendererMaterialObject>>>,
+    renderer_shaders: ObjectPool<ArcRwLock<Observable<RendererShaderObject>>>,
+    renderer_meshes: ObjectPool<RcRwLock<Observable<RendererMeshObject>>>,
 
-    mesh_renderer_objects: ObjectPool<(RcRwLock<GLDrawableMesh>, TransformObserver)>,
+    mesh_renderer_objects: ObjectPool<(
+        RcRwLock<GLDrawableMesh>,
+        TransformObserver,
+        MaterialObserver,
+        ShaderObserver,
+        MeshObserver,
+    )>,
 
     screen_clear_color: Vec4<f32>,
 
@@ -60,7 +68,7 @@ pub struct Renderer {
     asset_container: AssetContainer,
 
     gl_mesh_container: GLMeshContainer,
-    gl_shader_program_container: GLShaderProgramContainer,
+    gl_shader_program_container: ArcMutex<GLShaderProgramContainer>,
     gl_texture_container: GLTextureContainer,
 }
 
@@ -92,7 +100,7 @@ impl Renderer {
             asset_container,
 
             gl_mesh_container: GLMeshContainer::new(),
-            gl_shader_program_container: GLShaderProgramContainer::new(),
+            gl_shader_program_container: arc_mutex_new(GLShaderProgramContainer::new()),
             gl_texture_container: GLTextureContainer::new(),
         };
 
@@ -356,10 +364,10 @@ impl RendererImpl for Renderer {
                 .0
         };
 
-        let renderer_layer = Rc::new(RwLock::new(RendererLayerObject::new(camera.clone())));
+        let renderer_layer = rc_rw_lock_new(RendererLayerObject::new(camera.clone()));
         let index = self.renderer_layers.create_object(renderer_layer);
 
-        Ok(Arc::new(RwLock::new(RendererLayerIndex(index))))
+        Ok(arc_rw_lock_new(RendererLayerIndex(index)))
     }
 
     fn release_renderer_layer(
@@ -458,10 +466,10 @@ impl RendererImpl for Renderer {
     }
 
     fn create_renderer_group(&mut self) -> Result<ArcRwLock<dyn RendererGroup>, String> {
-        let renderer_group = Rc::new(RwLock::new(RendererGroupObject::new()));
+        let renderer_group = rc_rw_lock_new(RendererGroupObject::new());
         let index = self.renderer_groups.create_object(renderer_group);
 
-        Ok(Arc::new(RwLock::new(RendererGroupIndex(index))))
+        Ok(arc_rw_lock_new(RendererGroupIndex(index)))
     }
 
     fn release_renderer_group(
@@ -484,12 +492,11 @@ impl RendererImpl for Renderer {
         &mut self,
         transform: Transform<f32, f32, f32>,
     ) -> Result<ArcRwLock<dyn RendererTransform>, String> {
-        let renderer_transform = Observable::new(transform);
         let index = self
             .renderer_transforms
-            .create_object(Rc::new(RwLock::new(renderer_transform)));
+            .create_object(rc_rw_lock_new(Observable::new(transform)));
 
-        Ok(Arc::new(RwLock::new(RendererTransformIndex(index))))
+        Ok(arc_rw_lock_new(RendererTransformIndex(index)))
     }
 
     fn update_transform(
@@ -531,11 +538,33 @@ impl RendererImpl for Renderer {
         material: Material,
     ) -> Result<ArcRwLock<dyn RendererMaterial>, String> {
         let gl_material = Arc::new(GLMaterial::new(&material, &mut self.gl_texture_container));
-
-        let renderer_material = Arc::new(RwLock::new(RendererMaterialObject::new(gl_material)));
+        let renderer_material =
+            arc_rw_lock_new(Observable::new(RendererMaterialObject::new(gl_material)));
         let index = self.renderer_materials.create_object(renderer_material);
 
-        Ok(Arc::new(RwLock::new(RendererMaterialIndex(index))))
+        Ok(arc_rw_lock_new(RendererMaterialIndex(index)))
+    }
+
+    fn update_material(
+        &mut self,
+        material: ArcRwLock<dyn RendererMaterial>,
+        new_material: Material,
+    ) -> Result<(), String> {
+        let index = self
+            .get_material_index(&material)
+            .map_err(|e| format!("Updating material, msg = {e}"))?;
+
+        let material = self.renderer_materials.get_mut(index.0).ok_or_else(|| {
+            "Updating material, msg = could not find RendererMaterial".to_string()
+        })?;
+
+        let gl_material = Arc::new(GLMaterial::new(
+            &new_material,
+            &mut self.gl_texture_container,
+        ));
+        *material.write().borrow_mut() = RendererMaterialObject::new(gl_material);
+
+        Ok(())
     }
 
     fn release_material(
@@ -558,16 +587,47 @@ impl RendererImpl for Renderer {
     ) -> Result<ArcRwLock<dyn RendererShader>, String> {
         let gl_shader_program = match self
             .gl_shader_program_container
+            .lock()
             .get_shader_program(&shader_name, self.asset_container.asset_reader())
         {
             Ok(shader_program) => Ok(shader_program),
             Err(e) => Err(format!("Loading shader program, msg = {e:?}")),
         }?;
 
-        let renderer_shader = Arc::new(RwLock::new(RendererShaderObject::new(gl_shader_program)));
+        let renderer_shader = arc_rw_lock_new(Observable::new(RendererShaderObject::new(
+            gl_shader_program,
+        )));
         let index = self.renderer_shaders.create_object(renderer_shader);
 
-        Ok(Arc::new(RwLock::new(RendererShaderIndex(index))))
+        Ok(arc_rw_lock_new(RendererShaderIndex(index)))
+    }
+
+    fn update_shader(
+        &mut self,
+        shader: ArcRwLock<dyn RendererShader>,
+        new_shader_name: String,
+    ) -> Result<(), String> {
+        let index = self
+            .get_shader_index(&shader)
+            .map_err(|e| format!("Updating shader, msg = {e}"))?;
+
+        let shader = self
+            .renderer_shaders
+            .get_mut(index.0)
+            .ok_or_else(|| "Updating shader, msg = could not find RendererShader".to_string())?;
+
+        let gl_shader_program = match self
+            .gl_shader_program_container
+            .lock()
+            .get_shader_program(&new_shader_name, self.asset_container.asset_reader())
+        {
+            Ok(shader_program) => Ok(shader_program),
+            Err(e) => Err(format!("Loading shader program, msg = {e:?}")),
+        }?;
+
+        *shader.write().borrow_mut() = RendererShaderObject::new(gl_shader_program);
+
+        Ok(())
     }
 
     fn release_shader(&mut self, shader: ArcRwLock<dyn RendererShader>) -> Result<(), String> {
@@ -584,10 +644,31 @@ impl RendererImpl for Renderer {
     fn create_mesh(&mut self, mesh: Arc<Mesh>) -> Result<ArcRwLock<dyn RendererMesh>, String> {
         let gl_mesh = self.gl_mesh_container.get_gl_mesh(mesh);
 
-        let renderer_mesh = Rc::new(RwLock::new(RendererMeshObject::new(gl_mesh)));
+        let renderer_mesh = rc_rw_lock_new(Observable::new(RendererMeshObject::new(gl_mesh)));
         let index = self.renderer_meshes.create_object(renderer_mesh);
 
-        Ok(Arc::new(RwLock::new(RendererMeshIndex(index))))
+        Ok(arc_rw_lock_new(RendererMeshIndex(index)))
+    }
+
+    fn update_mesh(
+        &mut self,
+        mesh: ArcRwLock<dyn RendererMesh>,
+        new_mesh: Arc<Mesh>,
+    ) -> Result<(), String> {
+        let index = self
+            .get_mesh_index(&mesh)
+            .map_err(|e| format!("Updating mesh, msg = {e}"))?;
+
+        let mesh = self
+            .renderer_meshes
+            .get_mut(index.0)
+            .ok_or_else(|| "Updating mesh, msg = could not find RendererMesh".to_string())?;
+
+        let gl_mesh = self.gl_mesh_container.get_gl_mesh(new_mesh);
+
+        *mesh.write().borrow_mut() = RendererMeshObject::new(gl_mesh);
+
+        Ok(())
     }
 
     fn release_mesh(&mut self, mesh: ArcRwLock<dyn RendererMesh>) -> Result<(), String> {
@@ -630,7 +711,7 @@ impl RendererImpl for Renderer {
             })?
         };
 
-        let shader = {
+        let (shader, gl_mesh_shader_program) = {
             let index = self
                 .get_shader_index(&shader)
                 .map_err(|e| format!("Creating renderer object from mesh, msg = {e}"))?;
@@ -640,14 +721,12 @@ impl RendererImpl for Renderer {
                     .to_string()
             })?;
 
-            self.gl_shader_program_container
-                .get_mesh_shader_program(shader.read().gl_shader_program().clone())
-                .map_err(|e| {
-                    format!(
-                        "Creating renderer object from mesh, RendererShader error = {:?}",
-                        e
-                    )
-                })?
+            let gl_mesh_shader_program = self
+                .gl_shader_program_container
+                .lock()
+                .get_mesh_shader_program(shader.read().gl_shader_program().clone());
+
+            (shader, gl_mesh_shader_program)
         };
 
         let mesh = {
@@ -660,21 +739,48 @@ impl RendererImpl for Renderer {
             })?
         };
 
-        let mesh_renderer_object = Rc::new(RwLock::new(GLDrawableMesh::new(
+        let mesh_renderer_object = rc_rw_lock_new(GLDrawableMesh::new(
             mesh.read().gl_mesh().clone(),
             material.read().gl_material().clone(),
             **transform.read(),
-            shader,
-        )));
+            gl_mesh_shader_program,
+        ));
+
+        let mesh_renderer_object_clone_0 = mesh_renderer_object.clone();
+        let mesh_renderer_object_clone_1 = mesh_renderer_object.clone();
+        let mesh_renderer_object_clone_2 = mesh_renderer_object.clone();
+        let mesh_renderer_object_clone_3 = mesh_renderer_object.clone();
+
+        let gl_shader_program_container = self.gl_shader_program_container.clone();
 
         let index = self.mesh_renderer_objects.create_object((
-            mesh_renderer_object.clone(),
+            mesh_renderer_object,
             transform.write().observe(move |transform| {
-                mesh_renderer_object.write().set_transform(transform);
+                mesh_renderer_object_clone_0
+                    .write()
+                    .set_transform(transform);
+            }),
+            material.write().observe(move |material| {
+                mesh_renderer_object_clone_1
+                    .write()
+                    .set_gl_material(material.gl_material().clone())
+            }),
+            shader.write().observe(move |shader| {
+                let gl_mesh_shader_program = gl_shader_program_container
+                    .lock()
+                    .get_mesh_shader_program(shader.gl_shader_program().clone());
+                mesh_renderer_object_clone_2
+                    .write()
+                    .set_gl_mesh_shader_program(gl_mesh_shader_program);
+            }),
+            mesh.write().observe(move |mesh| {
+                mesh_renderer_object_clone_3
+                    .write()
+                    .set_gl_mesh(mesh.gl_mesh().clone());
             }),
         ));
 
-        Ok(Arc::new(RwLock::new(RendererObjectIndex::Mesh(index))))
+        Ok(arc_rw_lock_new(RendererObjectIndex::Mesh(index)))
     }
 
     fn release_renderer_object(
@@ -723,7 +829,13 @@ impl RendererImpl for Renderer {
             "Adding renderer object to group, msg = cannot add renderer object twice to the same group".to_string();
         match index {
             RendererObjectIndex::Mesh(index) => {
-                let (renderer_object, _observers) = self
+                let (
+                    renderer_object,
+                    _transform_observer,
+                    _material_observer,
+                    _shader_observer,
+                    _mesh_observer,
+                ) = self
                     .mesh_renderer_objects
                     .get_mut(index)
                     .ok_or(missing_renderer_object_error_msg)?;
@@ -768,7 +880,13 @@ impl RendererImpl for Renderer {
                 .to_string();
         match index {
             RendererObjectIndex::Mesh(index) => {
-                let (renderer_object, _observers) = self
+                let (
+                    renderer_object,
+                    _transform_observer,
+                    _material_observer,
+                    _shader_observer,
+                    _mesh_observer,
+                ) = self
                     .mesh_renderer_objects
                     .get_mut(index)
                     .ok_or(missing_renderer_object_error_msg)?;
@@ -797,9 +915,9 @@ impl RendererImpl for Renderer {
             })?
         };
 
-        let camera = Arc::new(RwLock::new(GLCamera {
+        let camera = arc_rw_lock_new(GLCamera {
             transform: **transform.read(),
-        }));
+        });
 
         let index = self.renderer_cameras.create_object((
             camera.clone(),
@@ -808,7 +926,7 @@ impl RendererImpl for Renderer {
             }),
         ));
 
-        Ok(Arc::new(RwLock::new(RendererCameraIndex(index))))
+        Ok(arc_rw_lock_new(RendererCameraIndex(index)))
     }
 
     fn release_camera(&mut self, camera: ArcRwLock<dyn RendererCamera>) -> Result<(), String> {

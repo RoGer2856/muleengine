@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::gl_shader_program::{GLShaderProgram, GLShaderProgramError};
+use crate::gl_shader_program::GLShaderProgram;
 
 use super::opengl_utils::shader_input::{ShaderAttribute, ShaderUniform};
 
@@ -46,7 +46,7 @@ pub struct GLMeshShaderProgram {
 }
 
 impl GLMeshShaderProgram {
-    pub fn new(gl_shader_program: Arc<GLShaderProgram>) -> Result<Self, GLShaderProgramError> {
+    pub fn new(gl_shader_program: Arc<GLShaderProgram>) -> Self {
         let attributes = Attributes {
             position: gl_shader_program
                 .shader_program
@@ -132,11 +132,11 @@ impl GLMeshShaderProgram {
                 .get_uniform_by_name("shininessColor"),
         };
 
-        Ok(Self {
+        Self {
             gl_shader_program,
             uniforms,
             attributes,
-        })
+        }
     }
 
     pub fn get_shader_base_path(&self) -> &String {

@@ -64,6 +64,11 @@ pub trait RendererImpl {
         &mut self,
         material: Material,
     ) -> Result<ArcRwLock<dyn RendererMaterial>, String>;
+    fn update_material(
+        &mut self,
+        material: ArcRwLock<dyn RendererMaterial>,
+        new_material: Material,
+    ) -> Result<(), String>;
     fn release_material(&mut self, material: ArcRwLock<dyn RendererMaterial>)
         -> Result<(), String>;
 
@@ -71,9 +76,19 @@ pub trait RendererImpl {
         &mut self,
         shader_name: String,
     ) -> Result<ArcRwLock<dyn RendererShader>, String>;
+    fn update_shader(
+        &mut self,
+        shader: ArcRwLock<dyn RendererShader>,
+        new_shader_name: String,
+    ) -> Result<(), String>;
     fn release_shader(&mut self, shader: ArcRwLock<dyn RendererShader>) -> Result<(), String>;
 
     fn create_mesh(&mut self, mesh: Arc<Mesh>) -> Result<ArcRwLock<dyn RendererMesh>, String>;
+    fn update_mesh(
+        &mut self,
+        mesh: ArcRwLock<dyn RendererMesh>,
+        new_mesh: Arc<Mesh>,
+    ) -> Result<(), String>;
     fn release_mesh(&mut self, mesh: ArcRwLock<dyn RendererMesh>) -> Result<(), String>;
 
     fn create_renderer_object_from_mesh(

@@ -57,7 +57,7 @@ impl SendableMultiTypeDict {
     pub fn new() -> Self {
         Self {
             storage: BTreeMap::new(),
-            item_type_locks: Arc::new(Mutex::new(BTreeMap::new())),
+            item_type_locks: arc_mutex_new(BTreeMap::new()),
         }
     }
 

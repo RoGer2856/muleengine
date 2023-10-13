@@ -1,14 +1,11 @@
 use std::{
     marker::PhantomData,
     ops::{Deref, DerefMut},
-    sync::Arc,
 };
-
-use parking_lot::Mutex;
 
 use crate::{
     containers::object_pool::{ObjectPool, ObjectPoolIndex},
-    prelude::ArcMutex,
+    prelude::{arc_mutex_new, ArcMutex},
 };
 
 type ObserverFunction<T> = Box<dyn Fn(&T)>;
@@ -34,7 +31,7 @@ impl<T> Observable<T> {
         Self {
             value: initial_value,
             observers: ObjectPool::new(),
-            to_be_deleted_observers: Arc::new(Mutex::new(Vec::new())),
+            to_be_deleted_observers: arc_mutex_new(Vec::new()),
         }
     }
 

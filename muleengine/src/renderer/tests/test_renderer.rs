@@ -10,7 +10,7 @@ use vek::Transform;
 use crate::{
     app_loop_state::{AppLoopState, AppLoopStateWatcher},
     mesh::{Material, Mesh},
-    prelude::ArcRwLock,
+    prelude::{arc_rw_lock_new, ArcRwLock},
     renderer::{
         renderer_impl::RendererImpl,
         renderer_pipeline_step_impl,
@@ -42,14 +42,14 @@ impl TestRendererImpl {
     pub fn new() -> Self {
         Self {
             renderer_steps: Vec::new(),
-            renderer_groups: Arc::new(RwLock::new(BTreeMap::new())),
-            renderer_layers: Arc::new(RwLock::new(BTreeMap::new())),
-            transforms: Arc::new(RwLock::new(BTreeMap::new())),
-            materials: Arc::new(RwLock::new(BTreeMap::new())),
-            shaders: Arc::new(RwLock::new(BTreeMap::new())),
-            meshes: Arc::new(RwLock::new(BTreeMap::new())),
-            cameras: Arc::new(RwLock::new(BTreeSet::new())),
-            renderer_objects: Arc::new(RwLock::new(BTreeSet::new())),
+            renderer_groups: arc_rw_lock_new(BTreeMap::new()),
+            renderer_layers: arc_rw_lock_new(BTreeMap::new()),
+            transforms: arc_rw_lock_new(BTreeMap::new()),
+            materials: arc_rw_lock_new(BTreeMap::new()),
+            shaders: arc_rw_lock_new(BTreeMap::new()),
+            meshes: arc_rw_lock_new(BTreeMap::new()),
+            cameras: arc_rw_lock_new(BTreeSet::new()),
+            renderer_objects: arc_rw_lock_new(BTreeSet::new()),
         }
     }
 }
@@ -64,7 +64,7 @@ impl RendererLayer for TestRendererLayerImpl {}
 impl TestRendererLayerImpl {
     pub fn new() -> Self {
         Self {
-            renderer_groups: Arc::new(RwLock::new(BTreeSet::new())),
+            renderer_groups: arc_rw_lock_new(BTreeSet::new()),
         }
     }
 
@@ -91,7 +91,7 @@ impl RendererGroup for TestRendererGroupImpl {}
 impl TestRendererGroupImpl {
     pub fn new() -> Self {
         Self {
-            renderer_objects: Arc::new(RwLock::new(BTreeSet::new())),
+            renderer_objects: arc_rw_lock_new(BTreeSet::new()),
         }
     }
 
@@ -147,7 +147,7 @@ impl RendererImpl for TestRendererImpl {
             .get(&SendablePtr::new(camera.data_ptr()))
             .ok_or_else(|| "Creating renderer layer, msg = could not find camera".to_string())?;
 
-        let renderer_layer = Arc::new(RwLock::new(TestRendererLayerImpl::new()));
+        let renderer_layer = arc_rw_lock_new(TestRendererLayerImpl::new());
         self.renderer_layers.write().insert(
             SendablePtr::new(renderer_layer.data_ptr()),
             renderer_layer.read().clone(),
@@ -215,7 +215,7 @@ impl RendererImpl for TestRendererImpl {
     }
 
     fn create_renderer_group(&mut self) -> Result<ArcRwLock<dyn RendererGroup>, String> {
-        let renderer_group = Arc::new(RwLock::new(TestRendererGroupImpl::new()));
+        let renderer_group = arc_rw_lock_new(TestRendererGroupImpl::new());
         self.renderer_groups.write().insert(
             SendablePtr::new(renderer_group.data_ptr()),
             renderer_group.read().clone(),
@@ -238,7 +238,7 @@ impl RendererImpl for TestRendererImpl {
         &mut self,
         transform: Transform<f32, f32, f32>,
     ) -> Result<ArcRwLock<dyn RendererTransform>, String> {
-        let renderer_transform = Arc::new(RwLock::new(TestRendererTransformImpl));
+        let renderer_transform = arc_rw_lock_new(TestRendererTransformImpl);
         self.transforms
             .write()
             .insert(SendablePtr::new(renderer_transform.data_ptr()), transform);
@@ -275,11 +275,26 @@ impl RendererImpl for TestRendererImpl {
         &mut self,
         material: crate::mesh::Material,
     ) -> Result<ArcRwLock<dyn RendererMaterial>, String> {
-        let renderer_material = Arc::new(RwLock::new(TestRendererMaterialImpl));
+        let renderer_material = arc_rw_lock_new(TestRendererMaterialImpl);
         self.materials
             .write()
             .insert(SendablePtr::new(renderer_material.data_ptr()), material);
         Ok(renderer_material)
+    }
+
+    fn update_material(
+        &mut self,
+        material: ArcRwLock<dyn RendererMaterial>,
+        new_material: Material,
+    ) -> Result<(), String> {
+        self.materials
+            .write()
+            .get_mut(&SendablePtr::new(material.data_ptr()))
+            .and_then(|material| {
+                *material = new_material;
+                Some(())
+            })
+            .ok_or_else(|| "Updating material, msg = could not find material".to_string())
     }
 
     fn release_material(
@@ -297,11 +312,26 @@ impl RendererImpl for TestRendererImpl {
         &mut self,
         shader_name: String,
     ) -> Result<ArcRwLock<dyn RendererShader>, String> {
-        let renderer_shader = Arc::new(RwLock::new(TestRendererShaderImpl));
+        let renderer_shader = arc_rw_lock_new(TestRendererShaderImpl);
         self.shaders
             .write()
             .insert(SendablePtr::new(renderer_shader.data_ptr()), shader_name);
         Ok(renderer_shader)
+    }
+
+    fn update_shader(
+        &mut self,
+        shader: ArcRwLock<dyn RendererShader>,
+        new_shader_name: String,
+    ) -> Result<(), String> {
+        self.shaders
+            .write()
+            .get_mut(&SendablePtr::new(shader.data_ptr()))
+            .and_then(|shader| {
+                *shader = new_shader_name;
+                Some(())
+            })
+            .ok_or_else(|| "Updating shader, msg = could not find shader".to_string())
     }
 
     fn release_shader(&mut self, shader: ArcRwLock<dyn RendererShader>) -> Result<(), String> {
@@ -316,11 +346,26 @@ impl RendererImpl for TestRendererImpl {
         &mut self,
         mesh: Arc<crate::mesh::Mesh>,
     ) -> Result<ArcRwLock<dyn RendererMesh>, String> {
-        let renderer_mesh = Arc::new(RwLock::new(TestRendererMeshImpl));
+        let renderer_mesh = arc_rw_lock_new(TestRendererMeshImpl);
         self.meshes
             .write()
             .insert(SendablePtr::new(renderer_mesh.data_ptr()), mesh);
         Ok(renderer_mesh)
+    }
+
+    fn update_mesh(
+        &mut self,
+        mesh: ArcRwLock<dyn RendererMesh>,
+        new_mesh: Arc<Mesh>,
+    ) -> Result<(), String> {
+        self.meshes
+            .write()
+            .get_mut(&SendablePtr::new(mesh.data_ptr()))
+            .and_then(|mesh| {
+                *mesh = new_mesh;
+                Some(())
+            })
+            .ok_or_else(|| "Updating mesh, msg = could not find mesh".to_string())
     }
 
     fn release_mesh(&mut self, mesh: ArcRwLock<dyn RendererMesh>) -> Result<(), String> {
@@ -366,7 +411,7 @@ impl RendererImpl for TestRendererImpl {
                 "Creating renderer object from mesh, msg = could not find transform".to_string()
             })?;
 
-        let renderer_object = Arc::new(RwLock::new(TestRendererObjectImpl));
+        let renderer_object = arc_rw_lock_new(TestRendererObjectImpl);
         self.renderer_objects
             .write()
             .insert(SendablePtr::new(renderer_object.data_ptr()));
@@ -443,7 +488,7 @@ impl RendererImpl for TestRendererImpl {
             .get(&SendablePtr::new(transform.data_ptr()))
             .ok_or_else(|| "Creating camera, msg = could not find transform".to_string())?;
 
-        let camera = Arc::new(RwLock::new(TestRendererCameraImpl));
+        let camera = arc_rw_lock_new(TestRendererCameraImpl);
         self.cameras
             .write()
             .insert(SendablePtr::new(camera.data_ptr()));
