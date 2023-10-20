@@ -8,5 +8,7 @@
 )]
 
 pub mod game_2;
+pub mod game_objects;
 pub mod objects;
+pub mod physics;
 pub mod systems;

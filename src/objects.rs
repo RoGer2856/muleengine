@@ -10,9 +10,14 @@ use muleengine::{
 };
 use vek::{Transform, Vec3};
 
-use crate::systems::renderer_configuration::RendererConfiguration;
+use crate::{
+    game_objects::rigid_body_object::RigidBodyObject,
+    systems::renderer_configuration::RendererConfiguration,
+};
 
 pub struct Objects {
+    service_container: ServiceContainer,
+    rigid_body_objects: Vec<RigidBodyObject>,
     renderer_object_handlers: Vec<RendererObjectHandler>,
     renderer_configuration: Arc<RendererConfiguration>,
     renderer_client: renderer_decoupler::Client,
@@ -22,6 +27,8 @@ pub struct Objects {
 impl Objects {
     pub fn new(service_container: ServiceContainer) -> Self {
         Self {
+            service_container: service_container.clone(),
+            rigid_body_objects: Vec::new(),
             renderer_object_handlers: Vec::new(),
             renderer_configuration: service_container
                 .get_service::<RendererConfiguration>()
@@ -42,139 +49,10 @@ impl Objects {
         }
     }
 
-    pub async fn add_cube(&mut self, position: Vec3<f32>, dimensions: Vec3<f32>) {
-        let transform = Transform::<f32, f32, f32> {
-            position,
-            scale: dimensions,
-            ..Transform::<f32, f32, f32>::default()
-        };
-
-        let mesh = Arc::new(mesh_creator::rectangle3d::create(1.0, 1.0, 1.0));
-
-        let shader_handler = self
-            .renderer_client
-            .create_shader("Assets/shaders/lit_wo_normal".to_string())
-            .await
-            .inspect_err(|e| log::error!("{e:?}"))
-            .unwrap()
-            .unwrap();
-        let material_handler = self
-            .renderer_client
-            .create_material(mesh.get_material().clone())
-            .await
-            .inspect_err(|e| log::error!("{e:?}"))
-            .unwrap()
-            .unwrap();
-        let mesh_handler = self
-            .renderer_client
-            .create_mesh(mesh)
-            .await
-            .inspect_err(|e| log::error!("{e:?}"))
-            .unwrap()
-            .unwrap();
-        let transform_handler = self
-            .renderer_client
-            .create_transform(transform)
-            .await
-            .inspect_err(|e| log::error!("{e:?}"))
-            .unwrap()
-            .unwrap();
-        let renderer_object_handler = self
-            .renderer_client
-            .create_renderer_object_from_mesh(
-                mesh_handler,
-                shader_handler,
-                material_handler,
-                transform_handler.clone(),
-            )
-            .await
-            .inspect_err(|e| log::error!("{e:?}"))
-            .unwrap()
-            .unwrap();
-        self.renderer_object_handlers
-            .push(renderer_object_handler.clone());
-        self.renderer_client
-            .add_renderer_object_to_group(
-                renderer_object_handler,
-                self.renderer_configuration
-                    .main_renderer_group_handler()
-                    .await
-                    .clone(),
-            )
-            .await
-            .inspect_err(|e| log::error!("{e:?}"))
-            .unwrap()
-            .unwrap();
-    }
-
-    pub async fn add_sphere(&mut self, position: Vec3<f32>, radius: f32) {
-        let transform = Transform::<f32, f32, f32> {
-            position,
-            scale: Vec3::broadcast(radius * 2.0),
-            ..Transform::<f32, f32, f32>::default()
-        };
-
-        let mesh = Arc::new(mesh_creator::sphere::create(0.5, 16));
-
-        let shader_handler = self
-            .renderer_client
-            .create_shader("Assets/shaders/lit_wo_normal".to_string())
-            .await
-            .inspect_err(|e| log::error!("{e:?}"))
-            .unwrap()
-            .unwrap();
-        let material_handler = self
-            .renderer_client
-            .create_material(mesh.get_material().clone())
-            .await
-            .inspect_err(|e| log::error!("{e:?}"))
-            .unwrap()
-            .unwrap();
-        let mesh_handler = self
-            .renderer_client
-            .create_mesh(mesh)
-            .await
-            .inspect_err(|e| log::error!("{e:?}"))
-            .unwrap()
-            .unwrap();
-        let transform_handler = self
-            .renderer_client
-            .create_transform(transform)
-            .await
-            .inspect_err(|e| log::error!("{e:?}"))
-            .unwrap()
-            .unwrap();
-        let renderer_object_handler = self
-            .renderer_client
-            .create_renderer_object_from_mesh(
-                mesh_handler,
-                shader_handler,
-                material_handler,
-                transform_handler.clone(),
-            )
-            .await
-            .inspect_err(|e| log::error!("{e:?}"))
-            .unwrap()
-            .unwrap();
-        self.renderer_object_handlers
-            .push(renderer_object_handler.clone());
-        self.renderer_client
-            .add_renderer_object_to_group(
-                renderer_object_handler,
-                self.renderer_configuration
-                    .main_renderer_group_handler()
-                    .await
-                    .clone(),
-            )
-            .await
-            .inspect_err(|e| log::error!("{e:?}"))
-            .unwrap()
-            .unwrap();
-    }
-
     pub async fn populate_with_objects(&mut self) {
         self.add_skybox().await;
-        self.add_physics_objects().await;
+        self.add_physics_objects(self.service_container.clone())
+            .await;
 
         let main_renderer_group_handler = self
             .renderer_configuration
@@ -332,7 +210,7 @@ impl Objects {
         }
     }
 
-    async fn add_physics_objects(&mut self) {
+    async fn add_physics_objects(&mut self, service_container: ServiceContainer) {
         let position_offset = Vec3::new(0.0, 0.0, -30.0);
         let cube_dimensions = Vec3::broadcast(1.0);
         let sphere_radius = 0.5;
@@ -347,9 +225,23 @@ impl Objects {
                         z as f32 * space_between_objects,
                     ) + position_offset;
                     if is_cube {
-                        self.add_cube(position, cube_dimensions).await;
+                        self.rigid_body_objects.push(
+                            RigidBodyObject::create_box(
+                                service_container.clone(),
+                                position,
+                                cube_dimensions,
+                            )
+                            .await,
+                        );
                     } else {
-                        self.add_sphere(position, sphere_radius).await;
+                        self.rigid_body_objects.push(
+                            RigidBodyObject::create_sphere(
+                                service_container.clone(),
+                                position,
+                                sphere_radius,
+                            )
+                            .await,
+                        );
                     }
 
                     is_cube = !is_cube;

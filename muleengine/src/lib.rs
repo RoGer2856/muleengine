@@ -30,6 +30,7 @@ pub mod service_container;
 pub mod stopwatch;
 pub mod sync;
 pub mod system_container;
+pub mod virtual_clock;
 pub mod window_context;
 
 #[cfg(test)]

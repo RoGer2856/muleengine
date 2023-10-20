@@ -4,7 +4,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use parking_lot::RwLock;
 use vek::Transform;
 
 use crate::{

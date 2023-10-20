@@ -19,6 +19,7 @@ use vek::Vec2;
 
 use crate::{
     objects::Objects,
+    physics,
     systems::{fps_camera, renderer_configuration::RendererConfiguration},
 };
 
@@ -100,6 +101,7 @@ impl Game2 {
             ));
 
         fps_camera::run(window_context, app_context);
+        physics::run(app_context);
 
         {
             let service_container = app_context.service_container_ref().clone();

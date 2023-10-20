@@ -7,7 +7,7 @@ use muleengine::{
     prelude::ResultInspector,
     renderer::{renderer_system::renderer_decoupler, RendererTransformHandler},
 };
-use tokio::time::{interval, Instant, MissedTickBehavior};
+use tokio::time::{interval, MissedTickBehavior};
 use vek::{Vec2, Vec3};
 
 use crate::systems::fps_camera::fps_camera_input::VelocityChangeEvent;
@@ -57,12 +57,12 @@ impl FpsCameraController {
         let mut interval = interval(Duration::from_secs_f32(interval_secs));
         interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
 
-        let mut delta_time_secs = 0.0;
+        // let mut delta_time_secs = 0.0;
 
         let mut should_run = true;
 
         loop {
-            let start = Instant::now();
+            // let start = Instant::now();
 
             tokio::select! {
                 _ = self.app_loop_state_watcher.wait_for_quit() => {
@@ -83,13 +83,14 @@ impl FpsCameraController {
                 }
                 _ = interval.tick() => {
                     if should_run {
-                        self.tick(delta_time_secs).await;
+                        // self.tick(delta_time_secs).await;
+                        self.tick(interval_secs).await;
                     }
                 }
             }
 
-            let end = Instant::now();
-            delta_time_secs = (end - start).as_secs_f32();
+            // let end = Instant::now();
+            // delta_time_secs = (end - start).as_secs_f32();
         }
     }
 
