@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use muleengine::{
+    bytifex_utils::result_option_inspect::ResultInspector,
     mesh_creator,
-    prelude::ResultInspector,
     renderer::{renderer_system::renderer_decoupler, RendererObjectHandler},
     service_container::ServiceContainer,
 };

@@ -3,9 +3,9 @@ use std::sync::Arc;
 use vek::Vec3;
 
 use muleengine::{
+    bytifex_utils::result_option_inspect::ResultInspector,
     image_container::ImageContainerError,
     mesh::{Material, MaterialTexture, MaterialTextureType, TextureMapMode},
-    prelude::ResultInspector,
 };
 
 use super::{

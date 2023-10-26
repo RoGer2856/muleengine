@@ -1,4 +1,4 @@
-use muleengine::prelude::RcRwLock;
+use muleengine::bytifex_utils::sync::types::RcRwLock;
 use vek::Vec2;
 
 use super::renderer_layer_object::RendererLayerObject;

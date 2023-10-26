@@ -1,6 +1,6 @@
 use vek::{Vec2, Vec3};
 
-use muleengine::sync::mpmc;
+use muleengine::bytifex_utils::sync::broadcast;
 
 #[derive(Clone)]
 pub enum VelocityChangeEvent {
@@ -10,7 +10,7 @@ pub enum VelocityChangeEvent {
 
 #[derive(Clone)]
 pub(super) struct FpsCameraInput {
-    pub(super) velocity_change_event_receiver: mpmc::Receiver<VelocityChangeEvent>,
-    pub(super) moving_event_receiver: mpmc::Receiver<Vec3<f32>>,
-    pub(super) turning_event_receiver: mpmc::Receiver<Vec2<f32>>,
+    pub(super) velocity_change_event_receiver: broadcast::Receiver<VelocityChangeEvent>,
+    pub(super) moving_event_receiver: broadcast::Receiver<Vec3<f32>>,
+    pub(super) turning_event_receiver: broadcast::Receiver<Vec2<f32>>,
 }

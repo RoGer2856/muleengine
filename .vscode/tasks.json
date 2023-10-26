@@ -3,15 +3,15 @@
 	"tasks": [
 		{
 			"type": "cargo",
-			// "command": "run",
-			// "args": [
-			// 	"--release"
-			// ],
-			"command": "test",
+			"command": "run",
 			"args": [
-				"--release",
-				"--all"
+				"--release"
 			],
+			// "command": "test",
+			// "args": [
+			// 	"--release",
+			// 	"--all"
+			// ],
 			"problemMatcher": [
 				"$rustc"
 			],

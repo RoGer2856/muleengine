@@ -1,5 +1,10 @@
 use std::{collections::BTreeSet, sync::Arc};
 
+use bytifex_utils::{
+    containers::object_pool::{ObjectPool, ObjectPoolIndex},
+    result_option_inspect::{OptionInspector, ResultInspector},
+    sync::types::{arc_rw_lock_new, ArcRwLock},
+};
 use method_taskifier::{
     method_taskifier_impl,
     task_channel::{TaskReceiver, TaskSender},
@@ -8,9 +13,7 @@ use method_taskifier::{
 use vek::Transform;
 
 use crate::{
-    containers::object_pool::{ObjectPool, ObjectPoolIndex},
     mesh::{Material, Mesh},
-    prelude::{arc_rw_lock_new, ArcRwLock, OptionInspector, ResultInspector},
     system_container::System,
 };
 

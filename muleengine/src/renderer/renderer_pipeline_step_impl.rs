@@ -1,6 +1,5 @@
+use bytifex_utils::sync::types::ArcRwLock;
 use vek::Vec2;
-
-use crate::prelude::ArcRwLock;
 
 use super::RendererLayer;
 

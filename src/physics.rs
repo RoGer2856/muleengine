@@ -5,7 +5,8 @@ use method_taskifier::{
     prelude::{OptionInspector, ResultInspector},
 };
 use muleengine::{
-    app_loop_state::AppLoopStateWatcher, application_runner::ApplicationContext, prelude::ArcRwLock,
+    application_runner::ApplicationContext,
+    bytifex_utils::sync::{app_loop_state::AppLoopStateWatcher, types::ArcRwLock},
 };
 use parking_lot::RwLock;
 use rapier3d::prelude::*;
@@ -205,7 +206,5 @@ impl Rapier3dObjectsState {
             Vec3::new(position.x, position.y, position.z),
             Quaternion::from_xyzw(rotation.x, rotation.y, rotation.z, rotation.w),
         )
-        todo
     }
-
 }

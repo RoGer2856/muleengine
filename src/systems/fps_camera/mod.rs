@@ -11,9 +11,11 @@ use fps_camera_input_provider::*;
 
 use method_taskifier::task_channel::task_channel;
 use muleengine::{
-    app_loop_state::AppLoopStateWatcher,
     application_runner::ApplicationContext,
-    prelude::{ArcRwLock, ResultInspector},
+    bytifex_utils::{
+        result_option_inspect::ResultInspector,
+        sync::{app_loop_state::AppLoopStateWatcher, types::ArcRwLock},
+    },
     renderer::renderer_system::renderer_decoupler,
     window_context::WindowContext,
 };

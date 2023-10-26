@@ -163,6 +163,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2bd12c1caf447e69cd4528f47f94d203fd2582878ecb9e9465484c4148a8223"
 
 [[package]]
+name = "bytifex-utils"
+version = "0.1.0"
+source = "git+https://github.com/bytifex/bytifex-utils.git#3e8a433ce0ef66a43a8bd31a39de82c331075e16"
+dependencies = [
+ "parking_lot",
+ "tokio",
+]
+
+[[package]]
 name = "cc"
 version = "1.0.83"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -806,13 +815,13 @@ version = "0.1.0"
 dependencies = [
  "assimp",
  "assimp-sys",
+ "bytifex-utils",
  "closure",
  "env_logger",
  "futures",
  "image",
  "log",
  "method-taskifier",
- "miniz_oxide",
  "minizip-sys",
  "parking_lot",
  "serde",

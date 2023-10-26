@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use muleengine::{
     asset_container::AssetContainer,
+    bytifex_utils::result_option_inspect::ResultInspector,
     mesh::{Material, MaterialTexture, MaterialTextureType, TextureMapMode},
     mesh_creator,
-    prelude::ResultInspector,
     renderer::{renderer_system::renderer_decoupler, RendererObjectHandler},
     service_container::ServiceContainer,
 };

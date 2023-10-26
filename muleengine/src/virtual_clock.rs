@@ -1,9 +1,15 @@
-use crate::prelude::{ArcMutex, arc_mutex_new};
+use bytifex_utils::sync::types::{arc_mutex_new, ArcMutex};
 
 #[derive(Clone)]
 pub struct VirtualClock {
     frac_1_speed_multiplier_tx: ArcMutex<tokio::sync::watch::Sender<f64>>,
     frac_1_speed_multiplier_rx: tokio::sync::watch::Receiver<f64>,
+}
+
+impl Default for VirtualClock {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl VirtualClock {

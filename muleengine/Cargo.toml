@@ -15,10 +15,11 @@ tempfile = "3"
 parking_lot = "*"
 tokio = { version = "1.20", features = ["full"] }
 futures = "0.3"
-miniz_oxide = "0.7"
+# todo!("miniz_oxide = "0.7"")
 minizip-sys = { git = "https://github.com/bytifex/minizip-sys.git" }
 serde = { version = "1.0", features = ["derive"] }
 method-taskifier = { git = "https://github.com/bytifex/method-taskifier.git" }
+bytifex-utils = { git = "https://github.com/bytifex/bytifex-utils.git" }
 
 [dev-dependencies]
 closure = "0.3.0"

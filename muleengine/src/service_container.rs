@@ -1,11 +1,12 @@
 use std::{any::type_name, sync::Arc};
 
-use crate::prelude::{arc_rw_lock_new, ArcRwLock};
-use tokio::sync::Notify;
-
-use super::containers::sendable_multi_type_dict::{
-    SendableMultiTypeDict, SendableMultiTypeDictInsertResult,
+use bytifex_utils::{
+    containers::sendable_multi_type_dict::{
+        SendableMultiTypeDict, SendableMultiTypeDictInsertResult,
+    },
+    sync::types::{arc_rw_lock_new, ArcRwLock},
 };
+use tokio::sync::Notify;
 
 #[derive(Debug, Clone)]
 pub struct ServiceMissingError {

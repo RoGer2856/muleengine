@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use muleengine::prelude::{ArcRwLock, RcRwLock};
+use muleengine::bytifex_utils::sync::types::{ArcRwLock, RcRwLock};
 use vek::Mat4;
 
 use super::{gl_camera::GLCamera, renderer_group_object::RendererGroupObject};

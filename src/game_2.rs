@@ -1,10 +1,9 @@
 use muleengine::{
-    app_loop_state::AppLoopState,
     application_runner::{Application, ApplicationContext},
     asset_container::AssetContainer,
     asset_reader::AssetReader,
+    bytifex_utils::{result_option_inspect::ResultInspector, sync::app_loop_state::AppLoopState},
     image_container::ImageContainer,
-    prelude::ResultInspector,
     renderer::renderer_system::SyncRenderer,
     scene_container::SceneContainer,
     service_container::ServiceContainer,

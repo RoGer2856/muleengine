@@ -1,8 +1,10 @@
-use muleengine::system_container::System;
-use muleengine::window_context::{Event, EventReceiver, Key, MouseButton};
-use muleengine::{prelude::ArcRwLock, window_context::WindowContext};
+use muleengine::{
+    bytifex_utils::sync::broadcast,
+    bytifex_utils::sync::types::ArcRwLock,
+    system_container::System,
+    window_context::{Event, EventReceiver, Key, MouseButton, WindowContext},
+};
 
-use muleengine::sync::mpmc;
 use vek::{Vec2, Vec3};
 
 use super::fps_camera_input::{FpsCameraInput, VelocityChangeEvent};
@@ -13,22 +15,22 @@ pub(super) struct FpsCameraInputSystem {
 
     event_receiver: EventReceiver,
 
-    velocity_change_event_sender: mpmc::Sender<VelocityChangeEvent>,
-    moving_event_sender: mpmc::Sender<Vec3<f32>>,
-    turning_event_sender: mpmc::Sender<Vec2<f32>>,
+    velocity_change_event_sender: broadcast::Sender<VelocityChangeEvent>,
+    moving_event_sender: broadcast::Sender<Vec3<f32>>,
+    turning_event_sender: broadcast::Sender<Vec2<f32>>,
 
     was_active_last_tick: bool,
 }
 
 impl FpsCameraInputSystem {
     pub fn new(window_context: ArcRwLock<dyn WindowContext>) -> Self {
-        let velocity_change_event_sender = mpmc::Sender::new();
+        let velocity_change_event_sender = broadcast::Sender::new();
         let velocity_change_event_receiver = velocity_change_event_sender.create_receiver();
 
-        let turning_event_sender = mpmc::Sender::new();
+        let turning_event_sender = broadcast::Sender::new();
         let turning_event_receiver = turning_event_sender.create_receiver();
 
-        let moving_event_sender = mpmc::Sender::new();
+        let moving_event_sender = broadcast::Sender::new();
         let moving_event_receiver = moving_event_sender.create_receiver();
 
         let event_receiver = window_context.read().event_receiver();

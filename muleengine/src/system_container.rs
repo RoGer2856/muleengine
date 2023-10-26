@@ -2,9 +2,10 @@ use std::{any::TypeId, collections::HashMap};
 
 use parking_lot::RwLock;
 
-use crate::{containers::multi_type_dict::MultiTypeDictInsertResult, prelude::ArcRwLock};
-
-use super::containers::multi_type_dict::{MultiTypeDict, MultiTypeDictItem};
+use bytifex_utils::{
+    containers::multi_type_dict::{MultiTypeDict, MultiTypeDictInsertResult, MultiTypeDictItem},
+    sync::types::ArcRwLock,
+};
 
 pub trait System: 'static {
     fn tick(&mut self, delta_time_in_secs: f32);

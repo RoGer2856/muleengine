@@ -1,11 +1,9 @@
 use std::sync::Arc;
 
+use bytifex_utils::sync::types::ArcRwLock;
 use vek::Transform;
 
-use crate::{
-    mesh::{Material, Mesh},
-    prelude::ArcRwLock,
-};
+use crate::mesh::{Material, Mesh};
 
 use super::{
     renderer_objects::{renderer_camera::RendererCamera, renderer_layer::RendererLayer},

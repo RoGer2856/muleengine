@@ -4,12 +4,14 @@ use std::{
     time::{Duration, Instant},
 };
 
+use bytifex_utils::sync::{
+    app_loop_state::{AppLoopState, AppLoopStateWatcher},
+    types::{arc_rw_lock_new, ArcRwLock},
+};
 use vek::Transform;
 
 use crate::{
-    app_loop_state::{AppLoopState, AppLoopStateWatcher},
     mesh::{Material, Mesh},
-    prelude::{arc_rw_lock_new, ArcRwLock},
     renderer::{
         renderer_impl::RendererImpl,
         renderer_pipeline_step_impl,

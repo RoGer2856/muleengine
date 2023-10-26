@@ -4,8 +4,8 @@ macro_rules! renderer_object_mod {
             use std::{cmp::Ordering, fmt::Debug, sync::Arc};
 
             use crate::{
-                containers::object_pool::ObjectPoolIndex,
-                prelude::{AsAny, ResultInspector},
+                bytifex_utils::result_option_inspect::ResultInspector,
+                bytifex_utils::{cast::AsAny, containers::object_pool::ObjectPoolIndex},
                 renderer::renderer_system::renderer_decoupler,
             };
 

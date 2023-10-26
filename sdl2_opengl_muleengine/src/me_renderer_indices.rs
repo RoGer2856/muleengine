@@ -1,5 +1,5 @@
 use muleengine::{
-    containers::object_pool::ObjectPoolIndex,
+    bytifex_utils::containers::object_pool::ObjectPoolIndex,
     renderer::{
         RendererCamera, RendererGroup, RendererLayer, RendererMaterial, RendererMesh,
         RendererObject, RendererShader, RendererTransform,

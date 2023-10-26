@@ -1,5 +1,7 @@
 use method_taskifier::task_channel::TaskSender;
-use muleengine::{application_runner::ClosureTaskSender, prelude::ResultInspector};
+use muleengine::{
+    application_runner::ClosureTaskSender, bytifex_utils::result_option_inspect::ResultInspector,
+};
 
 use super::{
     fps_camera_command::FpsCameraCommand, fps_camera_input_provider::FpsCameraInputSystem,

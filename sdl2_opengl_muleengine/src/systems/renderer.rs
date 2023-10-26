@@ -2,15 +2,21 @@ use std::sync::Arc;
 
 use muleengine::{
     asset_container::AssetContainer,
-    containers::object_pool::ObjectPool,
+    bytifex_utils::{
+        containers::object_pool::ObjectPool,
+        sync::{
+            observable_fn::{Observable, Observer},
+            types::{
+                arc_mutex_new, arc_rw_lock_new, rc_rw_lock_new, ArcMutex, ArcRwLock, RcRwLock,
+            },
+        },
+    },
     mesh::{Material, Mesh},
-    prelude::{arc_mutex_new, arc_rw_lock_new, rc_rw_lock_new, ArcMutex, ArcRwLock, RcRwLock},
     renderer::{
         renderer_impl::RendererImpl, renderer_pipeline_step_impl::RendererPipelineStepImpl,
         RendererCamera, RendererGroup, RendererLayer, RendererMaterial, RendererMesh,
         RendererObject, RendererShader, RendererTransform,
     },
-    sync::observable_fn::{Observable, Observer},
     window_context::WindowContext,
 };
 use vek::{Mat4, Transform, Vec2, Vec4};

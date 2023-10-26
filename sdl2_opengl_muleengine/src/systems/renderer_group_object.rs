@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use muleengine::prelude::RcRwLock;
+use muleengine::bytifex_utils::sync::types::RcRwLock;
 use vek::{Mat4, Vec3};
 
 use crate::gl_drawable_mesh::GLDrawableMesh;

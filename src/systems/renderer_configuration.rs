@@ -1,12 +1,11 @@
 use muleengine::{
-    prelude::ResultInspector,
+    bytifex_utils::{result_option_inspect::ResultInspector, sync::async_item::AsyncItem},
     renderer::{
         renderer_pipeline_step::RendererPipelineStep, renderer_system::renderer_decoupler,
         RendererCameraHandler, RendererGroupHandler, RendererLayerHandler,
         RendererTransformHandler,
     },
     service_container::ServiceContainer,
-    sync::async_item::AsyncItem,
 };
 use vek::{Transform, Vec2};
 
