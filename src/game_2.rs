@@ -17,9 +17,11 @@ use sdl2_opengl_muleengine::{
 use vek::Vec2;
 
 use crate::{
-    objects::Objects,
     physics,
-    systems::{fps_camera, renderer_configuration::RendererConfiguration},
+    systems::{
+        fps_camera, renderer_configuration::RendererConfiguration,
+        renderer_to_physics_object_coupler_system::RendererToPhysicsObjectCouplerSystem,
+    }, entities::objects::Objects,
 };
 
 pub struct Game2 {
@@ -84,6 +86,12 @@ impl Game2 {
         app_context
             .system_container_mut()
             .add_system(renderer_system);
+
+        let renderer_to_physics_object_coupler_system =
+            RendererToPhysicsObjectCouplerSystem::new(app_context);
+        app_context
+            .system_container_mut()
+            .add_system(renderer_to_physics_object_coupler_system);
 
         let event_receiver = window_context.read().event_receiver();
 

@@ -11,13 +11,17 @@ log = "0.4"
 tokio = { version = "1.20", features = ["full"] }
 vek = "0.16"
 parking_lot = "*"
+rapier3d = { version = "0.17", features = ["enhanced-determinism", "wasm-bindgen", "serde-serialize"] }
+
 muleengine = { path = "muleengine" }
 sdl2_opengl_muleengine = { path = "sdl2_opengl_muleengine" }
+entity-component = { path = "entity-component" }
+
 method-taskifier = { git = "https://github.com/bytifex/method-taskifier.git" }
-rapier3d = { version = "0.17", features = ["enhanced-determinism", "wasm-bindgen", "serde-serialize"] }
 
 [workspace]
 members = [
 	"muleengine",
+	"entity-component",
 	"sdl2_opengl_muleengine"
 ]

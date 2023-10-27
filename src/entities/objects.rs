@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use entity_component::{EntityId, EntityContainer};
 use muleengine::{
     asset_container::AssetContainer,
     bytifex_utils::result_option_inspect::ResultInspector,
@@ -22,6 +23,8 @@ pub struct Objects {
     renderer_configuration: Arc<RendererConfiguration>,
     renderer_client: renderer_decoupler::Client,
     asset_container: AssetContainer,
+    entity_container: Arc<EntityContainer>,
+    entity_ids: Vec<EntityId>,
 }
 
 impl Objects {
@@ -46,6 +49,8 @@ impl Objects {
                 .unwrap()
                 .as_ref()
                 .clone(),
+            entity_container: service_container.get_or_insert_service(EntityContainer::new),
+            entity_ids: Vec::new(),
         }
     }
 
@@ -345,8 +350,13 @@ impl Objects {
                     .inspect_err(|e| log::error!("{e:?}"))
                     .unwrap()
                     .unwrap();
-                self.renderer_object_handlers
-                    .push(renderer_object_handler.clone());
+
+                let entity_id = self.entity_container.lock().entity_builder().with_component(renderer_object_handler.clone()).build();
+                log::info!("{}", self.entity_container.lock().remove_entity(&entity_id));
+                self.entity_ids.push(entity_id);
+                // self.renderer_object_handlers
+                //     .push(renderer_object_handler.clone());
+
                 self.renderer_client
                     .add_renderer_object_to_group(
                         renderer_object_handler,
