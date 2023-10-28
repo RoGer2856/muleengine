@@ -1,6 +1,9 @@
 use std::{any::TypeId, sync::Arc};
 
-use bytifex_utils::{containers::object_pool::ObjectPoolIndex, sync::types::ArcMutex};
+use bytifex_utils::{
+    containers::object_pool::{ObjectPool, ObjectPoolIndex},
+    sync::types::ArcMutex,
+};
 
 use super::component::ComponentTrait;
 
@@ -10,7 +13,7 @@ pub struct ComponentId {
     pub(super) object_pool_index: ObjectPoolIndex,
 
     pub(super) usage_counter: Arc<()>,
-    pub(super) to_be_removed_indices: ArcMutex<Vec<ObjectPoolIndex>>,
+    pub(super) component_storage: ArcMutex<ObjectPool<Box<dyn ComponentTrait>>>,
 }
 
 impl ComponentId {
@@ -50,10 +53,9 @@ impl Drop for ComponentId {
     fn drop(&mut self) {
         // only self.usage_counter exist
         if Arc::strong_count(&self.usage_counter) == 1 {
-            todo
-            self.to_be_removed_indices
+            self.component_storage
                 .lock()
-                .push(self.object_pool_index);
+                .release_object(self.object_pool_index);
         }
     }
 }

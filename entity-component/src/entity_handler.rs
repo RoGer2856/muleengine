@@ -1,5 +1,7 @@
 use bytifex_utils::sync::{callback_event, types::MutexGuard};
 
+use crate::component_storage::ComponentGuard;
+
 use super::{
     component::ComponentTrait, entity::Entity, entity_modified_event::EntityModifiedEvent,
     multi_type_component_storage::MultiTypeComponentStorage, ComponentId,
@@ -29,7 +31,10 @@ impl EntityHandler<'_, '_> {
                 (*self.component_storages_guard)
                     .component_storage_mut_for_type_id(&component_type_id)
             };
-            let component_id = component_storage.add_component(component);
+            let component_id = match component_storage.add_component(component) {
+                Some(component_id) => component_id,
+                None => unreachable!(),
+            };
             self.entity.component_ids.push(component_id.clone());
 
             self.entity_modified_event_guard
@@ -68,7 +73,7 @@ impl EntityHandler<'_, '_> {
         Some(component_id)
     }
 
-    pub fn get_component_ref<ComponentType>(&self) -> Option<&ComponentType>
+    pub fn get_component_ref<ComponentType>(&self) -> Option<ComponentGuard<ComponentType>>
     where
         ComponentType: ComponentTrait,
     {
@@ -102,8 +107,8 @@ impl EntityHandler<'_, '_> {
                     .component_storage_mut_for_type_id(&component_type_id)
             };
 
-            if let Some(component_mut) = component_storage.get_component_mut(component_id_ref) {
-                f(component_mut);
+            if let Some(mut component_mut) = component_storage.get_component_mut(component_id_ref) {
+                f(&mut *component_mut);
 
                 self.entity_modified_event_guard
                     .trigger(&EntityModifiedEvent::ComponentChanged {

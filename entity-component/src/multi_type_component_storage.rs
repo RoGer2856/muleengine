@@ -1,5 +1,7 @@
 use std::{any::TypeId, collections::BTreeMap};
 
+use crate::component_storage::{ComponentAnyGuard, ComponentGuard};
+
 use super::{component::ComponentTrait, component_storage::ComponentStorage, ComponentId};
 
 pub struct MultiTypeComponentStorage {
@@ -19,16 +21,18 @@ impl MultiTypeComponentStorage {
         }
     }
 
-    pub fn get_component_ref<ComponentType>(&self, id: &ComponentId) -> Option<&ComponentType>
+    pub fn get_component_ref<ComponentType>(
+        &self,
+        id: &ComponentId,
+    ) -> Option<ComponentGuard<ComponentType>>
     where
         ComponentType: ComponentTrait,
     {
-        (*self.get_component_ref_any(id)?)
-            .as_any()
-            .downcast_ref::<ComponentType>()
+        let storage = self.component_storage_ref_for_type_id(&id.component_type_id)?;
+        storage.get_component_ref(id)
     }
 
-    pub fn get_component_ref_any(&self, id: &ComponentId) -> Option<&dyn ComponentTrait> {
+    pub fn get_component_ref_any(&self, id: &ComponentId) -> Option<ComponentAnyGuard> {
         let storage = self.component_storage_ref_for_type_id(&id.component_type_id)?;
         storage.get_component_ref_any(id)
     }

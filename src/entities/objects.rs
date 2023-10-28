@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use entity_component::{EntityId, EntityContainer};
+use entity_component::{EntityContainer, EntityId};
 use muleengine::{
     asset_container::AssetContainer,
     bytifex_utils::result_option_inspect::ResultInspector,
@@ -351,11 +351,13 @@ impl Objects {
                     .unwrap()
                     .unwrap();
 
-                let entity_id = self.entity_container.lock().entity_builder().with_component(renderer_object_handler.clone()).build();
-                log::info!("{}", self.entity_container.lock().remove_entity(&entity_id));
+                let entity_id = self
+                    .entity_container
+                    .lock()
+                    .entity_builder()
+                    .with_component(renderer_object_handler.clone())
+                    .build();
                 self.entity_ids.push(entity_id);
-                // self.renderer_object_handlers
-                //     .push(renderer_object_handler.clone());
 
                 self.renderer_client
                     .add_renderer_object_to_group(

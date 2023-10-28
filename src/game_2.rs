@@ -17,11 +17,12 @@ use sdl2_opengl_muleengine::{
 use vek::Vec2;
 
 use crate::{
+    entities::objects::Objects,
     physics,
     systems::{
         fps_camera, renderer_configuration::RendererConfiguration,
         renderer_to_physics_object_coupler_system::RendererToPhysicsObjectCouplerSystem,
-    }, entities::objects::Objects,
+    },
 };
 
 pub struct Game2 {

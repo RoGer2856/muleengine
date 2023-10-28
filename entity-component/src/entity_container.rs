@@ -87,9 +87,14 @@ impl<'entity_container_guards> EntityContainerGuard<'entity_container_guards> {
         let component_ids: Vec<ComponentId> = components_iter
             .into_iter()
             .map(|(type_id, component)| {
-                self.component_storages_guard
+                match self
+                    .component_storages_guard
                     .component_storage_mut_for_type_id(&type_id)
                     .add_component_any(&type_id, component)
+                {
+                    Some(component_id) => component_id,
+                    None => unreachable!(),
+                }
             })
             .collect();
 

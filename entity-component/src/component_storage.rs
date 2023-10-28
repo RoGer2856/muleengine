@@ -1,28 +1,107 @@
-use std::{any::TypeId, sync::Arc};
+use std::{
+    any::TypeId,
+    marker::PhantomData,
+    ops::{Deref, DerefMut},
+    sync::Arc,
+};
 
 use bytifex_utils::{
     containers::object_pool::{ObjectPool, ObjectPoolIndex},
-    sync::types::{arc_mutex_new, ArcMutex},
+    sync::types::{arc_mutex_new, ArcMutex, MutexGuard},
 };
 
 use super::{component::ComponentTrait, ComponentId};
 
+pub struct ComponentAnyGuard<'a> {
+    components_guard: MutexGuard<'a, ObjectPool<Box<dyn ComponentTrait>>>,
+    object_pool_index: ObjectPoolIndex,
+}
+
+impl<'a> Deref for ComponentAnyGuard<'a> {
+    type Target = dyn ComponentTrait;
+
+    fn deref(&self) -> &Self::Target {
+        match self.components_guard.get_ref(self.object_pool_index) {
+            Some(component_box) => component_box,
+            None => unreachable!(),
+        }
+    }
+}
+
+pub struct ComponentGuard<'a, ComponentType> {
+    components_guard: MutexGuard<'a, ObjectPool<Box<dyn ComponentTrait>>>,
+    object_pool_index: ObjectPoolIndex,
+    marker: PhantomData<ComponentType>,
+}
+
+impl<'a, ComponentType: ComponentTrait> Deref for ComponentGuard<'a, ComponentType> {
+    type Target = ComponentType;
+    fn deref(&self) -> &Self::Target {
+        match self.components_guard.get_ref(self.object_pool_index) {
+            Some(component_box) => {
+                match (**component_box).as_any().downcast_ref::<ComponentType>() {
+                    Some(component) => component,
+                    None => unreachable!(),
+                }
+            }
+            None => unreachable!(),
+        }
+    }
+}
+
+pub struct ComponentMutGuard<'a, ComponentType: ComponentTrait> {
+    components_guard: MutexGuard<'a, ObjectPool<Box<dyn ComponentTrait>>>,
+    object_pool_index: ObjectPoolIndex,
+    marker: PhantomData<ComponentType>,
+}
+
+impl<'a, ComponentType: ComponentTrait> Deref for ComponentMutGuard<'a, ComponentType> {
+    type Target = ComponentType;
+
+    fn deref(&self) -> &Self::Target {
+        match self.components_guard.get_ref(self.object_pool_index) {
+            Some(component_box) => {
+                match (**component_box).as_any().downcast_ref::<ComponentType>() {
+                    Some(component) => component,
+                    None => unreachable!(),
+                }
+            }
+            None => unreachable!(),
+        }
+    }
+}
+
+impl<'a, ComponentType: ComponentTrait> DerefMut for ComponentMutGuard<'a, ComponentType> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match self.components_guard.get_mut(self.object_pool_index) {
+            Some(component_box) => {
+                match (**component_box)
+                    .as_any_mut()
+                    .downcast_mut::<ComponentType>()
+                {
+                    Some(component) => component,
+                    None => unreachable!(),
+                }
+            }
+            None => unreachable!(),
+        }
+    }
+}
+
 pub(super) struct ComponentStorage {
-    pub _component_type_id: TypeId,
-    pub components: ObjectPool<Box<dyn ComponentTrait>>,
-    to_be_removed_indices: ArcMutex<Vec<ObjectPoolIndex>>,
+    pub component_type_id: TypeId,
+    pub components: ArcMutex<ObjectPool<Box<dyn ComponentTrait>>>,
 }
 
 impl ComponentStorage {
     pub fn new(component_type_id: TypeId) -> Self {
         Self {
-            _component_type_id: component_type_id,
-            components: ObjectPool::new(),
-            to_be_removed_indices: arc_mutex_new(Vec::new()),
+            component_type_id,
+            components: arc_mutex_new(ObjectPool::new()),
         }
     }
 
-    pub fn add_component<ComponentType>(&mut self, component: ComponentType) -> ComponentId
+    pub fn add_component<ComponentType>(&mut self, component: ComponentType) -> Option<ComponentId>
     where
         ComponentType: ComponentTrait,
     {
@@ -33,59 +112,69 @@ impl ComponentStorage {
         &mut self,
         component_type_id: &TypeId,
         component: Box<dyn ComponentTrait>,
-    ) -> ComponentId {
-        self.handle_to_be_removed_indices();
-
-        ComponentId {
-            component_type_id: *component_type_id,
-            object_pool_index: self.components.create_object(component),
-            usage_counter: Arc::new(()),
-            to_be_removed_indices: self.to_be_removed_indices.clone(),
+    ) -> Option<ComponentId> {
+        if self.component_type_id != *component_type_id {
+            return None;
         }
+
+        Some(ComponentId {
+            component_type_id: *component_type_id,
+            object_pool_index: self.components.lock().create_object(component),
+            usage_counter: Arc::new(()),
+            component_storage: self.components.clone(),
+        })
     }
 
-    pub fn get_component_ref<ComponentType>(&self, id: &ComponentId) -> Option<&ComponentType>
+    pub fn get_component_ref<ComponentType>(
+        &self,
+        id: &ComponentId,
+    ) -> Option<ComponentGuard<ComponentType>>
     where
         ComponentType: ComponentTrait,
     {
-        (*self.get_component_ref_any(id)?)
-            .as_any()
-            .downcast_ref::<ComponentType>()
+        if self.component_type_id != TypeId::of::<ComponentType>() {
+            return None;
+        }
+
+        let mut components_guard = self.components.lock();
+        components_guard.get_mut(id.object_pool_index)?;
+        Some(ComponentGuard {
+            components_guard,
+            object_pool_index: id.object_pool_index,
+            marker: PhantomData,
+        })
     }
 
-    pub fn get_component_ref_any(&self, id: &ComponentId) -> Option<&dyn ComponentTrait> {
-        Some(self.components.get_ref(id.object_pool_index)?.as_ref())
+    pub fn get_component_ref_any(&self, id: &ComponentId) -> Option<ComponentAnyGuard> {
+        let mut components_guard = self.components.lock();
+        components_guard.get_mut(id.object_pool_index)?;
+        Some(ComponentAnyGuard {
+            components_guard,
+            object_pool_index: id.object_pool_index,
+        })
     }
 
     pub fn get_component_mut<ComponentType>(
         &mut self,
         id: &ComponentId,
-    ) -> Option<&mut ComponentType>
+    ) -> Option<ComponentMutGuard<ComponentType>>
     where
         ComponentType: ComponentTrait,
     {
-        (**self.get_component_mut_any(id)?)
-            .as_any_mut()
-            .downcast_mut::<ComponentType>()
-    }
-
-    pub fn get_component_mut_any(
-        &mut self,
-        id: &ComponentId,
-    ) -> Option<&mut Box<dyn ComponentTrait>> {
-        self.handle_to_be_removed_indices();
-
-        let component_box = self.components.get_mut(id.object_pool_index)?;
-        Some(component_box)
-    }
-
-    fn handle_to_be_removed_indices(&mut self) {
-        let mut guard = self.to_be_removed_indices.lock();
-        for index in guard.iter() {
-            self.components.release_object(*index);
+        if self.component_type_id != TypeId::of::<ComponentType>() {
+            return None;
         }
 
-        guard.clear();
+        let mut components_guard = self.components.lock();
+        let component_box = components_guard.get_mut(id.object_pool_index)?;
+        (**component_box)
+            .as_any_mut()
+            .downcast_mut::<ComponentType>()?;
+        Some(ComponentMutGuard {
+            components_guard,
+            object_pool_index: id.object_pool_index,
+            marker: PhantomData,
+        })
     }
 }
 
@@ -98,25 +187,32 @@ mod tests {
         let mut component_storage = ComponentStorage::new(TypeId::of::<String>());
 
         // add a component
-        let id = component_storage.add_component("initial string".to_string());
+        let id = component_storage
+            .add_component("initial string".to_string())
+            .unwrap();
 
         // read the component
         assert_eq!(
-            component_storage.get_component_ref::<String>(&id).cloned(),
-            Some("initial string".to_string())
+            component_storage
+                .get_component_ref::<String>(&id)
+                .unwrap()
+                .clone(),
+            "initial string".to_string()
         );
 
         // change the component
-        let component_opt_mut = component_storage.get_component_mut::<String>(&id);
-        assert!(component_opt_mut.is_some());
-        if let Some(component_mut) = component_opt_mut {
+        {
+            let mut component_mut = component_storage.get_component_mut::<String>(&id).unwrap();
             *component_mut = "modified string".to_string();
         }
 
         // read the component
         assert_eq!(
-            component_storage.get_component_ref::<String>(&id).cloned(),
-            Some("modified string".to_string())
+            component_storage
+                .get_component_ref::<String>(&id)
+                .unwrap()
+                .clone(),
+            "modified string".to_string()
         );
 
         let object_pool_index = id.object_pool_index;
@@ -124,12 +220,10 @@ mod tests {
         // remove the component
         drop(id);
 
-        // force component_storage to run its cleanup method
-        component_storage.handle_to_be_removed_indices();
-
         // read the component
         assert!(component_storage
             .components
+            .lock()
             .get_mut(object_pool_index)
             .is_none());
     }
