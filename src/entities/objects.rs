@@ -1,38 +1,34 @@
 use std::sync::Arc;
 
-use entity_component::{EntityContainer, EntityId};
+use entity_component::EntityContainer;
 use muleengine::{
     asset_container::AssetContainer,
     bytifex_utils::result_option_inspect::ResultInspector,
     mesh::{Material, MaterialTexture, MaterialTextureType, TextureMapMode},
     mesh_creator,
-    renderer::{renderer_system::renderer_decoupler, RendererObjectHandler},
+    renderer::renderer_system::renderer_decoupler,
     service_container::ServiceContainer,
 };
 use vek::{Transform, Vec3};
 
-use crate::{
-    game_objects::rigid_body_object::RigidBodyObject,
-    systems::renderer_configuration::RendererConfiguration,
-};
+use crate::systems::renderer_configuration::RendererConfiguration;
+
+use super::rigid_body_objects;
 
 pub struct Objects {
     service_container: ServiceContainer,
-    rigid_body_objects: Vec<RigidBodyObject>,
-    renderer_object_handlers: Vec<RendererObjectHandler>,
+    asset_container: AssetContainer,
+
     renderer_configuration: Arc<RendererConfiguration>,
     renderer_client: renderer_decoupler::Client,
-    asset_container: AssetContainer,
+
     entity_container: Arc<EntityContainer>,
-    entity_ids: Vec<EntityId>,
 }
 
 impl Objects {
     pub fn new(service_container: ServiceContainer) -> Self {
         Self {
             service_container: service_container.clone(),
-            rigid_body_objects: Vec::new(),
-            renderer_object_handlers: Vec::new(),
             renderer_configuration: service_container
                 .get_service::<RendererConfiguration>()
                 .inspect_err(|e| log::error!("{e:?}"))
@@ -50,13 +46,12 @@ impl Objects {
                 .as_ref()
                 .clone(),
             entity_container: service_container.get_or_insert_service(EntityContainer::new),
-            entity_ids: Vec::new(),
         }
     }
 
     pub async fn populate_with_objects(&mut self) {
         self.add_skybox().await;
-        self.add_physics_objects(self.service_container.clone())
+        self.add_physics_entities(self.service_container.clone())
             .await;
 
         let main_renderer_group_handler = self
@@ -110,17 +105,22 @@ impl Objects {
                 .inspect_err(|e| log::error!("{e:?}"))
                 .unwrap()
                 .unwrap();
-            self.renderer_object_handlers
-                .push(renderer_object_handler.clone());
+
             self.renderer_client
                 .add_renderer_object_to_group(
-                    renderer_object_handler,
+                    renderer_object_handler.clone(),
                     main_renderer_group_handler.clone(),
                 )
                 .await
                 .inspect_err(|e| log::error!("{e:?}"))
                 .unwrap()
                 .unwrap();
+
+            self.entity_container
+                .lock()
+                .entity_builder()
+                .with_component(renderer_object_handler)
+                .build();
 
             transform.position.x = -2.0;
             transform.position.z = -5.0;
@@ -195,17 +195,22 @@ impl Objects {
                             .inspect_err(|e| log::error!("{e:?}"))
                             .unwrap()
                             .unwrap();
-                        self.renderer_object_handlers
-                            .push(renderer_object_handler.clone());
+
                         self.renderer_client
                             .add_renderer_object_to_group(
-                                renderer_object_handler,
+                                renderer_object_handler.clone(),
                                 main_renderer_group_handler.clone(),
                             )
                             .await
                             .inspect_err(|e| log::error!("{e:?}"))
                             .unwrap()
                             .unwrap();
+
+                        self.entity_container
+                            .lock()
+                            .entity_builder()
+                            .with_component(renderer_object_handler)
+                            .build();
                     }
                     Err(e) => {
                         log::warn!("Invalid mesh in scene, path = {scene_path}, msg = {e:?}")
@@ -215,7 +220,7 @@ impl Objects {
         }
     }
 
-    async fn add_physics_objects(&mut self, service_container: ServiceContainer) {
+    async fn add_physics_entities(&mut self, service_container: ServiceContainer) {
         let position_offset = Vec3::new(0.0, 0.0, -30.0);
         let cube_dimensions = Vec3::broadcast(1.0);
         let sphere_radius = 0.5;
@@ -230,23 +235,19 @@ impl Objects {
                         z as f32 * space_between_objects,
                     ) + position_offset;
                     if is_cube {
-                        self.rigid_body_objects.push(
-                            RigidBodyObject::create_box(
-                                service_container.clone(),
-                                position,
-                                cube_dimensions,
-                            )
-                            .await,
-                        );
+                        rigid_body_objects::create_box(
+                            service_container.clone(),
+                            position,
+                            cube_dimensions,
+                        )
+                        .await;
                     } else {
-                        self.rigid_body_objects.push(
-                            RigidBodyObject::create_sphere(
-                                service_container.clone(),
-                                position,
-                                sphere_radius,
-                            )
-                            .await,
-                        );
+                        rigid_body_objects::create_sphere(
+                            service_container.clone(),
+                            position,
+                            sphere_radius,
+                        )
+                        .await;
                     }
 
                     is_cube = !is_cube;
@@ -351,23 +352,21 @@ impl Objects {
                     .unwrap()
                     .unwrap();
 
-                let entity_id = self
-                    .entity_container
-                    .lock()
-                    .entity_builder()
-                    .with_component(renderer_object_handler.clone())
-                    .build();
-                self.entity_ids.push(entity_id);
-
                 self.renderer_client
                     .add_renderer_object_to_group(
-                        renderer_object_handler,
+                        renderer_object_handler.clone(),
                         skydome_renderer_group_handler.clone(),
                     )
                     .await
                     .inspect_err(|e| log::error!("{e:?}"))
                     .unwrap()
                     .unwrap();
+
+                self.entity_container
+                    .lock()
+                    .entity_builder()
+                    .with_component(renderer_object_handler)
+                    .build();
             }
         } else {
             log::error!("Skybox does not contain exactly 6 meshes");
