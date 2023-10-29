@@ -7,10 +7,12 @@ use std::{
 };
 
 use bytifex_utils::sync::{
-    broadcast, callback_event,
+    callback_event,
     types::{arc_mutex_new, ArcMutex, MutexGuard},
 };
 use EntityHandlingType::*;
+
+use crate::{EntityGroupEventReceiver, EntityGroupEventSender};
 
 use super::{
     component_type_list::ToSortedComponentTypeList, entity_modified_event::EntityModifiedEvent,
@@ -24,17 +26,17 @@ pub struct EntityGroup {
     to_be_handled_entity_ids: ArcMutex<Vec<(EntityId, EntityHandlingType)>>,
     is_locked_by_itself: Arc<AtomicBool>,
 
-    entity_group_event: broadcast::Sender<EntityGroupEvent>,
+    entity_group_event: EntityGroupEventSender,
 
     _entity_modified_event_subscription: callback_event::Subscription<EntityModifiedEvent>,
 }
 
 impl EntityGroup {
-    pub fn entity_group_event(
+    pub fn event_receiver(
         &self,
         resend_events: bool,
         entity_container_guard: &mut EntityContainerGuard<'_>,
-    ) -> broadcast::Receiver<EntityGroupEvent> {
+    ) -> EntityGroupEventReceiver {
         let receiver = self.entity_group_event.create_receiver();
 
         if resend_events {
@@ -66,7 +68,7 @@ impl EntityGroup {
     ) -> Self {
         let entity_ids = arc_mutex_new(Vec::new());
         let sorted_component_type_list = component_type_list.to_sorted_component_type_list();
-        let entity_group_event = broadcast::Sender::new();
+        let entity_group_event = EntityGroupEventSender::new();
         let is_locked_by_itself = Arc::new(AtomicBool::new(false));
         let to_be_handled_entity_ids = arc_mutex_new(Vec::new());
 
@@ -126,7 +128,7 @@ impl EntityGroup {
 
     fn resend_events_directly(
         &self,
-        receiver: &broadcast::Receiver<EntityGroupEvent>,
+        receiver: &EntityGroupEventReceiver,
         entity_container_guard: &mut EntityContainerGuard<'_>,
     ) {
         for entity_id_ref in self.entity_ids.lock().iter() {
@@ -233,7 +235,7 @@ fn process_entity_container_event(
     event: &EntityModifiedEvent,
     entity_ids: &ArcMutex<Vec<EntityId>>,
     sorted_component_type_list: &Vec<TypeId>,
-    entity_group_event: &broadcast::Sender<EntityGroupEvent>,
+    entity_group_event: &EntityGroupEventSender,
     is_locked_by_itself: &Arc<AtomicBool>,
     to_be_handled_entity_ids: &ArcMutex<Vec<(EntityId, EntityHandlingType)>>,
 ) {
@@ -533,8 +535,7 @@ mod tests {
 
         assert_eq!(entity_group.entity_ids.lock().len(), 3);
 
-        let entity_group_event =
-            entity_group.entity_group_event(true, &mut entity_container.lock());
+        let entity_group_event = entity_group.event_receiver(true, &mut entity_container.lock());
 
         let mut entity_added_counter: i32 = 0;
         let mut component_added_counter: i32 = 0;
@@ -602,8 +603,7 @@ mod tests {
             Orientation,
         ]);
 
-        let entity_group_event =
-            entity_group.entity_group_event(true, &mut entity_container.lock());
+        let entity_group_event = entity_group.event_receiver(true, &mut entity_container.lock());
 
         let ids = add_test_entities(&mut entity_container);
 
@@ -673,8 +673,7 @@ mod tests {
             Orientation,
         ]);
 
-        let entity_group_event =
-            entity_group.entity_group_event(true, &mut entity_container.lock());
+        let entity_group_event = entity_group.event_receiver(true, &mut entity_container.lock());
 
         let id0 = entity_container.lock().entity_builder().build();
         let id1 = entity_container.lock().entity_builder().build();
@@ -787,8 +786,7 @@ mod tests {
 
         let mut entity_container_guard = entity_container.lock();
 
-        let entity_group_event =
-            entity_group.entity_group_event(false, &mut entity_container_guard);
+        let entity_group_event = entity_group.event_receiver(false, &mut entity_container_guard);
 
         let mut entity_handler = entity_container_guard.handler_for_entity(&ids[2]).unwrap();
         entity_handler.remove_component::<Orientation>();
@@ -843,8 +841,7 @@ mod tests {
 
         let mut entity_container_guard = entity_container.lock();
 
-        let entity_group_event =
-            entity_group.entity_group_event(false, &mut entity_container_guard);
+        let entity_group_event = entity_group.event_receiver(false, &mut entity_container_guard);
 
         // remove an entity
         entity_container_guard.remove_entity(&ids[2]);
@@ -991,8 +988,7 @@ mod tests {
 
         let mut entity_container_guard = entity_container.lock();
 
-        let entity_group_event =
-            entity_group.entity_group_event(false, &mut entity_container_guard);
+        let entity_group_event = entity_group.event_receiver(false, &mut entity_container_guard);
 
         // change an interesting component
         let mut entity_handler = entity_container_guard.handler_for_entity(&id).unwrap();

@@ -2,16 +2,13 @@ use std::sync::Arc;
 
 use entity_component::{EntityContainer, EntityId};
 use muleengine::{
-    bytifex_utils::result_option_inspect::ResultInspector,
-    mesh_creator,
-    renderer::{renderer_system::renderer_decoupler, RendererObjectHandler},
-    service_container::ServiceContainer,
+    bytifex_utils::result_option_inspect::ResultInspector, mesh_creator,
+    renderer::renderer_system::renderer_decoupler, service_container::ServiceContainer,
 };
 use vek::{Transform, Vec3};
 
 use crate::{
-    physics::{Rapier3dPhysicsEngineService, RigidBodyDescriptor},
-    systems::renderer_configuration::RendererConfiguration,
+    physics::Rapier3dPhysicsEngineService, systems::renderer_configuration::RendererConfiguration,
 };
 
 pub async fn create_box(
@@ -107,6 +104,7 @@ pub async fn create_box(
         .lock()
         .entity_builder()
         .with_component(renderer_object_handler)
+        .with_component(transform_handler)
         .with_component(rigid_body_descriptor)
         .build()
 }
@@ -204,6 +202,7 @@ pub async fn create_sphere(
         .lock()
         .entity_builder()
         .with_component(renderer_object_handler)
+        .with_component(transform_handler)
         .with_component(rigid_body_descriptor)
         .build()
 }

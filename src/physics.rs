@@ -130,9 +130,10 @@ impl Rapier3dPhysicsEngine {
         let rigid_body = RigidBodyBuilder::dynamic()
             .translation(vector![position.x, position.y, position.z])
             .build();
-        let collider = ColliderBuilder::cuboid(dimensions.x, dimensions.y, dimensions.z)
-            .restitution(0.0)
-            .build();
+        let collider =
+            ColliderBuilder::cuboid(dimensions.x / 2.0, dimensions.y / 2.0, dimensions.z / 2.0)
+                .restitution(0.0)
+                .build();
         let rigid_body_handle = self.state.rigid_body_set.insert(rigid_body);
         self.state.collider_set.insert_with_parent(
             collider,
@@ -141,6 +142,10 @@ impl Rapier3dPhysicsEngine {
         );
 
         RigidBodyDescriptor { rigid_body_handle }
+    }
+
+    pub fn state_ref(&self) -> &Rapier3dObjectsState {
+        &self.state
     }
 
     async fn run(
@@ -196,7 +201,7 @@ impl Rapier3dPhysicsEngine {
 
 impl Rapier3dObjectsState {
     pub fn get_transform_of_rigidbody(
-        &mut self,
+        &self,
         rigid_body_descriptor: &RigidBodyDescriptor,
     ) -> (Vec3<f32>, Quaternion<f32>) {
         let rigid_body = &self.rigid_body_set[rigid_body_descriptor.rigid_body_handle];

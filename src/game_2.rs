@@ -1,3 +1,4 @@
+use entity_component::EntityContainer;
 use muleengine::{
     application_runner::{Application, ApplicationContext},
     asset_container::AssetContainer,
@@ -36,6 +37,7 @@ impl Game2 {
         service_container.get_or_insert_service(|| RwLock::new(ImageContainer::new()));
         service_container.get_or_insert_service(|| RwLock::new(SceneContainer::new()));
         service_container.get_or_insert_service(|| AssetContainer::new(service_container));
+        service_container.get_or_insert_service(EntityContainer::new);
     }
 
     pub fn new(app_context: &mut ApplicationContext) -> Self {
@@ -88,12 +90,6 @@ impl Game2 {
             .system_container_mut()
             .add_system(renderer_system);
 
-        let renderer_to_physics_object_coupler_system =
-            RendererToPhysicsObjectCouplerSystem::new(app_context);
-        app_context
-            .system_container_mut()
-            .add_system(renderer_to_physics_object_coupler_system);
-
         let event_receiver = window_context.read().event_receiver();
 
         let app_loop_state = AppLoopState::new();
@@ -110,6 +106,12 @@ impl Game2 {
 
         fps_camera::run(window_context, app_context);
         physics::run(app_context);
+
+        let renderer_to_physics_object_coupler_system =
+            RendererToPhysicsObjectCouplerSystem::new(app_context);
+        app_context
+            .system_container_mut()
+            .add_system(renderer_to_physics_object_coupler_system);
 
         {
             let service_container = app_context.service_container_ref().clone();

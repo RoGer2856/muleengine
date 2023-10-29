@@ -1,3 +1,5 @@
+use bytifex_utils::sync::broadcast;
+
 use super::{ComponentId, EntityId};
 
 #[derive(Clone)]
@@ -21,3 +23,6 @@ pub enum EntityGroupEvent {
         component_id: ComponentId,
     },
 }
+
+pub type EntityGroupEventSender = broadcast::Sender<EntityGroupEvent>;
+pub type EntityGroupEventReceiver = broadcast::Receiver<EntityGroupEvent>;
