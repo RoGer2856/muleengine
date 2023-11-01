@@ -18,7 +18,7 @@ use sdl2_opengl_muleengine::{
 use vek::Vec2;
 
 use crate::{
-    entities::objects::Objects,
+    entities::{populate_with_objects, spawner::Spawner},
     physics,
     systems::{
         fps_camera, renderer_configuration::RendererConfiguration,
@@ -113,14 +113,16 @@ impl Game2 {
             .system_container_mut()
             .add_system(renderer_to_physics_object_coupler_system);
 
-        {
-            let service_container = app_context.service_container_ref().clone();
-            tokio::spawn(async move {
-                let mut objects = Objects::new(service_container.clone());
-                objects.populate_with_objects().await;
-                service_container.insert(objects);
-            });
-        }
+        let spawner = app_context
+            .service_container_ref()
+            .insert(Spawner::new(app_context.service_container_ref().clone()))
+            .new_item
+            .as_arc_ref()
+            .clone();
+
+        tokio::spawn(async move {
+            populate_with_objects(&spawner).await;
+        });
 
         Self {
             app_loop_state,
