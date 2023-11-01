@@ -9,6 +9,7 @@ use muleengine::{
     },
     system_container::System,
 };
+use tokio::time::Instant;
 use vek::{Transform, Vec3};
 
 use crate::physics::{Rapier3dPhysicsEngineService, RigidBodyDescriptor};
@@ -65,6 +66,8 @@ impl RendererToPhysicsObjectCouplerSystem {
 
 impl System for RendererToPhysicsObjectCouplerSystem {
     fn tick(&mut self, _delta_time_in_secs: f32) {
+        let now = Instant::now();
+
         for entity_id in self.entity_group.iter_entity_ids() {
             if let Some(handler) = self.entity_container.lock().handler_for_entity(&entity_id) {
                 let rigid_body_descriptor =
@@ -82,21 +85,21 @@ impl System for RendererToPhysicsObjectCouplerSystem {
                     unreachable!()
                 };
 
-                let (position, rotation) = self
+                if let Some((position, rotation)) = self
                     .physics_engine
                     .read()
-                    .state_ref()
-                    .get_transform_of_rigidbody(&rigid_body_descriptor);
-
-                let new_transform = Transform {
-                    position,
-                    orientation: rotation,
-                    scale: Vec3::broadcast(1.0),
-                };
-                drop(
-                    self.renderer_client
-                        .update_transform(transform_handler.clone(), new_transform),
-                );
+                    .get_interpolated_transform_of_rigidbody(&rigid_body_descriptor, now)
+                {
+                    let new_transform = Transform {
+                        position,
+                        orientation: rotation,
+                        scale: Vec3::broadcast(1.0),
+                    };
+                    drop(
+                        self.renderer_client
+                            .update_transform(transform_handler.clone(), new_transform),
+                    );
+                }
             }
         }
     }
