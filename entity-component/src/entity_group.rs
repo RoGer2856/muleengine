@@ -469,7 +469,6 @@ mod tests {
 
         entity_ids.push(
             entity_container
-                .lock()
                 .entity_builder()
                 .with_component(Position("pos0".to_string()))
                 .with_component(Velocity("vel0".to_string()))
@@ -479,7 +478,6 @@ mod tests {
 
         entity_ids.push(
             entity_container
-                .lock()
                 .entity_builder()
                 .with_component(Position("pos1".to_string()))
                 .with_component(Velocity("vel1".to_string()))
@@ -490,7 +488,6 @@ mod tests {
 
         entity_ids.push(
             entity_container
-                .lock()
                 .entity_builder()
                 .with_component(Position("pos2".to_string()))
                 .with_component(Velocity("vel2".to_string()))
@@ -501,7 +498,6 @@ mod tests {
 
         entity_ids.push(
             entity_container
-                .lock()
                 .entity_builder()
                 .with_component(Position("pos3".to_string()))
                 .with_component(Orientation("ori3".to_string()))
@@ -511,7 +507,6 @@ mod tests {
 
         entity_ids.push(
             entity_container
-                .lock()
                 .entity_builder()
                 .with_component(Playable("pla4".to_string()))
                 .with_component(Camera("cam4".to_string()))
@@ -675,11 +670,11 @@ mod tests {
 
         let entity_group_event = entity_group.event_receiver(true, &mut entity_container.lock());
 
-        let id0 = entity_container.lock().entity_builder().build();
-        let id1 = entity_container.lock().entity_builder().build();
-        let id2 = entity_container.lock().entity_builder().build();
-        let id3 = entity_container.lock().entity_builder().build();
-        let id4 = entity_container.lock().entity_builder().build();
+        let id0 = entity_container.entity_builder().build();
+        let id1 = entity_container.entity_builder().build();
+        let id2 = entity_container.entity_builder().build();
+        let id3 = entity_container.entity_builder().build();
+        let id4 = entity_container.entity_builder().build();
 
         let mut entity_container_guard = entity_container.lock();
 
@@ -975,7 +970,6 @@ mod tests {
         ]);
 
         let id = entity_container
-            .lock()
             .entity_builder()
             .with_component(Position("pos0".to_string()))
             .with_component(Velocity("vel0".to_string()))
@@ -1035,7 +1029,6 @@ mod tests {
         ]);
 
         entity_container
-            .lock()
             .entity_builder()
             .with_component(Position("pos0".to_string()))
             .with_component(Velocity("vel0".to_string()))
@@ -1065,7 +1058,6 @@ mod tests {
         ]);
 
         let id = entity_container
-            .lock()
             .entity_builder()
             .with_component(Position("pos0".to_string()))
             .with_component(Velocity("vel0".to_string()))

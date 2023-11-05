@@ -11,19 +11,20 @@ use muleengine::{
 use parking_lot::RwLock;
 use rapier3d::prelude::{
     nalgebra::{self, *},
-    BroadPhase, CCDSolver, ColliderBuilder as RapierColliderBuilder, ColliderSet, ImpulseJointSet,
-    IntegrationParameters, IslandManager, MultibodyJointSet, NarrowPhase, PhysicsPipeline,
-    RigidBodyBuilder as RapierRigidBodyBuilder, RigidBodyHandle, RigidBodySet,
+    BroadPhase, CCDSolver, Collider, ColliderBuilder as RapierColliderBuilder, ColliderSet,
+    ColliderShape as RapierColliderShape, ImpulseJointSet, IntegrationParameters, IslandManager,
+    MultibodyJointSet, NarrowPhase, PhysicsPipeline, RigidBodyBuilder as RapierRigidBodyBuilder,
+    RigidBodyHandle as RapierRigidBodyHandle, RigidBodySet,
 };
 use tokio::time::{interval, Instant, MissedTickBehavior};
 use vek::{Quaternion, Vec3};
 
 pub type Rapier3dPhysicsEngineService = RwLock<Rapier3dPhysicsEngine>;
 
-const NUMBER_OF_STORED_STATES: usize = 2;
+const NUMBER_OF_STORED_STATES: usize = 1;
 
-pub struct RigidBodyDescriptor {
-    rigid_body_handle: RigidBodyHandle,
+pub struct RigidBodyHandler {
+    inner_handle: RapierRigidBodyHandle,
 }
 
 #[derive(Clone)]
@@ -79,96 +80,139 @@ pub fn run(app_context: &mut ApplicationContext) {
     });
 }
 
-#[method_taskifier_impl(module_name = physics_decoupler)]
-impl Rapier3dPhysicsEngine {
-    fn new() -> Self {
-        Self::from_objects_state(Rapier3dObjectsState {
-            rigid_body_set: RigidBodySet::new(),
-            collider_set: ColliderSet::new(),
-            impulse_joint_set: ImpulseJointSet::new(),
-            multibody_joint_set: MultibodyJointSet::new(),
-        })
+pub enum ColliderShape {
+    Box { x: f32, y: f32, z: f32 },
+    Sphere { radius: f32 },
+}
+
+pub struct ColliderBuilder {
+    position: Vec3<f32>,
+    shape: ColliderShape,
+    is_sensor: bool,
+}
+
+impl ColliderBuilder {
+    fn new(shape: ColliderShape) -> Self {
+        Self {
+            position: Vec3::broadcast(0.0),
+            shape,
+            is_sensor: false,
+        }
     }
 
-    fn from_objects_state(state: Rapier3dObjectsState) -> Self {
-        let mut previous_states = VecDeque::with_capacity(NUMBER_OF_STORED_STATES);
-        previous_states.push_back(state.clone());
+    pub fn position(mut self, position: Vec3<f32>) -> Self {
+        self.position = position;
+        self
+    }
 
-        let current_time = Instant::now();
+    pub fn is_sensor(mut self, is_sensor: bool) -> Self {
+        self.is_sensor = is_sensor;
+        self
+    }
 
-        let mut ret = Self {
-            last_tick_time: current_time,
-            predicted_next_tick_time: current_time,
-
-            integration_parameters: IntegrationParameters::default(),
-
-            physics_pipeline: PhysicsPipeline::new(),
-            island_manager: IslandManager::new(),
-            broad_phase: BroadPhase::new(),
-            narrow_phase: NarrowPhase::new(),
-
-            current_state: state,
-            previous_states,
-
-            ccd_solver: CCDSolver::new(),
-            physics_hooks: (),
-            event_handler: (),
+    pub fn build(self) -> Collider {
+        let rapier_shape = match self.shape {
+            ColliderShape::Box { x, y, z } => {
+                RapierColliderShape::cuboid(x / 2.0, y / 2.0, z / 2.0)
+            }
+            ColliderShape::Sphere { radius } => RapierColliderShape::ball(radius),
         };
 
-        /* Create the ground. */
-        // todo!("remove ground")
-        let collider = RapierColliderBuilder::cuboid(1000.0, 0.1, 1000.0).build();
-        ret.current_state.collider_set.insert(collider);
+        RapierColliderBuilder::new(rapier_shape)
+            .translation(vector![self.position.x, self.position.y, self.position.z])
+            .sensor(self.is_sensor)
+            .build()
+    }
+}
 
-        ret
+#[derive(Clone)]
+pub struct RigidBody {
+    pub colliders: Vec<Collider>,
+    pub position: Vec3<f32>,
+    pub rigid_body_type: RigidBodyType,
+}
+
+#[derive(Clone)]
+pub enum RigidBodyType {
+    Dynamic,
+    Static,
+}
+
+pub struct RigidBodyBuilder {
+    rigid_body: RigidBody,
+}
+
+impl RigidBodyBuilder {
+    fn new(collider: Collider, rigid_body_type: RigidBodyType) -> Self {
+        Self {
+            rigid_body: RigidBody {
+                colliders: vec![collider],
+                position: Vec3::broadcast(0.0),
+                rigid_body_type,
+            },
+        }
     }
 
-    pub fn create_sphere_rigid_body(
-        &mut self,
-        position: Vec3<f32>,
-        radius: f32,
-    ) -> RigidBodyDescriptor {
-        let rigid_body = RapierRigidBodyBuilder::dynamic()
-            .translation(vector![position.x, position.y, position.z])
+    pub fn position(mut self, position: Vec3<f32>) -> Self {
+        self.rigid_body.position = position;
+        self
+    }
+
+    pub fn with_collider(mut self, collider: Collider) -> Self {
+        self.rigid_body.colliders.push(collider);
+        self
+    }
+
+    pub fn build(self) -> RigidBody {
+        self.rigid_body
+    }
+}
+
+#[method_taskifier_impl(module_name = physics_decoupler)]
+impl Rapier3dPhysicsEngine {
+    pub fn collider_builder(&self, shape: ColliderShape) -> ColliderBuilder {
+        ColliderBuilder::new(shape)
+    }
+
+    pub fn rigid_body_builder(
+        &self,
+        collider: Collider,
+        rigid_body_type: RigidBodyType,
+    ) -> RigidBodyBuilder {
+        RigidBodyBuilder::new(collider, rigid_body_type)
+    }
+
+    pub fn add_rigid_body(&mut self, rigid_body: RigidBody) -> RigidBodyHandler {
+        let rigid_body_builder = match rigid_body.rigid_body_type {
+            RigidBodyType::Dynamic => RapierRigidBodyBuilder::dynamic(),
+            RigidBodyType::Static => RapierRigidBodyBuilder::fixed(),
+        };
+        let rapier_rigid_body = rigid_body_builder
+            .translation(vector![
+                rigid_body.position.x,
+                rigid_body.position.y,
+                rigid_body.position.z
+            ])
             .build();
-        let collider = RapierColliderBuilder::ball(radius).restitution(0.0).build();
-        let rigid_body_handle = self.current_state.rigid_body_set.insert(rigid_body);
-        self.current_state.collider_set.insert_with_parent(
-            collider,
-            rigid_body_handle,
-            &mut self.current_state.rigid_body_set,
-        );
 
-        RigidBodyDescriptor { rigid_body_handle }
+        let rigid_body_handle = self.current_state.rigid_body_set.insert(rapier_rigid_body);
+
+        for collider in rigid_body.colliders {
+            self.current_state.collider_set.insert_with_parent(
+                collider,
+                rigid_body_handle,
+                &mut self.current_state.rigid_body_set,
+            );
+        }
+
+        RigidBodyHandler {
+            inner_handle: rigid_body_handle,
+        }
     }
 
-    pub fn create_box_rigid_body(
-        &mut self,
-        position: Vec3<f32>,
-        dimensions: Vec3<f32>,
-    ) -> RigidBodyDescriptor {
-        let rigid_body = RapierRigidBodyBuilder::dynamic()
-            .translation(vector![position.x, position.y, position.z])
-            .build();
-        let collider = RapierColliderBuilder::cuboid(
-            dimensions.x / 2.0,
-            dimensions.y / 2.0,
-            dimensions.z / 2.0,
-        )
-        .restitution(0.0)
-        .build();
-        let rigid_body_handle = self.current_state.rigid_body_set.insert(rigid_body);
-        self.current_state.collider_set.insert_with_parent(
-            collider,
-            rigid_body_handle,
-            &mut self.current_state.rigid_body_set,
-        );
-
-        RigidBodyDescriptor { rigid_body_handle }
-    }
     pub fn get_interpolated_transform_of_rigidbody(
         &self,
-        rigid_body_descriptor: &RigidBodyDescriptor,
+        rigid_body_handler: &RigidBodyHandler,
         now: Instant,
     ) -> Option<(Vec3<f32>, Quaternion<f32>)> {
         let previous_state = if let Some(previous_state) = self.previous_states.back() {
@@ -178,10 +222,10 @@ impl Rapier3dPhysicsEngine {
         };
 
         let previous_rigid_body_transform =
-            previous_state.get_transform_of_rigidbody(rigid_body_descriptor);
+            previous_state.get_transform_of_rigidbody(rigid_body_handler);
         let current_rigid_body_transform = self
             .current_state
-            .get_transform_of_rigidbody(rigid_body_descriptor);
+            .get_transform_of_rigidbody(rigid_body_handler);
 
         let previous_rigid_body_transform = previous_rigid_body_transform
             .as_ref()
@@ -209,6 +253,41 @@ impl Rapier3dPhysicsEngine {
                     Quaternion::slerp_unclamped(previous_orientation, current_orientation, q),
                 )
             })
+    }
+
+    fn new() -> Self {
+        Self::from_objects_state(Rapier3dObjectsState {
+            rigid_body_set: RigidBodySet::new(),
+            collider_set: ColliderSet::new(),
+            impulse_joint_set: ImpulseJointSet::new(),
+            multibody_joint_set: MultibodyJointSet::new(),
+        })
+    }
+
+    fn from_objects_state(state: Rapier3dObjectsState) -> Self {
+        let mut previous_states = VecDeque::with_capacity(NUMBER_OF_STORED_STATES);
+        previous_states.push_back(state.clone());
+
+        let current_time = Instant::now();
+
+        Self {
+            last_tick_time: current_time,
+            predicted_next_tick_time: current_time,
+
+            integration_parameters: IntegrationParameters::default(),
+
+            physics_pipeline: PhysicsPipeline::new(),
+            island_manager: IslandManager::new(),
+            broad_phase: BroadPhase::new(),
+            narrow_phase: NarrowPhase::new(),
+
+            current_state: state,
+            previous_states,
+
+            ccd_solver: CCDSolver::new(),
+            physics_hooks: (),
+            event_handler: (),
+        }
     }
 
     async fn run(
@@ -274,10 +353,10 @@ impl Rapier3dPhysicsEngine {
 impl Rapier3dObjectsState {
     pub fn get_transform_of_rigidbody(
         &self,
-        rigid_body_descriptor: &RigidBodyDescriptor,
+        rigid_body_handler: &RigidBodyHandler,
     ) -> Option<(Vec3<f32>, Quaternion<f32>)> {
         self.rigid_body_set
-            .get(rigid_body_descriptor.rigid_body_handle)
+            .get(rigid_body_handler.inner_handle)
             .map(|rigid_body| {
                 let position = rigid_body.translation();
                 let rotation = rigid_body.rotation().as_vector();

@@ -117,7 +117,6 @@ pub async fn add_skybox(spawner: &Arc<Spawner>) {
 
             spawner
                 .entity_container
-                .lock()
                 .entity_builder()
                 .with_component(renderer_object_handler)
                 .build();

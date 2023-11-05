@@ -149,7 +149,7 @@ void main() {
 
 	vec3 lightIntensity = vec3(0.1f, 0.1f, 0.1f);
 
-	vec3 lightDir0 = vec3(1.2f, 0.8f, -1.0f);
+	vec3 lightDir0 = vec3(1.2f, -0.8f, -1.0f);
 	vec3 lightColor0 = vec3(1.0f, 1.0f, 1.0f);
 	lightIntensity += lightColor0 * clamp(dot(normal, -normalize(lightDir0)), 0.0f, 1.0f);
 

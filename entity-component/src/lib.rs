@@ -26,8 +26,7 @@ mod tests {
     fn create_remove_entity() {
         let entity_container = EntityContainer::new();
 
-        let entity_container_guard = entity_container.lock();
-        let id = entity_container_guard.entity_builder().build();
+        let id = entity_container.entity_builder().build();
 
         let mut entity_container_guard = entity_container.lock();
         assert!(entity_container_guard.remove_entity(&id));
@@ -38,7 +37,7 @@ mod tests {
     fn add_component() {
         let entity_container = EntityContainer::new();
 
-        let id = entity_container.lock().entity_builder().build();
+        let id = entity_container.entity_builder().build();
 
         let mut entity_container_guard = entity_container.lock();
 
@@ -57,7 +56,6 @@ mod tests {
         let entity_container = EntityContainer::new();
 
         let id = entity_container
-            .lock()
             .entity_builder()
             .with_component("initial text".to_string())
             .build();
@@ -75,7 +73,6 @@ mod tests {
         let entity_container = EntityContainer::new();
 
         let id = entity_container
-            .lock()
             .entity_builder()
             .with_component("initial text".to_string())
             .build();
@@ -114,7 +111,6 @@ mod tests {
         let number_of_entities = 20;
         (0..number_of_entities).for_each(|index| {
             entity_container
-                .lock()
                 .entity_builder()
                 .with_component(format!("component {}", index))
                 .build();

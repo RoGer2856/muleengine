@@ -15,7 +15,7 @@ use super::{
     EntityGroup, EntityHandler,
 };
 
-#[derive(Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct EntityId(pub ObjectPoolIndex);
 
 pub struct EntityContainerGuard<'entity_container_guards> {
@@ -58,13 +58,13 @@ impl EntityContainer {
             entity_modified_event_guard: self.entity_modified_event.lock(),
         }
     }
+
+    pub fn entity_builder(&self) -> EntityBuilder {
+        EntityBuilder::new(self.clone())
+    }
 }
 
 impl<'entity_container_guards> EntityContainerGuard<'entity_container_guards> {
-    pub fn entity_builder(self) -> EntityBuilder<'entity_container_guards> {
-        EntityBuilder::new(self)
-    }
-
     pub fn entity_group(
         &mut self,
         component_type_list: impl ToSortedComponentTypeList,

@@ -613,10 +613,6 @@ impl Mesh {
         self.positions.len()
     }
 
-    pub fn material_ref(&self) -> &Material {
-        &self.material
-    }
-
     pub fn compute_tangents(&mut self, uv_channel_id: usize) {
         if uv_channel_id < self.uv_channels.len() {
             let faces = self.faces.as_slice();

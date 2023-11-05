@@ -1,18 +1,18 @@
 use std::any::TypeId;
 
-use super::{component::ComponentTrait, EntityContainerGuard, EntityId};
+use crate::EntityContainer;
 
-pub struct EntityBuilder<'entity_container_guards> {
-    entity_container_guard: EntityContainerGuard<'entity_container_guards>,
+use super::{component::ComponentTrait, EntityId};
+
+pub struct EntityBuilder {
+    entity_container: EntityContainer,
     components: Vec<(TypeId, Box<dyn ComponentTrait>)>,
 }
 
-impl<'entity_container_guards> EntityBuilder<'entity_container_guards> {
-    pub(super) fn new(
-        entity_container_guard: EntityContainerGuard<'entity_container_guards>,
-    ) -> Self {
+impl EntityBuilder {
+    pub(super) fn new(entity_container: EntityContainer) -> Self {
         Self {
-            entity_container_guard,
+            entity_container,
             components: Vec::new(),
         }
     }
@@ -42,8 +42,8 @@ impl<'entity_container_guards> EntityBuilder<'entity_container_guards> {
         self
     }
 
-    pub fn build(mut self) -> EntityId {
-        self.entity_container_guard
-            .add_entity(self.components.into_iter())
+    pub fn build(self) -> EntityId {
+        let mut entity_container_guard = self.entity_container.lock();
+        entity_container_guard.add_entity(self.components.into_iter())
     }
 }

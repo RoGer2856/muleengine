@@ -12,7 +12,7 @@ use muleengine::{
 use tokio::time::Instant;
 use vek::{Transform, Vec3};
 
-use crate::physics::{Rapier3dPhysicsEngineService, RigidBodyDescriptor};
+use crate::physics::{Rapier3dPhysicsEngineService, RigidBodyHandler};
 
 pub struct RendererToPhysicsObjectCouplerSystem {
     renderer_client: renderer_decoupler::Client,
@@ -49,7 +49,7 @@ impl RendererToPhysicsObjectCouplerSystem {
         let entity_group = entity_container_guard.entity_group(component_type_list!(
             RendererObjectHandler,
             RendererTransformHandler,
-            RigidBodyDescriptor,
+            RigidBodyHandler,
         ));
 
         drop(entity_container_guard);
@@ -68,10 +68,12 @@ impl System for RendererToPhysicsObjectCouplerSystem {
     fn tick(&mut self, _delta_time_in_secs: f32) {
         let now = Instant::now();
 
+        let physics_engine = self.physics_engine.read();
+
         for entity_id in self.entity_group.iter_entity_ids() {
             if let Some(handler) = self.entity_container.lock().handler_for_entity(&entity_id) {
-                let rigid_body_descriptor =
-                    if let Some(component) = handler.get_component_ref::<RigidBodyDescriptor>() {
+                let rigid_body_handler =
+                    if let Some(component) = handler.get_component_ref::<RigidBodyHandler>() {
                         component
                     } else {
                         unreachable!()
@@ -85,10 +87,8 @@ impl System for RendererToPhysicsObjectCouplerSystem {
                     unreachable!()
                 };
 
-                if let Some((position, rotation)) = self
-                    .physics_engine
-                    .read()
-                    .get_interpolated_transform_of_rigidbody(&rigid_body_descriptor, now)
+                if let Some((position, rotation)) =
+                    physics_engine.get_interpolated_transform_of_rigidbody(&rigid_body_handler, now)
                 {
                     let new_transform = Transform {
                         position,
