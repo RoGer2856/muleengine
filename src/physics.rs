@@ -81,6 +81,9 @@ pub fn run(app_context: &mut ApplicationContext) {
 }
 
 pub enum ColliderShape {
+    Capsule { radius: f32, height: f32 },
+    Cone { radius: f32, height: f32 },
+    Cylinder { radius: f32, height: f32 },
     Box { x: f32, y: f32, z: f32 },
     Sphere { radius: f32 },
 }
@@ -112,6 +115,15 @@ impl ColliderBuilder {
 
     pub fn build(self) -> Collider {
         let rapier_shape = match self.shape {
+            ColliderShape::Capsule { radius, height } => {
+                RapierColliderShape::capsule_y(height / 2.0, radius)
+            }
+            ColliderShape::Cone { radius, height } => {
+                RapierColliderShape::cone(height / 2.0, radius)
+            }
+            ColliderShape::Cylinder { radius, height } => {
+                RapierColliderShape::cylinder(height / 2.0, radius)
+            }
             ColliderShape::Box { x, y, z } => {
                 RapierColliderShape::cuboid(x / 2.0, y / 2.0, z / 2.0)
             }
