@@ -7,7 +7,7 @@
     clippy::collapsible_if
 )]
 
-pub mod entities;
 pub mod game_2;
+pub mod game_objects;
 pub mod physics;
 pub mod systems;

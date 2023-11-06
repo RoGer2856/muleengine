@@ -6,7 +6,7 @@ use muleengine::{
 };
 use vek::{Transform, Vec3};
 
-use super::spawner::Spawner;
+use super::tools::spawner_services::Spawner;
 
 pub async fn add_skybox(spawner: &Arc<Spawner>) {
     let transform = Transform::<f32, f32, f32>::default();

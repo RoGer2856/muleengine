@@ -7,17 +7,16 @@ use muleengine::{
 };
 use vek::{Transform, Vec3};
 
-use crate::{
-    entities::game_object_builder::GameObjectBuilder,
-    physics::{ColliderShape, RigidBodyType},
+use crate::physics::{ColliderShape, RigidBodyType};
+
+use self::{
+    skybox::add_skybox,
+    tools::{game_object_builder::GameObjectBuilder, spawner_services::Spawner},
 };
 
-use self::{skybox::add_skybox, spawner::Spawner};
-
-pub mod game_object_builder;
 pub mod rigid_bodies;
 pub mod skybox;
-pub mod spawner;
+pub mod tools;
 
 pub async fn populate_with_objects(spawner: &Arc<Spawner>) {
     add_skybox(spawner).await;

@@ -18,7 +18,7 @@ use sdl2_opengl_muleengine::{
 use vek::Vec2;
 
 use crate::{
-    entities::{populate_with_objects, spawner::Spawner},
+    game_objects::{populate_with_objects, tools::spawner_services::Spawner},
     physics,
     systems::{
         fps_camera, renderer_configuration::RendererConfiguration,

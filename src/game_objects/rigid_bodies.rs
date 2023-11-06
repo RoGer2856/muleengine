@@ -6,7 +6,7 @@ use vek::{Transform, Vec3};
 
 use crate::physics::{ColliderShape, RigidBodyType};
 
-use super::{game_object_builder::GameObjectBuilder, spawner::Spawner};
+use super::tools::{game_object_builder::GameObjectBuilder, spawner_services::Spawner};
 
 pub async fn create_box(
     spawner: &Arc<Spawner>,

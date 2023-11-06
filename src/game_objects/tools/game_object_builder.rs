@@ -11,10 +11,9 @@ use muleengine::{
 };
 use vek::{Transform, Vec3};
 
-use crate::{
-    entities::spawner::Spawner,
-    physics::{ColliderShape, RigidBody, RigidBodyType},
-};
+use crate::physics::{ColliderShape, RigidBody, RigidBodyType};
+
+use super::spawner_services::Spawner;
 
 #[derive(Clone)]
 pub struct GameObjectBuilder<'a> {
