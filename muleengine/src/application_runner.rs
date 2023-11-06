@@ -1,4 +1,4 @@
-use std::{panic, time::Duration};
+use std::{panic, time::Duration, thread};
 
 use bytifex_utils::{result_option_inspect::ResultInspector, sync::app_loop_state::AppLoopState};
 use tokio::{
@@ -132,13 +132,26 @@ pub async fn async_run<ApplicationType>(
         delta_time_in_secs = delta_time_stopwatch.restart().as_secs_f32();
     }
 
+    panic::set_hook(old_panic_hook);
+
     let drop_task = async move {
         drop(application);
         drop(app_context);
+    
     };
 
     let timeout = Duration::from_secs(10);
     let timestamp = Instant::now() + timeout;
+
+    {
+        let timeout = timeout + Duration::from_secs(1);
+        thread::spawn(move || {
+            thread::sleep(timeout);
+            log::error!("Application exited forcefully, timeot = {:?}", timeout);
+            std::process::exit(0xff);
+        });
+    }
+
     tokio::select! {
         _ = sleep_until(timestamp) => {
             log::error!("Could not shutdown gracefully in {:?}", timeout);
@@ -146,6 +159,4 @@ pub async fn async_run<ApplicationType>(
         _ = drop_task => {
         }
     }
-
-    panic::set_hook(old_panic_hook);
 }
