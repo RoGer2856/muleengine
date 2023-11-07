@@ -6,10 +6,21 @@ use muleengine::{
 };
 use vek::{Transform, Vec3};
 
-use super::tools::spawner_services::Spawner;
+use super::tools::{game_object_builder::GameObjectBuilder, spawner_services::Spawner};
 
 pub async fn add_skybox(spawner: &Arc<Spawner>) {
-    let transform = Transform::<f32, f32, f32>::default();
+    let game_object_builder = GameObjectBuilder::new(spawner)
+        .renderer_group_handler(
+            spawner
+                .renderer_configuration
+                .skydome_renderer_group_handler()
+                .await
+                .clone(),
+        )
+        .shader("Assets/shaders/unlit")
+        .await
+        .transform(Transform::<f32, f32, f32>::default())
+        .await;
 
     let scene_path = "Assets/objects/skybox/Skybox.obj";
     let scene = spawner
@@ -24,39 +35,19 @@ pub async fn add_skybox(spawner: &Arc<Spawner>) {
         .inspect_err(|e| log::error!("{e:?}"))
         .unwrap();
 
-    let skydome_renderer_group_handler = spawner
-        .renderer_configuration
-        .skydome_renderer_group_handler()
-        .await
-        .clone();
+    let texture_paths = [
+        "Assets/objects/skybox/skyboxRight.png",
+        "Assets/objects/skybox/skyboxLeft.png",
+        "Assets/objects/skybox/skyboxTop.png",
+        "Assets/objects/skybox/skyboxBottom.png",
+        "Assets/objects/skybox/skyboxFront.png",
+        "Assets/objects/skybox/skyboxBack.png",
+    ];
 
     if scene.meshes_ref().len() == 6 {
-        let texture_paths = [
-            "Assets/objects/skybox/skyboxRight.png",
-            "Assets/objects/skybox/skyboxLeft.png",
-            "Assets/objects/skybox/skyboxTop.png",
-            "Assets/objects/skybox/skyboxBottom.png",
-            "Assets/objects/skybox/skyboxFront.png",
-            "Assets/objects/skybox/skyboxBack.png",
-        ];
-
-        let shader_handler = spawner
-            .renderer_client
-            .create_shader("Assets/shaders/unlit".to_string())
-            .await
-            .inspect_err(|e| log::error!("{e:?}"))
-            .unwrap()
-            .unwrap();
-
-        let transform_handler = spawner
-            .renderer_client
-            .create_transform(transform)
-            .await
-            .inspect_err(|e| log::error!("{e:?}"))
-            .unwrap()
-            .unwrap();
-
         for (index, texture_path) in texture_paths.iter().enumerate() {
+            let game_object_builder = game_object_builder.clone();
+
             let material = Material {
                 textures: vec![MaterialTexture {
                     image: spawner
@@ -77,49 +68,15 @@ pub async fn add_skybox(spawner: &Arc<Spawner>) {
 
             let mesh = scene.meshes_ref()[index].as_ref().unwrap().clone();
 
-            let material_handler = spawner
-                .renderer_client
-                .create_material(material)
+            let entity_builder = game_object_builder
+                .mesh(mesh)
                 .await
-                .inspect_err(|e| log::error!("{e:?}"))
-                .unwrap()
-                .unwrap();
-            let mesh_handler = spawner
-                .renderer_client
-                .create_mesh(mesh)
+                .material(material)
                 .await
-                .inspect_err(|e| log::error!("{e:?}"))
-                .unwrap()
-                .unwrap();
-            let renderer_object_handler = spawner
-                .renderer_client
-                .create_renderer_object_from_mesh(
-                    mesh_handler,
-                    shader_handler.clone(),
-                    material_handler,
-                    transform_handler.clone(),
-                )
-                .await
-                .inspect_err(|e| log::error!("{e:?}"))
-                .unwrap()
-                .unwrap();
+                .build()
+                .await;
 
-            spawner
-                .renderer_client
-                .add_renderer_object_to_group(
-                    renderer_object_handler.clone(),
-                    skydome_renderer_group_handler.clone(),
-                )
-                .await
-                .inspect_err(|e| log::error!("{e:?}"))
-                .unwrap()
-                .unwrap();
-
-            spawner
-                .entity_container
-                .entity_builder()
-                .with_component(renderer_object_handler)
-                .build();
+            entity_builder.build();
         }
     } else {
         log::error!("Skybox does not contain exactly 6 meshes");

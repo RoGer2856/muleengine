@@ -1,4 +1,4 @@
-use std::{panic, time::Duration, thread};
+use std::{panic, thread, time::Duration};
 
 use bytifex_utils::{result_option_inspect::ResultInspector, sync::app_loop_state::AppLoopState};
 use tokio::{
@@ -137,7 +137,6 @@ pub async fn async_run<ApplicationType>(
     let drop_task = async move {
         drop(application);
         drop(app_context);
-    
     };
 
     let timeout = Duration::from_secs(10);
