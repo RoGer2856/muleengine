@@ -132,8 +132,6 @@ pub async fn async_run<ApplicationType>(
         delta_time_in_secs = delta_time_stopwatch.restart().as_secs_f32();
     }
 
-    panic::set_hook(old_panic_hook);
-
     let drop_task = async move {
         drop(application);
         drop(app_context);
@@ -158,4 +156,6 @@ pub async fn async_run<ApplicationType>(
         _ = drop_task => {
         }
     }
+
+    panic::set_hook(old_panic_hook);
 }

@@ -4,7 +4,6 @@ macro_rules! renderer_object_mod {
             use std::{cmp::Ordering, fmt::Debug, sync::Arc};
 
             use crate::{
-                bytifex_utils::result_option_inspect::ResultInspector,
                 bytifex_utils::{cast::AsAny, containers::object_pool::ObjectPoolIndex},
                 renderer::renderer_system::renderer_decoupler,
             };
@@ -62,12 +61,7 @@ macro_rules! renderer_object_mod {
 
             impl Drop for HandlerDestructor {
                 fn drop(&mut self) {
-                    let fut = self.renderer_client.$release_fn(self.object_pool_index);
-                    tokio::spawn(async move {
-                        let _ = fut.await.inspect_err(|e| {
-                            log::error!("Release {}, msg = {e:?}", $trait_name_literal)
-                        });
-                    });
+                    drop(self.renderer_client.$release_fn(self.object_pool_index));
                 }
             }
         }
