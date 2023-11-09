@@ -22,7 +22,8 @@ use crate::{
     physics,
     systems::{
         fps_camera, renderer_configuration::RendererConfiguration,
-        renderer_to_physics_object_coupler_system::RendererToPhysicsObjectCouplerSystem,
+        renderer_transform_updater::RendererTransformUpdaterSystem,
+        transform_to_physics_object_coupler_system::TransformToPhysicsObjectCouplerSystem,
     },
 };
 
@@ -107,11 +108,16 @@ impl Game2 {
         fps_camera::run(window_context, app_context);
         physics::run(app_context);
 
-        let renderer_to_physics_object_coupler_system =
-            RendererToPhysicsObjectCouplerSystem::new(app_context);
+        let transform_to_physics_object_coupler_system =
+            TransformToPhysicsObjectCouplerSystem::new(app_context);
         app_context
             .system_container_mut()
-            .add_system(renderer_to_physics_object_coupler_system);
+            .add_system(transform_to_physics_object_coupler_system);
+
+        let renderer_transform_updater = RendererTransformUpdaterSystem::new(app_context);
+        app_context
+            .system_container_mut()
+            .add_system(renderer_transform_updater);
 
         let spawner = app_context
             .service_container_ref()

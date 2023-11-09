@@ -6,7 +6,6 @@ use muleengine::{
     mesh::{Material, Mesh},
     renderer::{
         RendererGroupHandler, RendererMaterialHandler, RendererMeshHandler, RendererShaderHandler,
-        RendererTransformHandler,
     },
 };
 use vek::{Transform, Vec3};
@@ -19,7 +18,7 @@ use super::spawner_services::Spawner;
 pub struct GameObjectBuilder<'a> {
     spawner: &'a Arc<Spawner>,
     shader_handler: Option<RendererShaderHandler>,
-    transform_handler: Option<RendererTransformHandler>,
+    transform: Option<Transform<f32, f32, f32>>,
     mesh_default_material: Option<Material>,
     mesh_handler: Option<RendererMeshHandler>,
     material_handler: Option<RendererMaterialHandler>,
@@ -32,7 +31,7 @@ impl<'a> GameObjectBuilder<'a> {
         Self {
             spawner,
             shader_handler: None,
-            transform_handler: None,
+            transform: None,
             mesh_default_material: None,
             mesh_handler: None,
             material_handler: None,
@@ -91,25 +90,12 @@ impl<'a> GameObjectBuilder<'a> {
     }
 
     pub fn reset_transform(mut self) -> GameObjectBuilder<'a> {
-        self.transform_handler = None;
+        self.transform = None;
         self
     }
 
     pub async fn transform(mut self, transform: Transform<f32, f32, f32>) -> GameObjectBuilder<'a> {
-        self.transform_handler = Some(
-            self.spawner
-                .renderer_client
-                .create_transform(transform)
-                .await
-                .inspect_err(|e| log::error!("{e:?}"))
-                .unwrap()
-                .unwrap(),
-        );
-        self
-    }
-
-    pub fn transform_handler(mut self, transform_handler: RendererTransformHandler) -> Self {
-        self.transform_handler = Some(transform_handler);
+        self.transform = Some(transform);
         self
     }
 
@@ -173,13 +159,21 @@ impl<'a> GameObjectBuilder<'a> {
             .mesh_handler
             .as_ref()
             .zip(self.renderer_group_handler.as_ref())
-            .zip(self.transform_handler.as_ref())
             .zip(self.shader_handler.as_ref())
         {
-            let mesh_handler_ref = objects.0 .0 .0;
+            let mesh_handler_ref = objects.0 .0;
             let shader_handler_ref = objects.1;
-            let transform_handler_ref = objects.0 .1;
-            let renderer_group_handler_ref = objects.0 .0 .1;
+            let renderer_group_handler_ref = objects.0 .1;
+
+            let transform = self.transform.unwrap_or_default();
+            let transform_handler = self
+                .spawner
+                .renderer_client
+                .create_transform(transform)
+                .await
+                .inspect_err(|e| log::error!("{e:?}"))
+                .unwrap()
+                .unwrap();
 
             let material_handler =
                 if let Some(material_handler_ref) = self.material_handler.as_ref() {
@@ -207,7 +201,7 @@ impl<'a> GameObjectBuilder<'a> {
                     mesh_handler_ref.clone(),
                     shader_handler_ref.clone(),
                     material_handler,
-                    transform_handler_ref.clone(),
+                    transform_handler.clone(),
                 )
                 .await
                 .unwrap()
@@ -225,7 +219,8 @@ impl<'a> GameObjectBuilder<'a> {
 
             entity_builder
                 .with_component(renderer_object_handler.clone())
-                .with_component(transform_handler_ref.clone())
+                .with_component(transform_handler)
+                .with_component(transform)
         } else {
             entity_builder
         };

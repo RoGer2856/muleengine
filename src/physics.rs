@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, time::Duration};
+use std::{collections::VecDeque, sync::Arc, time::Duration};
 
 use method_taskifier::{
     method_taskifier_impl,
@@ -7,6 +7,7 @@ use method_taskifier::{
 use muleengine::{
     application_runner::ApplicationContext,
     bytifex_utils::sync::{app_loop_state::AppLoopStateWatcher, types::ArcRwLock},
+    heightmap::HeightMap,
 };
 use parking_lot::RwLock;
 use rapier3d::prelude::{
@@ -14,7 +15,7 @@ use rapier3d::prelude::{
     BroadPhase, CCDSolver, Collider, ColliderBuilder as RapierColliderBuilder, ColliderSet,
     ColliderShape as RapierColliderShape, ImpulseJointSet, IntegrationParameters, IslandManager,
     MultibodyJointSet, NarrowPhase, PhysicsPipeline, RigidBodyBuilder as RapierRigidBodyBuilder,
-    RigidBodyHandle as RapierRigidBodyHandle, RigidBodySet,
+    RigidBodyHandle as RapierRigidBodyHandle, RigidBodySet, Vector,
 };
 use tokio::time::{interval, Instant, MissedTickBehavior};
 use vek::{Quaternion, Vec3};
@@ -81,11 +82,30 @@ pub fn run(app_context: &mut ApplicationContext) {
 }
 
 pub enum ColliderShape {
-    Capsule { radius: f32, height: f32 },
-    Cone { radius: f32, height: f32 },
-    Cylinder { radius: f32, height: f32 },
-    Box { x: f32, y: f32, z: f32 },
-    Sphere { radius: f32 },
+    Capsule {
+        radius: f32,
+        height: f32,
+    },
+    Cone {
+        radius: f32,
+        height: f32,
+    },
+    Cylinder {
+        radius: f32,
+        height: f32,
+    },
+    Box {
+        x: f32,
+        y: f32,
+        z: f32,
+    },
+    Sphere {
+        radius: f32,
+    },
+    Heightmap {
+        heightmap: Arc<HeightMap>,
+        scale: Vec3<f32>,
+    },
 }
 
 pub struct ColliderBuilder {
@@ -114,6 +134,7 @@ impl ColliderBuilder {
     }
 
     pub fn build(self) -> Collider {
+        let mut position_offset = Vec3::zero();
         let rapier_shape = match self.shape {
             ColliderShape::Capsule { radius, height } => {
                 RapierColliderShape::capsule_y(height / 2.0, radius)
@@ -128,10 +149,24 @@ impl ColliderBuilder {
                 RapierColliderShape::cuboid(x / 2.0, y / 2.0, z / 2.0)
             }
             ColliderShape::Sphere { radius } => RapierColliderShape::ball(radius),
+            ColliderShape::Heightmap { heightmap, scale } => {
+                let scale = Vector::new(scale.x, scale.y, scale.z);
+                let heights = DMatrix::from_fn(
+                    heightmap.get_row_count(),
+                    heightmap.get_column_count(),
+                    |x, y| heightmap.get_height_map()[y][x],
+                );
+                position_offset.y = -scale.y / 2.0;
+                RapierColliderShape::heightfield(heights, scale)
+            }
         };
 
         RapierColliderBuilder::new(rapier_shape)
-            .translation(vector![self.position.x, self.position.y, self.position.z])
+            .translation(vector![
+                self.position.x + position_offset.x,
+                self.position.y + position_offset.y,
+                self.position.z + position_offset.z
+            ])
             .sensor(self.is_sensor)
             .build()
     }

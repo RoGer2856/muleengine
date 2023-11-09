@@ -74,7 +74,7 @@ impl HeightMap {
     }
 
     pub fn get_height_at(&self, x: f32, y: f32) -> f32 {
-        // TODO(@RoGer): the four points are not always on the same plane
+        // todo!("the four points are not always on the same plane")
         /*
          *
          *    A----------B

@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use muleengine::{
     bytifex_utils::result_option_inspect::ResultInspector,
+    heightmap::HeightMap,
     mesh::{Material, MaterialTexture},
     mesh_creator,
 };
@@ -20,7 +21,15 @@ pub mod tools;
 
 pub async fn populate_with_objects(spawner: &Arc<Spawner>) {
     add_skybox(spawner).await;
-    add_ground(spawner).await;
+    // add_heightmap(spawner, "Assets/heightmap.png").await;
+
+    // let wall_prefix = "wall11";
+    // add_heightmap(spawner, &format!("Assets/ADG_Textures/walls_vol1/{wall_prefix}/{wall_prefix}_Height.png"),).await;
+
+    let wall_prefix = "wall10";
+    add_heightmap(spawner, &format!("Assets/ADG_Textures/walls_vol1/{wall_prefix}/{wall_prefix}_Height.png"),).await;
+
+    add_simple_ground(spawner).await;
     add_physics_entities(spawner).await;
 
     add_sample_capsule(spawner).await;
@@ -32,9 +41,51 @@ pub async fn populate_with_objects(spawner: &Arc<Spawner>) {
     add_scene_from_file(spawner, scene_path, Vec3::new(0.0, 0.0, -5.0)).await;
 }
 
-pub async fn add_ground(spawner: &Arc<Spawner>) {
-    let dimensions = Vec3::new(50.0, 1.0, 50.0);
-    let position = Vec3::new(0.0, -2.0, -20.0);
+pub async fn add_heightmap(spawner: &Arc<Spawner>, heightmap_path: &str) {
+    let position = Vec3::new(25.0, -2.0, -20.0);
+    let scale = Vec3::new(50.0, 2.0, 50.0);
+
+    let heightmap_image = spawner
+        .asset_container
+        .image_container()
+        .write()
+        .get_image(heightmap_path, spawner.asset_container.asset_reader())
+        .unwrap();
+
+    let heightmap = Arc::new(HeightMap::from_images(&heightmap_image, None).unwrap());
+
+    let entity_builder = GameObjectBuilder::new(spawner)
+        .mesh(Arc::new(mesh_creator::heightmap::create(&heightmap)))
+        .await
+        .shader("Assets/shaders/lit_normal")
+        .await
+        .transform(Transform {
+            position,
+            scale,
+            ..Default::default()
+        })
+        .await
+        .renderer_group_handler(
+            spawner
+                .renderer_configuration
+                .main_renderer_group_handler()
+                .await
+                .clone(),
+        )
+        .simple_rigid_body(
+            position,
+            ColliderShape::Heightmap { heightmap, scale },
+            RigidBodyType::Static,
+        )
+        .build()
+        .await;
+
+    entity_builder.build();
+}
+
+pub async fn add_simple_ground(spawner: &Arc<Spawner>) {
+    let dimensions = Vec3::new(50.0, 2.0, 50.0);
+    let position = Vec3::new(-25.0, -2.0, -20.0);
 
     let mut material = Material::new();
     let wall_prefix = "wall10";
@@ -85,7 +136,7 @@ pub async fn add_ground(spawner: &Arc<Spawner>) {
         .await
         .transform(Transform::<f32, f32, f32> {
             position,
-            scale: dimensions,
+            scale: Vec3::new(1.0, 1.0, 1.0),
             ..Transform::<f32, f32, f32>::default()
         })
         .await
@@ -113,23 +164,38 @@ pub async fn add_ground(spawner: &Arc<Spawner>) {
 }
 
 async fn add_physics_entities(spawner: &Arc<Spawner>) {
-    let position_offset = Vec3::new(0.0, 0.0, -30.0);
-    let cube_dimensions = Vec3::broadcast(1.0);
-    let sphere_radius = 0.5;
-    let space_between_objects = 3.0;
+    const OBJECT_COUNT: Vec3<usize> = Vec3 { x: 5, y: 5, z: 5 };
+
+    const OBJECT_SIZE: f32 = 1.0;
+    const CUBE_DIMENSIONS: Vec3<f32> = Vec3 {
+        x: OBJECT_SIZE,
+        y: OBJECT_SIZE,
+        z: OBJECT_SIZE,
+    };
+    const SPHERE_RADIUS: f32 = OBJECT_SIZE / 2.0;
+    const SPACE_BETWEEN_OBJECTS: f32 = 3.0;
+
+    const CENTER_OF_MASS: Vec3<f32> = Vec3::new(
+        (OBJECT_COUNT.x as f32 - 1.0) * SPACE_BETWEEN_OBJECTS / 2.0,
+        (OBJECT_COUNT.y as f32 - 1.0) * SPACE_BETWEEN_OBJECTS / 2.0,
+        (OBJECT_COUNT.z as f32 - 1.0) * SPACE_BETWEEN_OBJECTS / 2.0,
+    );
+
+    const POSITION_OFFSET: Vec3<f32> = Vec3::new(-CENTER_OF_MASS.x, 0.0, -30.0);
+
     let mut is_cube = true;
-    for x in 0..5 {
-        for y in 0..5 {
-            for z in 0..5 {
+    for x in 0..OBJECT_COUNT.x {
+        for y in 0..OBJECT_COUNT.y {
+            for z in 0..OBJECT_COUNT.z {
                 let position = Vec3::new(
-                    x as f32 * space_between_objects,
-                    y as f32 * space_between_objects,
-                    z as f32 * space_between_objects,
-                ) + position_offset;
+                    x as f32 * SPACE_BETWEEN_OBJECTS,
+                    y as f32 * SPACE_BETWEEN_OBJECTS,
+                    z as f32 * SPACE_BETWEEN_OBJECTS,
+                ) + POSITION_OFFSET;
                 if is_cube {
-                    rigid_bodies::create_box(spawner, position, cube_dimensions).await;
+                    rigid_bodies::create_box(spawner, position, CUBE_DIMENSIONS).await;
                 } else {
-                    rigid_bodies::create_sphere(spawner, position, sphere_radius).await;
+                    rigid_bodies::create_sphere(spawner, position, SPHERE_RADIUS).await;
                 }
 
                 is_cube = !is_cube;
