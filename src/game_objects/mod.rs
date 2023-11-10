@@ -21,15 +21,45 @@ pub mod tools;
 
 pub async fn populate_with_objects(spawner: &Arc<Spawner>) {
     add_skybox(spawner).await;
-    // add_heightmap(spawner, "Assets/heightmap.png").await;
 
-    // let wall_prefix = "wall11";
-    // add_heightmap(spawner, &format!("Assets/ADG_Textures/walls_vol1/{wall_prefix}/{wall_prefix}_Height.png"),).await;
+    add_heightmap(
+        spawner,
+        Vec3::new(-25.0, -2.0, 0.0),
+        "Assets/heightmap.png",
+        None,
+    )
+    .await;
+
+    let wall_prefix = "wall11";
+    add_heightmap(
+        spawner,
+        Vec3::new(-25.0, -2.0, -50.0),
+        &format!("Assets/ADG_Textures/walls_vol1/{wall_prefix}/{wall_prefix}_Height.png"),
+        Some(&format!(
+            "Assets/ADG_Textures/walls_vol1/{wall_prefix}/{wall_prefix}_Diffuse.png"
+        )),
+    )
+    .await;
+
+    add_heightmap(
+        spawner,
+        Vec3::new(25.0, -2.0, -50.0),
+        &format!("Assets/ADG_Textures/walls_vol1/{wall_prefix}/{wall_prefix}_Height.png"),
+        None,
+    )
+    .await;
 
     let wall_prefix = "wall10";
-    add_heightmap(spawner, &format!("Assets/ADG_Textures/walls_vol1/{wall_prefix}/{wall_prefix}_Height.png"),).await;
+    add_heightmap(
+        spawner,
+        Vec3::new(25.0, -2.0, 0.0),
+        &format!("Assets/ADG_Textures/walls_vol1/{wall_prefix}/{wall_prefix}_Height.png"),
+        Some(&format!(
+            "Assets/ADG_Textures/walls_vol1/{wall_prefix}/{wall_prefix}_Diffuse.png"
+        )),
+    )
+    .await;
 
-    add_simple_ground(spawner).await;
     add_physics_entities(spawner).await;
 
     add_sample_capsule(spawner).await;
@@ -41,9 +71,31 @@ pub async fn populate_with_objects(spawner: &Arc<Spawner>) {
     add_scene_from_file(spawner, scene_path, Vec3::new(0.0, 0.0, -5.0)).await;
 }
 
-pub async fn add_heightmap(spawner: &Arc<Spawner>, heightmap_path: &str) {
-    let position = Vec3::new(25.0, -2.0, -20.0);
+pub async fn add_heightmap(
+    spawner: &Arc<Spawner>,
+    position: Vec3<f32>,
+    heightmap_path: &str,
+    albedo_path: Option<&str>,
+) {
     let scale = Vec3::new(50.0, 2.0, 50.0);
+
+    let mut material = Material::new();
+    if let Some(albedo_path) = albedo_path {
+        let albedo_image = spawner
+            .asset_container
+            .image_container()
+            .write()
+            .get_image(albedo_path, spawner.asset_container.asset_reader())
+            .unwrap();
+
+        material.add_texture(MaterialTexture::new(
+            albedo_image,
+            muleengine::mesh::MaterialTextureType::Albedo,
+            muleengine::mesh::TextureMapMode::Mirror,
+            1.0,
+            0,
+        ));
+    }
 
     let heightmap_image = spawner
         .asset_container
@@ -55,6 +107,8 @@ pub async fn add_heightmap(spawner: &Arc<Spawner>, heightmap_path: &str) {
     let heightmap = Arc::new(HeightMap::from_images(&heightmap_image, None).unwrap());
 
     let entity_builder = GameObjectBuilder::new(spawner)
+        .material(material)
+        .await
         .mesh(Arc::new(mesh_creator::heightmap::create(&heightmap)))
         .await
         .shader("Assets/shaders/lit_normal")
@@ -75,86 +129,6 @@ pub async fn add_heightmap(spawner: &Arc<Spawner>, heightmap_path: &str) {
         .simple_rigid_body(
             position,
             ColliderShape::Heightmap { heightmap, scale },
-            RigidBodyType::Static,
-        )
-        .build()
-        .await;
-
-    entity_builder.build();
-}
-
-pub async fn add_simple_ground(spawner: &Arc<Spawner>) {
-    let dimensions = Vec3::new(50.0, 2.0, 50.0);
-    let position = Vec3::new(-25.0, -2.0, -20.0);
-
-    let mut material = Material::new();
-    let wall_prefix = "wall10";
-    // let wall_prefix = "wall04";
-    // let wall_prefix = "wall02";
-    let albedo_image = spawner
-        .asset_container
-        .image_container()
-        .write()
-        .get_image(
-            &format!("Assets/ADG_Textures/walls_vol1/{wall_prefix}/{wall_prefix}_Diffuse.png"),
-            spawner.asset_container.asset_reader(),
-        )
-        .unwrap();
-    let normal_image = spawner
-        .asset_container
-        .image_container()
-        .write()
-        .get_image(
-            &format!("Assets/ADG_Textures/walls_vol1/{wall_prefix}/{wall_prefix}_Normal.png"),
-            spawner.asset_container.asset_reader(),
-        )
-        .unwrap();
-    material.add_texture(MaterialTexture::new(
-        albedo_image,
-        muleengine::mesh::MaterialTextureType::Albedo,
-        muleengine::mesh::TextureMapMode::Mirror,
-        1.0,
-        0,
-    ));
-    material.add_texture(MaterialTexture::new(
-        normal_image,
-        muleengine::mesh::MaterialTextureType::Normal,
-        muleengine::mesh::TextureMapMode::Mirror,
-        1.0,
-        0,
-    ));
-
-    let entity_builder = GameObjectBuilder::new(spawner)
-        .renderer_group_handler(
-            spawner
-                .renderer_configuration
-                .main_renderer_group_handler()
-                .await
-                .clone(),
-        )
-        .shader("Assets/shaders/lit_normal")
-        .await
-        .transform(Transform::<f32, f32, f32> {
-            position,
-            scale: Vec3::new(1.0, 1.0, 1.0),
-            ..Transform::<f32, f32, f32>::default()
-        })
-        .await
-        .mesh(Arc::new(mesh_creator::rectangle3d::create(
-            dimensions.x,
-            dimensions.y,
-            dimensions.z,
-        )))
-        .await
-        .material(material)
-        .await
-        .simple_rigid_body(
-            position,
-            ColliderShape::Box {
-                x: dimensions.x,
-                y: dimensions.y,
-                z: dimensions.z,
-            },
             RigidBodyType::Static,
         )
         .build()
