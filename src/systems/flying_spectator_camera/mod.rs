@@ -1,10 +1,10 @@
-mod fps_camera_controller;
-mod fps_camera_input;
-mod fps_camera_input_provider;
+mod flying_spectator_camera_controller;
+mod flying_spectator_camera_input;
+mod flying_spectator_camera_input_provider;
 
-use fps_camera_controller::*;
-use fps_camera_input::*;
-use fps_camera_input_provider::*;
+use flying_spectator_camera_controller::*;
+use flying_spectator_camera_input::*;
+use flying_spectator_camera_input_provider::*;
 
 use method_taskifier::task_channel::task_channel;
 use muleengine::{
@@ -17,7 +17,7 @@ use muleengine::{
     window_context::WindowContext,
 };
 
-use self::fps_camera_controller::client::Client;
+use self::flying_spectator_camera_controller::client::Client;
 
 use super::renderer_configuration::RendererConfiguration;
 
@@ -26,9 +26,10 @@ pub fn run(window_context: ArcRwLock<dyn WindowContext>, app_context: &mut Appli
     let closure_task_sender = app_context.closure_tasks_ref().clone();
     let system_container = app_context.system_container_mut();
 
-    let fps_camera_input_system = FpsCameraInputSystem::new(window_context.clone());
-    service_container.insert(fps_camera_input_system.data());
-    system_container.add_system(fps_camera_input_system);
+    let flying_spectator_camera_input_system =
+        FlyingSpectatorCameraInputSystem::new(window_context.clone());
+    service_container.insert(flying_spectator_camera_input_system.data());
+    system_container.add_system(flying_spectator_camera_input_system);
 
     tokio::spawn(async move {
         let renderer_configuration = service_container
@@ -44,8 +45,8 @@ pub fn run(window_context: ArcRwLock<dyn WindowContext>, app_context: &mut Appli
             .as_ref()
             .clone();
 
-        let fps_camera_input = service_container
-            .get_service::<FpsCameraInput>()
+        let flying_spectator_camera_input = service_container
+            .get_service::<FlyingSpectatorCameraInput>()
             .inspect_err(|e| log::error!("{e:?}"))
             .unwrap()
             .as_ref()
@@ -66,20 +67,20 @@ pub fn run(window_context: ArcRwLock<dyn WindowContext>, app_context: &mut Appli
 
         let (command_sender, command_receiver) = task_channel();
 
-        let fps_camera_client = Client::new(command_sender);
-        service_container.insert(fps_camera_client.clone());
+        let flying_spectator_camera_client = Client::new(command_sender);
+        service_container.insert(flying_spectator_camera_client.clone());
 
-        FpsCameraController::new(
+        FlyingSpectatorCameraController::new(
             app_loop_state_watcher,
             command_receiver,
             renderer_client,
             skydome_camera_transform_handler,
             main_camera_transform_handler,
-            fps_camera_input,
+            flying_spectator_camera_input,
         )
         .run()
         .await;
 
-        fps_camera_client.remove_later(closure_task_sender);
+        flying_spectator_camera_client.remove_later(closure_task_sender);
     });
 }

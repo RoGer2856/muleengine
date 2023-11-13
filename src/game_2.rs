@@ -21,7 +21,8 @@ use crate::{
     game_objects::{populate_with_objects, tools::essential_services::EssentialServices},
     physics,
     systems::{
-        character_controller_system, fps_camera, renderer_configuration::RendererConfiguration,
+        character_controller_system, flying_spectator_camera,
+        renderer_configuration::RendererConfiguration,
         renderer_transform_updater::RendererTransformUpdaterSystem,
         transform_to_physics_object_coupler_system::TransformToPhysicsObjectCouplerSystem,
     },
@@ -127,7 +128,7 @@ impl Game2 {
             .as_arc_ref()
             .clone();
 
-        fps_camera::run(window_context, app_context);
+        flying_spectator_camera::run(window_context, app_context);
         character_controller_system::run(app_context);
 
         tokio::spawn(async move {

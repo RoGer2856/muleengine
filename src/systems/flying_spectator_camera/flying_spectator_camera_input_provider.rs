@@ -7,11 +7,11 @@ use muleengine::{
 
 use vek::{Vec2, Vec3};
 
-use super::fps_camera_input::{FpsCameraInput, VelocityChangeEvent};
+use super::flying_spectator_camera_input::{FlyingSpectatorCameraInput, VelocityChangeEvent};
 
-pub(super) struct FpsCameraInputSystem {
+pub(super) struct FlyingSpectatorCameraInputSystem {
     window_context: ArcRwLock<dyn WindowContext>,
-    data: FpsCameraInput,
+    data: FlyingSpectatorCameraInput,
 
     event_receiver: EventReceiver,
 
@@ -22,7 +22,7 @@ pub(super) struct FpsCameraInputSystem {
     was_active_last_tick: bool,
 }
 
-impl FpsCameraInputSystem {
+impl FlyingSpectatorCameraInputSystem {
     pub fn new(window_context: ArcRwLock<dyn WindowContext>) -> Self {
         let velocity_change_event_sender = broadcast::Sender::new();
         let velocity_change_event_receiver = velocity_change_event_sender.create_receiver();
@@ -37,7 +37,7 @@ impl FpsCameraInputSystem {
 
         Self {
             window_context,
-            data: FpsCameraInput {
+            data: FlyingSpectatorCameraInput {
                 velocity_change_event_receiver,
                 moving_event_receiver,
                 turning_event_receiver,
@@ -53,12 +53,12 @@ impl FpsCameraInputSystem {
         }
     }
 
-    pub fn data(&self) -> FpsCameraInput {
+    pub fn data(&self) -> FlyingSpectatorCameraInput {
         self.data.clone()
     }
 }
 
-impl System for FpsCameraInputSystem {
+impl System for FlyingSpectatorCameraInputSystem {
     fn tick(&mut self, _delta_time_in_secs: f32) {
         let mut window_context = self.window_context.write();
 
