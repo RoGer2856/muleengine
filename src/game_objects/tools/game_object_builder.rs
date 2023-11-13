@@ -12,11 +12,11 @@ use vek::{Transform, Vec3};
 
 use crate::physics::{ColliderShape, RigidBody, RigidBodyType};
 
-use super::spawner_services::Spawner;
+use super::essential_services::EssentialServices;
 
 #[derive(Clone)]
 pub struct GameObjectBuilder<'a> {
-    spawner: &'a Arc<Spawner>,
+    essentials: &'a Arc<EssentialServices>,
     shader_handler: Option<RendererShaderHandler>,
     transform: Option<Transform<f32, f32, f32>>,
     mesh_default_material: Option<Material>,
@@ -27,9 +27,9 @@ pub struct GameObjectBuilder<'a> {
 }
 
 impl<'a> GameObjectBuilder<'a> {
-    pub fn new(spawner: &'a Arc<Spawner>) -> Self {
+    pub fn new(essentials: &'a Arc<EssentialServices>) -> Self {
         Self {
-            spawner,
+            essentials,
             shader_handler: None,
             transform: None,
             mesh_default_material: None,
@@ -47,7 +47,7 @@ impl<'a> GameObjectBuilder<'a> {
 
     pub async fn material(mut self, material: Material) -> GameObjectBuilder<'a> {
         self.material_handler = Some(
-            self.spawner
+            self.essentials
                 .renderer_client
                 .create_material(material)
                 .await
@@ -73,7 +73,7 @@ impl<'a> GameObjectBuilder<'a> {
         self.mesh_default_material = Some(mesh.get_material().clone());
 
         self.mesh_handler = Some(
-            self.spawner
+            self.essentials
                 .renderer_client
                 .create_mesh(mesh)
                 .await
@@ -106,7 +106,7 @@ impl<'a> GameObjectBuilder<'a> {
 
     pub async fn shader(mut self, shader_name: impl Into<String>) -> GameObjectBuilder<'a> {
         self.shader_handler = Some(
-            self.spawner
+            self.essentials
                 .renderer_client
                 .create_shader(shader_name.into())
                 .await
@@ -138,7 +138,7 @@ impl<'a> GameObjectBuilder<'a> {
         collider_shape: ColliderShape,
         rigid_body_type: RigidBodyType,
     ) -> Self {
-        let physics_engine = self.spawner.physics_engine.write();
+        let physics_engine = self.essentials.physics_engine.write();
 
         let collider = physics_engine.collider_builder(collider_shape).build();
 
@@ -153,7 +153,7 @@ impl<'a> GameObjectBuilder<'a> {
     }
 
     pub async fn build(&self) -> EntityBuilder {
-        let entity_builder = self.spawner.entity_container.entity_builder();
+        let entity_builder = self.essentials.entity_container.entity_builder();
 
         let entity_builder = if let Some(objects) = self
             .mesh_handler
@@ -167,7 +167,7 @@ impl<'a> GameObjectBuilder<'a> {
 
             let transform = self.transform.unwrap_or_default();
             let transform_handler = self
-                .spawner
+                .essentials
                 .renderer_client
                 .create_transform(transform)
                 .await
@@ -185,7 +185,7 @@ impl<'a> GameObjectBuilder<'a> {
                         Material::default()
                     };
 
-                    self.spawner
+                    self.essentials
                         .renderer_client
                         .create_material(material)
                         .await
@@ -195,7 +195,7 @@ impl<'a> GameObjectBuilder<'a> {
                 };
 
             let renderer_object_handler = self
-                .spawner
+                .essentials
                 .renderer_client
                 .create_renderer_object_from_mesh(
                     mesh_handler_ref.clone(),
@@ -207,7 +207,7 @@ impl<'a> GameObjectBuilder<'a> {
                 .unwrap()
                 .unwrap();
 
-            self.spawner
+            self.essentials
                 .renderer_client
                 .add_renderer_object_to_group(
                     renderer_object_handler.clone(),
@@ -227,7 +227,7 @@ impl<'a> GameObjectBuilder<'a> {
 
         let entity_builder = if let Some(rigid_body) = &self.rigid_body {
             let rigid_body_handler = self
-                .spawner
+                .essentials
                 .physics_engine
                 .write()
                 .add_rigid_body(rigid_body.clone());

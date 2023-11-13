@@ -6,12 +6,12 @@ use muleengine::{
 };
 use vek::{Transform, Vec3};
 
-use super::tools::{game_object_builder::GameObjectBuilder, spawner_services::Spawner};
+use super::tools::{essential_services::EssentialServices, game_object_builder::GameObjectBuilder};
 
-pub async fn spawn_skybox(spawner: &Arc<Spawner>) {
-    let game_object_builder = GameObjectBuilder::new(spawner)
+pub async fn spawn_skybox(essentials: &Arc<EssentialServices>) {
+    let game_object_builder = GameObjectBuilder::new(essentials)
         .renderer_group_handler(
-            spawner
+            essentials
                 .renderer_configuration
                 .skydome_renderer_group_handler()
                 .await
@@ -23,14 +23,14 @@ pub async fn spawn_skybox(spawner: &Arc<Spawner>) {
         .await;
 
     let scene_path = "Assets/objects/skybox/Skybox.obj";
-    let scene = spawner
+    let scene = essentials
         .asset_container
         .scene_container()
         .write()
         .get_scene(
             scene_path,
-            spawner.asset_container.asset_reader(),
-            &mut spawner.asset_container.image_container().write(),
+            essentials.asset_container.asset_reader(),
+            &mut essentials.asset_container.image_container().write(),
         )
         .inspect_err(|e| log::error!("{e:?}"))
         .unwrap();
@@ -50,11 +50,11 @@ pub async fn spawn_skybox(spawner: &Arc<Spawner>) {
 
             let material = Material {
                 textures: vec![MaterialTexture {
-                    image: spawner
+                    image: essentials
                         .asset_container
                         .image_container()
                         .write()
-                        .get_image(texture_path, spawner.asset_container.asset_reader()),
+                        .get_image(texture_path, essentials.asset_container.asset_reader()),
                     texture_type: MaterialTextureType::Albedo,
                     texture_map_mode: TextureMapMode::Clamp,
                     blend: 0.0,

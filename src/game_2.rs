@@ -18,7 +18,7 @@ use sdl2_opengl_muleengine::{
 use vek::Vec2;
 
 use crate::{
-    game_objects::{populate_with_objects, tools::spawner_services::Spawner},
+    game_objects::{populate_with_objects, tools::essential_services::EssentialServices},
     physics,
     systems::{
         character_controller_system, fps_camera, renderer_configuration::RendererConfiguration,
@@ -118,9 +118,11 @@ impl Game2 {
             .system_container_mut()
             .add_system(renderer_transform_updater);
 
-        let spawner = app_context
+        let essentials = app_context
             .service_container_ref()
-            .insert(Spawner::new(app_context.service_container_ref().clone()))
+            .insert(EssentialServices::new(
+                app_context.service_container_ref().clone(),
+            ))
             .new_item
             .as_arc_ref()
             .clone();
@@ -129,7 +131,7 @@ impl Game2 {
         character_controller_system::run(app_context);
 
         tokio::spawn(async move {
-            populate_with_objects(&spawner).await;
+            populate_with_objects(&essentials).await;
         });
 
         Self {

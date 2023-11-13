@@ -6,16 +6,16 @@ use vek::{Transform, Vec3};
 
 use crate::physics::{ColliderShape, RigidBodyType};
 
-use super::tools::{game_object_builder::GameObjectBuilder, spawner_services::Spawner};
+use super::tools::{essential_services::EssentialServices, game_object_builder::GameObjectBuilder};
 
 pub async fn create_box(
-    spawner: &Arc<Spawner>,
+    essentials: &Arc<EssentialServices>,
     position: Vec3<f32>,
     dimensions: Vec3<f32>,
 ) -> EntityId {
-    let entity_builder = GameObjectBuilder::new(spawner)
+    let entity_builder = GameObjectBuilder::new(essentials)
         .renderer_group_handler(
-            spawner
+            essentials
                 .renderer_configuration
                 .main_renderer_group_handler()
                 .await
@@ -46,10 +46,14 @@ pub async fn create_box(
     entity_builder.build()
 }
 
-pub async fn create_sphere(spawner: &Arc<Spawner>, position: Vec3<f32>, radius: f32) -> EntityId {
-    let entity_builder = GameObjectBuilder::new(spawner)
+pub async fn create_sphere(
+    essentials: &Arc<EssentialServices>,
+    position: Vec3<f32>,
+    radius: f32,
+) -> EntityId {
+    let entity_builder = GameObjectBuilder::new(essentials)
         .renderer_group_handler(
-            spawner
+            essentials
                 .renderer_configuration
                 .main_renderer_group_handler()
                 .await

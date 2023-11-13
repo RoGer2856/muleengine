@@ -12,31 +12,31 @@ use crate::physics::{ColliderShape, RigidBodyType};
 
 use self::{
     skybox::spawn_skybox,
-    tools::{game_object_builder::GameObjectBuilder, spawner_services::Spawner},
+    tools::{essential_services::EssentialServices, game_object_builder::GameObjectBuilder},
 };
 
 pub mod rigid_bodies;
 pub mod skybox;
 pub mod tools;
 
-pub async fn populate_with_objects(spawner: &Arc<Spawner>) {
-    spawn_skybox(spawner).await;
-    spawn_ground(spawner).await;
-    spawn_player(spawner).await;
-    spawn_physics_entities(spawner).await;
+pub async fn populate_with_objects(essentials: &Arc<EssentialServices>) {
+    spawn_skybox(essentials).await;
+    spawn_ground(essentials).await;
+    spawn_player(essentials).await;
+    spawn_physics_entities(essentials).await;
 
-    spawn_sample_capsule(spawner).await;
+    spawn_sample_capsule(essentials).await;
 
     // let scene_path = "Assets/objects/MonkeySmooth.obj";
     let scene_path = "Assets/demo/wall/wallTextured.fbx";
     // let scene_path = "Assets/sponza/sponza.fbx";
     // let scene_path = "Assets/objects/skybox/Skybox.obj";
-    spawn_scene_from_file(spawner, scene_path, Vec3::new(0.0, 0.0, -5.0)).await;
+    spawn_scene_from_file(essentials, scene_path, Vec3::new(0.0, 0.0, -5.0)).await;
 }
 
-async fn spawn_ground(spawner: &Arc<Spawner>) {
+async fn spawn_ground(essentials: &Arc<EssentialServices>) {
     add_heightmap(
-        spawner,
+        essentials,
         Vec3::new(-25.0, -2.0, 0.0),
         "Assets/heightmap.png",
         None,
@@ -45,7 +45,7 @@ async fn spawn_ground(spawner: &Arc<Spawner>) {
 
     let wall_prefix = "wall11";
     add_heightmap(
-        spawner,
+        essentials,
         Vec3::new(-25.0, -2.0, -50.0),
         &format!("Assets/ADG_Textures/walls_vol1/{wall_prefix}/{wall_prefix}_Height.png"),
         Some(&format!(
@@ -55,7 +55,7 @@ async fn spawn_ground(spawner: &Arc<Spawner>) {
     .await;
 
     add_heightmap(
-        spawner,
+        essentials,
         Vec3::new(25.0, -2.0, -50.0),
         &format!("Assets/ADG_Textures/walls_vol1/{wall_prefix}/{wall_prefix}_Height.png"),
         None,
@@ -64,7 +64,7 @@ async fn spawn_ground(spawner: &Arc<Spawner>) {
 
     let wall_prefix = "wall10";
     add_heightmap(
-        spawner,
+        essentials,
         Vec3::new(25.0, -2.0, 0.0),
         &format!("Assets/ADG_Textures/walls_vol1/{wall_prefix}/{wall_prefix}_Height.png"),
         Some(&format!(
@@ -75,7 +75,7 @@ async fn spawn_ground(spawner: &Arc<Spawner>) {
 }
 
 async fn add_heightmap(
-    spawner: &Arc<Spawner>,
+    essentials: &Arc<EssentialServices>,
     position: Vec3<f32>,
     heightmap_path: &str,
     albedo_path: Option<&str>,
@@ -84,11 +84,11 @@ async fn add_heightmap(
 
     let mut material = Material::new();
     if let Some(albedo_path) = albedo_path {
-        let albedo_image = spawner
+        let albedo_image = essentials
             .asset_container
             .image_container()
             .write()
-            .get_image(albedo_path, spawner.asset_container.asset_reader())
+            .get_image(albedo_path, essentials.asset_container.asset_reader())
             .unwrap();
 
         material.add_texture(MaterialTexture::new(
@@ -100,16 +100,16 @@ async fn add_heightmap(
         ));
     }
 
-    let heightmap_image = spawner
+    let heightmap_image = essentials
         .asset_container
         .image_container()
         .write()
-        .get_image(heightmap_path, spawner.asset_container.asset_reader())
+        .get_image(heightmap_path, essentials.asset_container.asset_reader())
         .unwrap();
 
     let heightmap = Arc::new(HeightMap::from_images(&heightmap_image, None).unwrap());
 
-    let entity_builder = GameObjectBuilder::new(spawner)
+    let entity_builder = GameObjectBuilder::new(essentials)
         .material(material)
         .await
         .mesh(Arc::new(mesh_creator::heightmap::create(&heightmap)))
@@ -123,7 +123,7 @@ async fn add_heightmap(
         })
         .await
         .renderer_group_handler(
-            spawner
+            essentials
                 .renderer_configuration
                 .main_renderer_group_handler()
                 .await
@@ -140,7 +140,7 @@ async fn add_heightmap(
     entity_builder.build();
 }
 
-async fn spawn_physics_entities(spawner: &Arc<Spawner>) {
+async fn spawn_physics_entities(essentials: &Arc<EssentialServices>) {
     const OBJECT_COUNT: Vec3<usize> = Vec3 { x: 5, y: 5, z: 5 };
 
     const OBJECT_SIZE: f32 = 1.0;
@@ -170,9 +170,9 @@ async fn spawn_physics_entities(spawner: &Arc<Spawner>) {
                     z as f32 * SPACE_BETWEEN_OBJECTS,
                 ) + POSITION_OFFSET;
                 if is_cube {
-                    rigid_bodies::create_box(spawner, position, CUBE_DIMENSIONS).await;
+                    rigid_bodies::create_box(essentials, position, CUBE_DIMENSIONS).await;
                 } else {
-                    rigid_bodies::create_sphere(spawner, position, SPHERE_RADIUS).await;
+                    rigid_bodies::create_sphere(essentials, position, SPHERE_RADIUS).await;
                 }
 
                 is_cube = !is_cube;
@@ -181,8 +181,8 @@ async fn spawn_physics_entities(spawner: &Arc<Spawner>) {
     }
 }
 
-async fn spawn_sample_capsule(spawner: &Arc<Spawner>) {
-    let entity_builder = GameObjectBuilder::new(spawner)
+async fn spawn_sample_capsule(essentials: &Arc<EssentialServices>) {
+    let entity_builder = GameObjectBuilder::new(essentials)
         .mesh(Arc::new(mesh_creator::capsule::create(0.5, 2.0, 16)))
         .await
         .shader("Assets/shaders/lit_wo_normal")
@@ -193,7 +193,7 @@ async fn spawn_sample_capsule(spawner: &Arc<Spawner>) {
         })
         .await
         .renderer_group_handler(
-            spawner
+            essentials
                 .renderer_configuration
                 .main_renderer_group_handler()
                 .await
@@ -205,10 +205,14 @@ async fn spawn_sample_capsule(spawner: &Arc<Spawner>) {
     entity_builder.build();
 }
 
-async fn spawn_scene_from_file(spawner: &Arc<Spawner>, scene_path: &str, position: Vec3<f32>) {
-    let game_object_builder = GameObjectBuilder::new(spawner)
+async fn spawn_scene_from_file(
+    essentials: &Arc<EssentialServices>,
+    scene_path: &str,
+    position: Vec3<f32>,
+) {
+    let game_object_builder = GameObjectBuilder::new(essentials)
         .renderer_group_handler(
-            spawner
+            essentials
                 .renderer_configuration
                 .main_renderer_group_handler()
                 .await
@@ -222,14 +226,14 @@ async fn spawn_scene_from_file(spawner: &Arc<Spawner>, scene_path: &str, positio
         })
         .await;
 
-    let scene = spawner
+    let scene = essentials
         .asset_container
         .scene_container()
         .write()
         .get_scene(
             scene_path,
-            spawner.asset_container.asset_reader(),
-            &mut spawner.asset_container.image_container().write(),
+            essentials.asset_container.asset_reader(),
+            &mut essentials.asset_container.image_container().write(),
         )
         .inspect_err(|e| log::error!("{e:?}"))
         .unwrap();
@@ -248,13 +252,13 @@ async fn spawn_scene_from_file(spawner: &Arc<Spawner>, scene_path: &str, positio
     }
 }
 
-async fn spawn_player(spawner: &Arc<Spawner>) {
+async fn spawn_player(essentials: &Arc<EssentialServices>) {
     let position = Vec3::new(0.0, 0.0, 0.0);
 
     let capsule_radius = 0.3;
     let capsule_height = 1.8;
 
-    let entity_builder = GameObjectBuilder::new(spawner)
+    let entity_builder = GameObjectBuilder::new(essentials)
         .simple_rigid_body(
             position,
             ColliderShape::Capsule {
@@ -277,7 +281,7 @@ async fn spawn_player(spawner: &Arc<Spawner>) {
         })
         .await
         .renderer_group_handler(
-            spawner
+            essentials
                 .renderer_configuration
                 .main_renderer_group_handler()
                 .await

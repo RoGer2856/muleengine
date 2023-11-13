@@ -10,7 +10,7 @@ use crate::{
     physics::Rapier3dPhysicsEngineService, systems::renderer_configuration::RendererConfiguration,
 };
 
-pub struct Spawner {
+pub struct EssentialServices {
     pub service_container: ServiceContainer,
     pub asset_container: AssetContainer,
 
@@ -22,7 +22,7 @@ pub struct Spawner {
     pub entity_container: Arc<EntityContainer>,
 }
 
-impl Spawner {
+impl EssentialServices {
     pub fn new(service_container: ServiceContainer) -> Self {
         Self {
             service_container: service_container.clone(),
