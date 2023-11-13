@@ -21,7 +21,7 @@ use crate::{
     game_objects::{populate_with_objects, tools::spawner_services::Spawner},
     physics,
     systems::{
-        fps_camera, renderer_configuration::RendererConfiguration,
+        character_controller_system, fps_camera, renderer_configuration::RendererConfiguration,
         renderer_transform_updater::RendererTransformUpdaterSystem,
         transform_to_physics_object_coupler_system::TransformToPhysicsObjectCouplerSystem,
     },
@@ -105,7 +105,6 @@ impl Game2 {
                 app_context.service_container_ref().clone(),
             ));
 
-        fps_camera::run(window_context, app_context);
         physics::run(app_context);
 
         let transform_to_physics_object_coupler_system =
@@ -125,6 +124,9 @@ impl Game2 {
             .new_item
             .as_arc_ref()
             .clone();
+
+        fps_camera::run(window_context, app_context);
+        character_controller_system::run(app_context);
 
         tokio::spawn(async move {
             populate_with_objects(&spawner).await;

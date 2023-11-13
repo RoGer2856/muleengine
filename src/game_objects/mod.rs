@@ -11,7 +11,7 @@ use vek::{Transform, Vec3};
 use crate::physics::{ColliderShape, RigidBodyType};
 
 use self::{
-    skybox::add_skybox,
+    skybox::spawn_skybox,
     tools::{game_object_builder::GameObjectBuilder, spawner_services::Spawner},
 };
 
@@ -20,8 +20,21 @@ pub mod skybox;
 pub mod tools;
 
 pub async fn populate_with_objects(spawner: &Arc<Spawner>) {
-    add_skybox(spawner).await;
+    spawn_skybox(spawner).await;
+    spawn_ground(spawner).await;
+    spawn_player(spawner).await;
+    spawn_physics_entities(spawner).await;
 
+    spawn_sample_capsule(spawner).await;
+
+    // let scene_path = "Assets/objects/MonkeySmooth.obj";
+    let scene_path = "Assets/demo/wall/wallTextured.fbx";
+    // let scene_path = "Assets/sponza/sponza.fbx";
+    // let scene_path = "Assets/objects/skybox/Skybox.obj";
+    spawn_scene_from_file(spawner, scene_path, Vec3::new(0.0, 0.0, -5.0)).await;
+}
+
+async fn spawn_ground(spawner: &Arc<Spawner>) {
     add_heightmap(
         spawner,
         Vec3::new(-25.0, -2.0, 0.0),
@@ -59,19 +72,9 @@ pub async fn populate_with_objects(spawner: &Arc<Spawner>) {
         )),
     )
     .await;
-
-    add_physics_entities(spawner).await;
-
-    add_sample_capsule(spawner).await;
-
-    // let scene_path = "Assets/objects/MonkeySmooth.obj";
-    let scene_path = "Assets/demo/wall/wallTextured.fbx";
-    // let scene_path = "Assets/sponza/sponza.fbx";
-    // let scene_path = "Assets/objects/skybox/Skybox.obj";
-    add_scene_from_file(spawner, scene_path, Vec3::new(0.0, 0.0, -5.0)).await;
 }
 
-pub async fn add_heightmap(
+async fn add_heightmap(
     spawner: &Arc<Spawner>,
     position: Vec3<f32>,
     heightmap_path: &str,
@@ -137,7 +140,7 @@ pub async fn add_heightmap(
     entity_builder.build();
 }
 
-async fn add_physics_entities(spawner: &Arc<Spawner>) {
+async fn spawn_physics_entities(spawner: &Arc<Spawner>) {
     const OBJECT_COUNT: Vec3<usize> = Vec3 { x: 5, y: 5, z: 5 };
 
     const OBJECT_SIZE: f32 = 1.0;
@@ -178,7 +181,7 @@ async fn add_physics_entities(spawner: &Arc<Spawner>) {
     }
 }
 
-pub async fn add_sample_capsule(spawner: &Arc<Spawner>) {
+async fn spawn_sample_capsule(spawner: &Arc<Spawner>) {
     let entity_builder = GameObjectBuilder::new(spawner)
         .mesh(Arc::new(mesh_creator::capsule::create(0.5, 2.0, 16)))
         .await
@@ -202,7 +205,7 @@ pub async fn add_sample_capsule(spawner: &Arc<Spawner>) {
     entity_builder.build();
 }
 
-pub async fn add_scene_from_file(spawner: &Arc<Spawner>, scene_path: &str, position: Vec3<f32>) {
+async fn spawn_scene_from_file(spawner: &Arc<Spawner>, scene_path: &str, position: Vec3<f32>) {
     let game_object_builder = GameObjectBuilder::new(spawner)
         .renderer_group_handler(
             spawner
@@ -243,4 +246,45 @@ pub async fn add_scene_from_file(spawner: &Arc<Spawner>, scene_path: &str, posit
             }
         }
     }
+}
+
+async fn spawn_player(spawner: &Arc<Spawner>) {
+    let position = Vec3::new(0.0, 0.0, 0.0);
+
+    let capsule_radius = 0.3;
+    let capsule_height = 1.8;
+
+    let entity_builder = GameObjectBuilder::new(spawner)
+        .simple_rigid_body(
+            position,
+            ColliderShape::Capsule {
+                radius: capsule_radius,
+                height: capsule_height,
+            },
+            RigidBodyType::Dynamic,
+        )
+        .mesh(Arc::new(mesh_creator::capsule::create(
+            capsule_radius,
+            capsule_height,
+            16,
+        )))
+        .await
+        .shader("Assets/shaders/lit_wo_normal")
+        .await
+        .transform(Transform {
+            position,
+            ..Default::default()
+        })
+        .await
+        .renderer_group_handler(
+            spawner
+                .renderer_configuration
+                .main_renderer_group_handler()
+                .await
+                .clone(),
+        )
+        .build()
+        .await;
+
+    entity_builder.build();
 }

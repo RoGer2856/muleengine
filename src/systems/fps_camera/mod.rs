@@ -1,10 +1,7 @@
-mod fps_camera_client;
-mod fps_camera_command;
 mod fps_camera_controller;
 mod fps_camera_input;
 mod fps_camera_input_provider;
 
-pub use fps_camera_client::*;
 use fps_camera_controller::*;
 use fps_camera_input::*;
 use fps_camera_input_provider::*;
@@ -19,6 +16,8 @@ use muleengine::{
     renderer::renderer_system::renderer_decoupler,
     window_context::WindowContext,
 };
+
+use self::fps_camera_controller::client::Client;
 
 use super::renderer_configuration::RendererConfiguration;
 
@@ -67,7 +66,7 @@ pub fn run(window_context: ArcRwLock<dyn WindowContext>, app_context: &mut Appli
 
         let (command_sender, command_receiver) = task_channel();
 
-        let fps_camera_client = FpsCameraClient::new(command_sender, closure_task_sender);
+        let fps_camera_client = Client::new(command_sender);
         service_container.insert(fps_camera_client.clone());
 
         FpsCameraController::new(
@@ -81,6 +80,6 @@ pub fn run(window_context: ArcRwLock<dyn WindowContext>, app_context: &mut Appli
         .run()
         .await;
 
-        fps_camera_client.remove_later();
+        fps_camera_client.remove_later(closure_task_sender);
     });
 }

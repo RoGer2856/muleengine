@@ -183,6 +183,8 @@ pub struct RigidBody {
 pub enum RigidBodyType {
     Dynamic,
     Static,
+    KinematicPositionBased,
+    KinematicVelocityBased,
 }
 
 pub struct RigidBodyBuilder {
@@ -233,6 +235,12 @@ impl Rapier3dPhysicsEngine {
         let rigid_body_builder = match rigid_body.rigid_body_type {
             RigidBodyType::Dynamic => RapierRigidBodyBuilder::dynamic(),
             RigidBodyType::Static => RapierRigidBodyBuilder::fixed(),
+            RigidBodyType::KinematicPositionBased => {
+                RapierRigidBodyBuilder::kinematic_position_based()
+            }
+            RigidBodyType::KinematicVelocityBased => {
+                RapierRigidBodyBuilder::kinematic_velocity_based()
+            }
         };
         let rapier_rigid_body = rigid_body_builder
             .translation(vector![

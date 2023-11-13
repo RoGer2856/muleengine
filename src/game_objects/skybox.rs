@@ -8,7 +8,7 @@ use vek::{Transform, Vec3};
 
 use super::tools::{game_object_builder::GameObjectBuilder, spawner_services::Spawner};
 
-pub async fn add_skybox(spawner: &Arc<Spawner>) {
+pub async fn spawn_skybox(spawner: &Arc<Spawner>) {
     let game_object_builder = GameObjectBuilder::new(spawner)
         .renderer_group_handler(
             spawner

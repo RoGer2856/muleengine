@@ -1,7 +1,14 @@
-use std::time::Duration;
+use std::{
+    sync::{
+        atomic::{self, AtomicBool},
+        Arc,
+    },
+    time::Duration,
+};
 
-use method_taskifier::task_channel::TaskReceiver;
+use method_taskifier::{method_taskifier_impl, task_channel::TaskReceiver};
 use muleengine::{
+    application_runner::ClosureTaskSender,
     bytifex_utils::{
         result_option_inspect::ResultInspector, sync::app_loop_state::AppLoopStateWatcher,
     },
@@ -13,11 +20,12 @@ use vek::{Vec2, Vec3};
 
 use crate::systems::fps_camera::fps_camera_input::VelocityChangeEvent;
 
-use super::{fps_camera_command::FpsCameraCommand, fps_camera_input::FpsCameraInput};
+use super::{fps_camera_input::FpsCameraInput, fps_camera_input_provider::FpsCameraInputSystem};
 
 pub(super) struct FpsCameraController {
     app_loop_state_watcher: AppLoopStateWatcher,
-    task_receiver: TaskReceiver<FpsCameraCommand>,
+    should_run: Arc<AtomicBool>,
+    task_receiver: TaskReceiver<client::ChanneledTask>,
     camera: Camera,
     skydome_camera_transform_handler: RendererTransformHandler,
     main_camera_transform_handler: RendererTransformHandler,
@@ -29,10 +37,11 @@ pub(super) struct FpsCameraController {
     moving_velocity: f32,
 }
 
+#[method_taskifier_impl(module_name = client)]
 impl FpsCameraController {
     pub(super) fn new(
         app_loop_state_watcher: AppLoopStateWatcher,
-        task_receiver: TaskReceiver<FpsCameraCommand>,
+        task_receiver: TaskReceiver<client::ChanneledTask>,
         renderer_client: renderer_decoupler::Client,
         skydome_camera_transform_handler: RendererTransformHandler,
         main_camera_transform_handler: RendererTransformHandler,
@@ -40,6 +49,7 @@ impl FpsCameraController {
     ) -> Self {
         Self {
             app_loop_state_watcher,
+            should_run: Arc::new(AtomicBool::new(true)),
             task_receiver,
             camera: Camera::new(),
             skydome_camera_transform_handler,
@@ -53,14 +63,46 @@ impl FpsCameraController {
         }
     }
 
+    #[method_taskifier_client_fn]
+    pub fn remove_later(&self, closure_task_sender: ClosureTaskSender) {
+        closure_task_sender.add_task(|app_context| {
+            app_context
+                .system_container_mut()
+                .remove::<FpsCameraInputSystem>();
+            app_context
+                .service_container_ref()
+                .remove::<client::Client>();
+        });
+    }
+
+    #[method_taskifier_client_fn]
+    pub fn stop(&self) {
+        drop(self.async_stop());
+    }
+
+    #[method_taskifier_worker_fn]
+    fn async_stop(&self) {
+        self.should_run.store(false, atomic::Ordering::SeqCst);
+    }
+
+    #[method_taskifier_client_fn]
+    pub fn start(&self) {
+        drop(self.async_start());
+    }
+
+    #[method_taskifier_worker_fn]
+    fn async_start(&self) {
+        self.should_run.store(true, atomic::Ordering::SeqCst);
+    }
+
     pub(super) async fn run(&mut self) {
         let interval_secs = 1.0 / 30.0;
         let mut interval = interval(Duration::from_secs_f32(interval_secs));
         interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
 
-        // let mut delta_time_secs = 0.0;
+        let mut task_receiver = self.task_receiver.clone();
 
-        let mut should_run = true;
+        // let mut delta_time_secs = 0.0;
 
         loop {
             // let start = Instant::now();
@@ -69,21 +111,16 @@ impl FpsCameraController {
                 _ = self.app_loop_state_watcher.wait_for_quit() => {
                     break;
                 }
-                task = self.task_receiver.recv_async() => {
-                    match task {
-                        Ok(FpsCameraCommand::Stop) => {
-                            should_run = false;
-                        }
-                        Ok(FpsCameraCommand::Start) => {
-                            should_run = true;
-                        }
-                        Err(_) => {
-                            break;
-                        }
+                task = task_receiver.recv_async() => {
+                    if let Ok(task) = task {
+                        self.execute_channeled_task(task);
+                    } else {
+                        log::info!("All task sender is dropped, therefore exiting, module = {}", module_path!());
+                        break;
                     }
                 }
                 _ = interval.tick() => {
-                    if should_run {
+                    if self.should_run.load(atomic::Ordering::SeqCst) {
                         // self.tick(delta_time_secs).await;
                         self.tick(interval_secs).await;
                     }
