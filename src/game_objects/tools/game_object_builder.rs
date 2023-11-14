@@ -10,9 +10,10 @@ use muleengine::{
 };
 use vek::{Transform, Vec3};
 
-use crate::physics::{ColliderShape, RigidBody, RigidBodyType};
-
-use super::essential_services::EssentialServices;
+use crate::{
+    essential_services::EssentialServices,
+    physics::{ColliderShape, RigidBody, RigidBodyType},
+};
 
 #[derive(Clone)]
 pub struct GameObjectBuilder<'a> {

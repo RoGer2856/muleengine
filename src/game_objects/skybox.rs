@@ -6,7 +6,9 @@ use muleengine::{
 };
 use vek::{Transform, Vec3};
 
-use super::tools::{essential_services::EssentialServices, game_object_builder::GameObjectBuilder};
+use crate::essential_services::EssentialServices;
+
+use super::tools::game_object_builder::GameObjectBuilder;
 
 pub async fn spawn_skybox(essentials: &Arc<EssentialServices>) {
     let game_object_builder = GameObjectBuilder::new(essentials)

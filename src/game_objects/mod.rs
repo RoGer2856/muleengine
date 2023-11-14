@@ -8,12 +8,12 @@ use muleengine::{
 };
 use vek::{Transform, Vec3};
 
-use crate::physics::{ColliderShape, RigidBodyType};
-
-use self::{
-    skybox::spawn_skybox,
-    tools::{essential_services::EssentialServices, game_object_builder::GameObjectBuilder},
+use crate::{
+    essential_services::EssentialServices,
+    physics::{ColliderShape, RigidBodyType},
 };
+
+use self::{skybox::spawn_skybox, tools::game_object_builder::GameObjectBuilder};
 
 pub mod rigid_bodies;
 pub mod skybox;
@@ -259,14 +259,14 @@ async fn spawn_player(essentials: &Arc<EssentialServices>) {
     let capsule_height = 1.8;
 
     let entity_builder = GameObjectBuilder::new(essentials)
-        .simple_rigid_body(
-            position,
-            ColliderShape::Capsule {
-                radius: capsule_radius,
-                height: capsule_height,
-            },
-            RigidBodyType::Dynamic,
-        )
+        // .simple_rigid_body(
+        //     position,
+        //     ColliderShape::Capsule {
+        //         radius: capsule_radius,
+        //         height: capsule_height,
+        //     },
+        //     RigidBodyType::Dynamic,
+        // )
         .mesh(Arc::new(mesh_creator::capsule::create(
             capsule_radius,
             capsule_height,
@@ -289,6 +289,22 @@ async fn spawn_player(essentials: &Arc<EssentialServices>) {
         )
         .build()
         .await;
+
+    let character_controller = essentials
+        .physics_engine
+        .read()
+        .character_controller_builder(ColliderShape::Capsule {
+            radius: capsule_radius,
+            height: capsule_height,
+        })
+        .margin(crate::physics::CharacterLength::Absolute(0.01))
+        .max_slope_climb_angle(35.0)
+        .min_slope_slide_angle(45.0)
+        .autostep(false, crate::physics::CharacterLength::Absolute(0.3))
+        .snap_to_ground(crate::physics::CharacterLength::Absolute(0.3))
+        .build();
+
+    let entity_builder = entity_builder.with_component(character_controller);
 
     entity_builder.build();
 }

@@ -18,7 +18,8 @@ use sdl2_opengl_muleengine::{
 use vek::Vec2;
 
 use crate::{
-    game_objects::{populate_with_objects, tools::essential_services::EssentialServices},
+    essential_services::EssentialServices,
+    game_objects::populate_with_objects,
     physics,
     systems::{
         character_controller_system, flying_spectator_camera,
@@ -129,7 +130,7 @@ impl Game2 {
             .clone();
 
         flying_spectator_camera::run(window_context, app_context);
-        character_controller_system::run(app_context);
+        character_controller_system::run(&essentials);
 
         tokio::spawn(async move {
             populate_with_objects(&essentials).await;

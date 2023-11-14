@@ -26,9 +26,7 @@ pub fn create(height_map: &HeightMap) -> Mesh {
     if height_map.get_column_count() != 0 && height_map.get_row_count() != 0 {
         mesh.add_bone(Bone::new("root".to_string(), Mat4::identity()));
 
-        let center_x = 0.5;
-        let center_y = 0.5;
-        let center_z = 0.5;
+        let center = Vec3::new(0.5, 0.5, 0.5);
 
         let column_count_f32 = height_map.get_column_count() as f32;
         let row_count_f32 = height_map.get_row_count() as f32;
@@ -116,7 +114,7 @@ pub fn create(height_map: &HeightMap) -> Mesh {
                 let normal = (normal0 + normal1 + normal2 + normal3 + normal4 + normal5) / 6.0;
 
                 mesh.add_vertex(
-                    position_pivot - Vec3::new(center_x, center_y, center_z),
+                    position_pivot - center,
                     normal,
                     None,
                     None,

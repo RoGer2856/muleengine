@@ -59,15 +59,14 @@ impl System for TransformToPhysicsObjectCouplerSystem {
             if let Some(mut handler) = self.entity_container.lock().handler_for_entity(&entity_id) {
                 let rigid_body_handler =
                     if let Some(component) = handler.get_component_ref::<RigidBodyHandler>() {
-                        component
+                        component.clone()
                     } else {
-                        unreachable!()
+                        continue;
                     };
 
                 if let Some((position, rotation)) =
                     physics_engine.get_interpolated_transform_of_rigidbody(&rigid_body_handler, now)
                 {
-                    drop(rigid_body_handler);
                     handler.change_component::<Transform<f32, f32, f32>>(|transform| {
                         transform.position = position;
                         transform.orientation = rotation;

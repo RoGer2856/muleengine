@@ -4,9 +4,12 @@ use entity_component::EntityId;
 use muleengine::mesh_creator;
 use vek::{Transform, Vec3};
 
-use crate::physics::{ColliderShape, RigidBodyType};
+use crate::{
+    essential_services::EssentialServices,
+    physics::{ColliderShape, RigidBodyType},
+};
 
-use super::tools::{essential_services::EssentialServices, game_object_builder::GameObjectBuilder};
+use super::tools::game_object_builder::GameObjectBuilder;
 
 pub async fn create_box(
     essentials: &Arc<EssentialServices>,

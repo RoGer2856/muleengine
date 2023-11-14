@@ -123,6 +123,7 @@ pub async fn async_run<ApplicationType>(
 
         fps_counter.draw_happened();
         if fps_counter_stopwatch.elapsed() > Duration::from_millis(1000) {
+            log::debug!("Average FPS = {}", fps_counter.get_average_fps().unwrap());
             fps_counter_stopwatch.restart();
             fps_counter.restart();
         }

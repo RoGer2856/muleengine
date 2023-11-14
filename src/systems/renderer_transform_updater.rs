@@ -62,20 +62,20 @@ impl System for RendererTransformUpdaterSystem {
                 {
                     *component
                 } else {
-                    unreachable!()
+                    continue;
                 };
 
                 let transform_handler = if let Some(component) =
                     handler.get_component_ref::<RendererTransformHandler>()
                 {
-                    component
+                    component.clone()
                 } else {
-                    unreachable!()
+                    continue;
                 };
 
                 drop(
                     self.renderer_client
-                        .update_transform(transform_handler.clone(), transform),
+                        .update_transform(transform_handler, transform),
                 );
             }
         }

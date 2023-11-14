@@ -5,17 +5,25 @@ use method_taskifier::{
     prelude::{OptionInspector, ResultInspector},
 };
 use muleengine::{
+    aabb::AxisAlignedBoundingBox,
     application_runner::ApplicationContext,
     bytifex_utils::sync::{app_loop_state::AppLoopStateWatcher, types::ArcRwLock},
     heightmap::HeightMap,
 };
 use parking_lot::RwLock;
-use rapier3d::prelude::{
-    nalgebra::{self, *},
-    BroadPhase, CCDSolver, Collider, ColliderBuilder as RapierColliderBuilder, ColliderSet,
-    ColliderShape as RapierColliderShape, ImpulseJointSet, IntegrationParameters, IslandManager,
-    MultibodyJointSet, NarrowPhase, PhysicsPipeline, RigidBodyBuilder as RapierRigidBodyBuilder,
-    RigidBodyHandle as RapierRigidBodyHandle, RigidBodySet, Vector,
+use rapier3d::{
+    control::{
+        CharacterAutostep, CharacterLength as RapierCharacterLength, KinematicCharacterController,
+    },
+    pipeline::{QueryFilter, QueryPipeline},
+    prelude::{
+        nalgebra::{self, *},
+        BroadPhase, CCDSolver, Collider, ColliderBuilder as RapierColliderBuilder, ColliderSet,
+        ColliderShape as RapierColliderShape, ImpulseJointSet, IntegrationParameters,
+        IslandManager, MultibodyJointSet, NarrowPhase, PhysicsPipeline,
+        RigidBodyBuilder as RapierRigidBodyBuilder, RigidBodyHandle as RapierRigidBodyHandle,
+        RigidBodySet, UnitVector, Vector,
+    },
 };
 use tokio::time::{interval, Instant, MissedTickBehavior};
 use vek::{Quaternion, Vec3};
@@ -24,6 +32,7 @@ pub type Rapier3dPhysicsEngineService = RwLock<Rapier3dPhysicsEngine>;
 
 const NUMBER_OF_STORED_STATES: usize = 1;
 
+#[derive(Clone)]
 pub struct RigidBodyHandler {
     inner_handle: RapierRigidBodyHandle,
 }
@@ -43,6 +52,8 @@ pub struct Rapier3dPhysicsEngine {
     integration_parameters: IntegrationParameters,
 
     physics_pipeline: PhysicsPipeline,
+    query_pipeline: QueryPipeline,
+
     island_manager: IslandManager,
     broad_phase: BroadPhase,
     narrow_phase: NarrowPhase,
@@ -108,6 +119,85 @@ pub enum ColliderShape {
     },
 }
 
+impl ColliderShape {
+    pub fn compute_aabb(&self) -> AxisAlignedBoundingBox {
+        match self {
+            ColliderShape::Capsule { radius, height } => {
+                let half_height = height / 2.0;
+                let mut aabb = AxisAlignedBoundingBox::new(Vec3::new(
+                    -radius,
+                    -(half_height + radius),
+                    -radius,
+                ));
+                aabb.add_vertex(Vec3::new(*radius, half_height + radius, *radius));
+                aabb
+            }
+            ColliderShape::Cone { radius, height } => {
+                let half_height = height / 2.0;
+                let mut aabb =
+                    AxisAlignedBoundingBox::new(Vec3::new(-radius, -half_height, -radius));
+                aabb.add_vertex(Vec3::new(*radius, half_height, *radius));
+                aabb
+            }
+            ColliderShape::Cylinder { radius, height } => {
+                let half_height = height / 2.0;
+                let mut aabb =
+                    AxisAlignedBoundingBox::new(Vec3::new(-radius, -half_height, -radius));
+                aabb.add_vertex(Vec3::new(*radius, half_height, *radius));
+                aabb
+            }
+            ColliderShape::Box { x, y, z } => {
+                let hx = x / 2.0;
+                let hy = y / 2.0;
+                let hz = z / 2.0;
+                let mut aabb = AxisAlignedBoundingBox::new(Vec3::new(-hx, -hy, -hz));
+                aabb.add_vertex(Vec3::new(hx, hy, hz));
+                aabb
+            }
+            ColliderShape::Sphere { radius } => {
+                let mut aabb = AxisAlignedBoundingBox::new(Vec3::new(-radius, -radius, -radius));
+                aabb.add_vertex(Vec3::new(*radius, *radius, *radius));
+                aabb
+            }
+            ColliderShape::Heightmap {
+                heightmap: _,
+                scale,
+            } => {
+                let mut aabb = AxisAlignedBoundingBox::new(Vec3::new(0.0, 0.0, 0.0));
+                aabb.add_vertex(Vec3::new(scale.x, scale.y, scale.z));
+                aabb
+            }
+        }
+    }
+
+    pub fn as_rapier_collider_shape(&self) -> RapierColliderShape {
+        match self {
+            ColliderShape::Capsule { radius, height } => {
+                RapierColliderShape::capsule_y(*height / 2.0 - radius, *radius)
+            }
+            ColliderShape::Cone { radius, height } => {
+                RapierColliderShape::cone(*height / 2.0, *radius)
+            }
+            ColliderShape::Cylinder { radius, height } => {
+                RapierColliderShape::cylinder(*height / 2.0, *radius)
+            }
+            ColliderShape::Box { x, y, z } => {
+                RapierColliderShape::cuboid(x / 2.0, y / 2.0, z / 2.0)
+            }
+            ColliderShape::Sphere { radius } => RapierColliderShape::ball(*radius),
+            ColliderShape::Heightmap { heightmap, scale } => {
+                let scale = Vector::new(scale.x, scale.y, scale.z);
+                let heights = DMatrix::from_fn(
+                    heightmap.get_row_count(),
+                    heightmap.get_column_count(),
+                    |x, y| heightmap.get_height_map()[y][x],
+                );
+                RapierColliderShape::heightfield(heights, scale)
+            }
+        }
+    }
+}
+
 pub struct ColliderBuilder {
     position: Vec3<f32>,
     shape: ColliderShape,
@@ -135,30 +225,14 @@ impl ColliderBuilder {
 
     pub fn build(self) -> Collider {
         let mut position_offset = Vec3::zero();
-        let rapier_shape = match self.shape {
-            ColliderShape::Capsule { radius, height } => {
-                RapierColliderShape::capsule_y(height / 2.0, radius)
-            }
-            ColliderShape::Cone { radius, height } => {
-                RapierColliderShape::cone(height / 2.0, radius)
-            }
-            ColliderShape::Cylinder { radius, height } => {
-                RapierColliderShape::cylinder(height / 2.0, radius)
-            }
-            ColliderShape::Box { x, y, z } => {
-                RapierColliderShape::cuboid(x / 2.0, y / 2.0, z / 2.0)
-            }
-            ColliderShape::Sphere { radius } => RapierColliderShape::ball(radius),
-            ColliderShape::Heightmap { heightmap, scale } => {
-                let scale = Vector::new(scale.x, scale.y, scale.z);
-                let heights = DMatrix::from_fn(
-                    heightmap.get_row_count(),
-                    heightmap.get_column_count(),
-                    |x, y| heightmap.get_height_map()[y][x],
-                );
-                position_offset.y = -scale.y / 2.0;
-                RapierColliderShape::heightfield(heights, scale)
-            }
+
+        let rapier_shape = self.shape.as_rapier_collider_shape();
+        if let ColliderShape::Heightmap {
+            heightmap: _,
+            scale,
+        } = &self.shape
+        {
+            position_offset.y = -scale.y / 2.0;
         };
 
         RapierColliderBuilder::new(rapier_shape)
@@ -174,9 +248,9 @@ impl ColliderBuilder {
 
 #[derive(Clone)]
 pub struct RigidBody {
-    pub colliders: Vec<Collider>,
-    pub position: Vec3<f32>,
-    pub rigid_body_type: RigidBodyType,
+    colliders: Vec<Collider>,
+    position: Vec3<f32>,
+    rigid_body_type: RigidBodyType,
 }
 
 #[derive(Clone)]
@@ -217,8 +291,173 @@ impl RigidBodyBuilder {
     }
 }
 
+pub enum CharacterLength {
+    Absolute(f32),
+    Relative(f32),
+}
+
+impl CharacterLength {
+    fn as_rapier_character_length(&self) -> RapierCharacterLength {
+        match self {
+            CharacterLength::Absolute(value) => RapierCharacterLength::Absolute(*value),
+            CharacterLength::Relative(value) => RapierCharacterLength::Relative(*value),
+        }
+    }
+}
+
+pub struct CharacterController {
+    character_controller: KinematicCharacterController,
+    position: Vec3<f32>,
+    shape: RapierColliderShape,
+    grounded: bool,
+}
+
+impl CharacterController {
+    pub fn set_position(&mut self, position: Vec3<f32>) {
+        self.position = position;
+    }
+
+    pub fn get_position(&self) -> Vec3<f32> {
+        self.position
+    }
+
+    pub fn set_collider_shape(&mut self, collider_shape: ColliderShape) {
+        self.shape = collider_shape.as_rapier_collider_shape();
+    }
+
+    pub fn set_margin(&mut self, margin: CharacterLength) {
+        self.character_controller.offset = margin.as_rapier_character_length();
+    }
+
+    pub fn set_up_vector(&mut self, up: Vec3<f32>) {
+        self.character_controller.up = UnitVector::new_normalize(Vector3::new(up.x, up.y, up.z));
+    }
+
+    pub fn set_max_slope_climb_angle(&mut self, degree: f32) {
+        self.character_controller.max_slope_climb_angle = degree.to_radians();
+    }
+
+    pub fn set_min_slope_slide_angle(&mut self, degree: f32) {
+        self.character_controller.min_slope_slide_angle = degree.to_radians();
+    }
+
+    pub fn disable_autostep(&mut self) {
+        self.character_controller.autostep = None;
+    }
+
+    pub fn set_autostep(&mut self, include_dynamic_bodies: bool, max_step_height: CharacterLength) {
+        self.character_controller.autostep = Some(CharacterAutostep {
+            max_height: max_step_height.as_rapier_character_length(),
+            min_width: RapierCharacterLength::Relative(1.0),
+            include_dynamic_bodies,
+        });
+    }
+
+    pub fn disable_snap_to_ground(&mut self) {
+        self.character_controller.snap_to_ground = None;
+    }
+
+    pub fn set_snap_to_ground(&mut self, max_snap_height: CharacterLength) {
+        self.character_controller.snap_to_ground =
+            Some(max_snap_height.as_rapier_character_length());
+    }
+}
+
+pub struct CharacterControllerBuilder {
+    character_controller: CharacterController,
+}
+
+impl CharacterControllerBuilder {
+    fn new(collider_shape: ColliderShape) -> Self {
+        let mut character_controller = CharacterController {
+            character_controller: KinematicCharacterController::default(),
+            position: Vec3::zero(),
+            shape: collider_shape.as_rapier_collider_shape(),
+            grounded: false,
+        };
+
+        character_controller.set_margin(CharacterLength::Absolute(0.01));
+        character_controller.set_up_vector(Vec3::unit_y());
+        character_controller.set_max_slope_climb_angle(35.0);
+        character_controller.set_min_slope_slide_angle(45.0);
+        character_controller.disable_autostep();
+        character_controller.set_snap_to_ground(CharacterLength::Absolute(0.3));
+
+        Self {
+            character_controller,
+        }
+    }
+
+    pub fn position(mut self, position: Vec3<f32>) -> Self {
+        self.character_controller.set_position(position);
+        self
+    }
+
+    pub fn collider_shape(mut self, collider_shape: ColliderShape) -> Self {
+        self.character_controller.set_collider_shape(collider_shape);
+        self
+    }
+
+    pub fn margin(mut self, margin: CharacterLength) -> Self {
+        self.character_controller.set_margin(margin);
+        self
+    }
+
+    pub fn up_vector(mut self, up: Vec3<f32>) -> Self {
+        self.character_controller.set_up_vector(up);
+        self
+    }
+
+    pub fn max_slope_climb_angle(mut self, degree: f32) -> Self {
+        self.character_controller.set_max_slope_climb_angle(degree);
+        self
+    }
+
+    pub fn min_slope_slide_angle(mut self, degree: f32) -> Self {
+        self.character_controller.set_min_slope_slide_angle(degree);
+        self
+    }
+
+    pub fn disable_autostep(mut self) -> Self {
+        self.character_controller.disable_autostep();
+        self
+    }
+
+    pub fn autostep(
+        mut self,
+        include_dynamic_bodies: bool,
+        max_step_height: CharacterLength,
+    ) -> Self {
+        self.character_controller
+            .set_autostep(include_dynamic_bodies, max_step_height);
+        self
+    }
+
+    pub fn disable_snap_to_ground(mut self) -> Self {
+        self.character_controller.disable_snap_to_ground();
+        self
+    }
+
+    pub fn snap_to_ground(mut self, max_snap_height: CharacterLength) -> Self {
+        self.character_controller
+            .set_snap_to_ground(max_snap_height);
+        self
+    }
+
+    pub fn build(self) -> CharacterController {
+        self.character_controller
+    }
+}
+
 #[method_taskifier_impl(module_name = physics_decoupler)]
 impl Rapier3dPhysicsEngine {
+    pub fn character_controller_builder(
+        &self,
+        collider_shape: ColliderShape,
+    ) -> CharacterControllerBuilder {
+        CharacterControllerBuilder::new(collider_shape)
+    }
+
     pub fn collider_builder(&self, shape: ColliderShape) -> ColliderBuilder {
         ColliderBuilder::new(shape)
     }
@@ -332,6 +571,8 @@ impl Rapier3dPhysicsEngine {
             integration_parameters: IntegrationParameters::default(),
 
             physics_pipeline: PhysicsPipeline::new(),
+            query_pipeline: QueryPipeline::new(),
+
             island_manager: IslandManager::new(),
             broad_phase: BroadPhase::new(),
             narrow_phase: NarrowPhase::new(),
@@ -373,6 +614,68 @@ impl Rapier3dPhysicsEngine {
         }
     }
 
+    pub fn move_character(
+        &mut self,
+        delta_time_in_secs: f32,
+        character_controller: &mut CharacterController,
+        translation: Vec3<f32>,
+    ) {
+        // let mut position = Isometry::default();
+        // position.translation = Translation3::new(
+        //     character_controller.position.x,
+        //     character_controller.position.y,
+        //     character_controller.position.z,
+        // );
+
+        // let max_toi = translation.magnitude() * 1.1;
+
+        // let translation = if let Some((_collider_handle, toi)) = self.query_pipeline.cast_shape(
+        //     &self.current_state.rigid_body_set,
+        //     &self.current_state.collider_set,
+        //     &position,
+        //     &Vector3::new(translation.x, translation.y, translation.z),
+        //     character_controller.shape.0.as_ref(),
+        //     max_toi,
+        //     true,
+        //     QueryFilter::default(),
+        // ) {
+        //     translation.normalized() * toi.toi
+        // } else {
+        //     translation
+        // };
+
+        // character_controller.position += translation;
+
+        let position = Isometry {
+            translation: Translation3::new(
+                character_controller.position.x,
+                character_controller.position.y,
+                character_controller.position.z,
+            ),
+            ..Default::default()
+        };
+
+        let corrected_movement = character_controller.character_controller.move_shape(
+            delta_time_in_secs,
+            &self.current_state.rigid_body_set,
+            &self.current_state.collider_set,
+            &self.query_pipeline,
+            character_controller.shape.0.as_ref(),
+            &position,
+            Vector3::new(translation.x, translation.y, translation.z),
+            QueryFilter::default(),
+            |_| {},
+        );
+
+        character_controller.grounded = corrected_movement.grounded;
+
+        character_controller.position += Vec3::new(
+            corrected_movement.translation.x,
+            corrected_movement.translation.y,
+            corrected_movement.translation.z,
+        );
+    }
+
     fn step(&mut self, delta_time_in_secs: f32) {
         self.last_tick_time = Instant::now();
         self.predicted_next_tick_time =
@@ -401,6 +704,10 @@ impl Rapier3dPhysicsEngine {
             None,
             &self.physics_hooks,
             &self.event_handler,
+        );
+        self.query_pipeline.update(
+            &self.current_state.rigid_body_set,
+            &self.current_state.collider_set,
         );
     }
 }

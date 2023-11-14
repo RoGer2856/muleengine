@@ -7,6 +7,7 @@
     clippy::collapsible_if
 )]
 
+pub mod essential_services;
 pub mod game_2;
 pub mod game_objects;
 pub mod physics;
