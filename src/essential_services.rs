@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use entity_component::EntityContainer;
 use muleengine::{
+    application_runner::ClosureTaskSender,
     asset_container::AssetContainer,
     bytifex_utils::{
         result_option_inspect::ResultInspector, sync::app_loop_state::AppLoopStateWatcher,
@@ -18,6 +19,7 @@ pub struct EssentialServices {
     pub app_loop_state_watcher: AppLoopStateWatcher,
 
     pub service_container: ServiceContainer,
+    pub closure_task_sender: ClosureTaskSender,
     pub asset_container: AssetContainer,
 
     pub renderer_configuration: Arc<RendererConfiguration>,
@@ -38,6 +40,12 @@ impl EssentialServices {
                 .as_ref()
                 .clone(),
             service_container: service_container.clone(),
+            closure_task_sender: service_container
+                .get_service::<ClosureTaskSender>()
+                .inspect_err(|e| log::error!("{e:?}"))
+                .unwrap()
+                .as_ref()
+                .clone(),
             renderer_configuration: service_container
                 .get_service::<RendererConfiguration>()
                 .inspect_err(|e| log::error!("{e:?}"))

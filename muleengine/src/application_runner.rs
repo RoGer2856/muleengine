@@ -28,15 +28,19 @@ impl ClosureTaskSender {
 pub struct ApplicationContext {
     system_container: SystemContainer,
     service_container: ServiceContainer,
-    closure_tasks: ClosureTaskSender,
+    closure_task_sender: ClosureTaskSender,
 }
 
 impl ApplicationContext {
     pub fn new(sync_task_sender: mpsc::UnboundedSender<BoxedTask>) -> Self {
+        let closure_task_sender = ClosureTaskSender(sync_task_sender);
+        let service_container = ServiceContainer::new();
+        service_container.insert(closure_task_sender.clone());
+
         Self {
             system_container: SystemContainer::new(),
-            service_container: ServiceContainer::new(),
-            closure_tasks: ClosureTaskSender(sync_task_sender),
+            service_container,
+            closure_task_sender,
         }
     }
 
@@ -52,8 +56,8 @@ impl ApplicationContext {
         &self.service_container
     }
 
-    pub fn closure_tasks_ref(&mut self) -> &ClosureTaskSender {
-        &self.closure_tasks
+    pub fn closure_task_sender_ref(&mut self) -> &ClosureTaskSender {
+        &self.closure_task_sender
     }
 }
 

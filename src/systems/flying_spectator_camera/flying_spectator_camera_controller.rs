@@ -65,7 +65,7 @@ impl FlyingSpectatorCameraController {
     }
 
     #[method_taskifier_client_fn]
-    pub fn remove_later(&self, closure_task_sender: ClosureTaskSender) {
+    pub fn remove_later(&self, closure_task_sender: &ClosureTaskSender) {
         closure_task_sender.add_task(|app_context| {
             app_context
                 .system_container_mut()

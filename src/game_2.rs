@@ -129,7 +129,11 @@ impl Game2 {
             .as_arc_ref()
             .clone();
 
-        flying_spectator_camera::run(window_context, app_context);
+        flying_spectator_camera::run(
+            window_context,
+            app_context.system_container_mut(),
+            essentials.clone(),
+        );
         character_controller_system::run(&essentials);
 
         tokio::spawn(async move {
