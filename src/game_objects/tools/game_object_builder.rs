@@ -12,7 +12,10 @@ use vek::{Transform, Vec3};
 
 use crate::{
     essential_services::EssentialServices,
-    physics::{ColliderShape, RigidBody, RigidBodyType},
+    physics::{
+        collider::ColliderShape,
+        rigid_body::{RigidBody, RigidBodyType},
+    },
 };
 
 #[derive(Clone)]

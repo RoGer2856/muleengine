@@ -7,7 +7,7 @@ use vek::{Transform, Vec3};
 
 use crate::{
     essential_services::EssentialServices,
-    physics::{CharacterController, Rapier3dPhysicsEngineService},
+    physics::{character_controller::CharacterController, Rapier3dPhysicsEngineService},
 };
 
 pub fn run(essentials: &Arc<EssentialServices>) {

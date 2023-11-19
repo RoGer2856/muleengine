@@ -6,7 +6,7 @@ use vek::{Transform, Vec3};
 
 use crate::{
     essential_services::EssentialServices,
-    physics::{ColliderShape, RigidBodyType},
+    physics::{collider::ColliderShape, rigid_body::RigidBodyType},
 };
 
 use super::tools::game_object_builder::GameObjectBuilder;

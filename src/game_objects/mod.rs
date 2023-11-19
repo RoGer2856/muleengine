@@ -10,7 +10,9 @@ use vek::{Transform, Vec3};
 
 use crate::{
     essential_services::EssentialServices,
-    physics::{ColliderShape, RigidBodyType},
+    physics::{
+        character_controller::CharacterLength, collider::ColliderShape, rigid_body::RigidBodyType,
+    },
 };
 
 use self::{skybox::spawn_skybox, tools::game_object_builder::GameObjectBuilder};
@@ -297,11 +299,11 @@ async fn spawn_player(essentials: &Arc<EssentialServices>) {
             radius: capsule_radius,
             height: capsule_height,
         })
-        .margin(crate::physics::CharacterLength::Absolute(0.01))
+        .margin(CharacterLength::Absolute(0.01))
         .max_slope_climb_angle(35.0)
         .min_slope_slide_angle(45.0)
-        .autostep(false, crate::physics::CharacterLength::Absolute(0.3))
-        .snap_to_ground(crate::physics::CharacterLength::Absolute(0.3))
+        .autostep(false, CharacterLength::Absolute(0.3))
+        .snap_to_ground(CharacterLength::Absolute(0.3))
         .build();
 
     let entity_builder = entity_builder.with_component(character_controller);
