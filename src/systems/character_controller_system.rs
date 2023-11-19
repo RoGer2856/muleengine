@@ -1,13 +1,13 @@
-use std::{ops::DerefMut, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use entity_component::{component_type_list, EntityContainer, EntityGroup};
 use muleengine::bytifex_utils::sync::app_loop_state::AppLoopStateWatcher;
-use tokio::time::{interval, MissedTickBehavior};
-use vek::{Transform, Vec3};
+use tokio::time::{interval, Instant, MissedTickBehavior};
+use vek::Transform;
 
 use crate::{
     essential_services::EssentialServices,
-    physics::{character_controller::CharacterController, Rapier3dPhysicsEngineService},
+    physics::character_controller::CharacterControllerHandler,
 };
 
 pub fn run(essentials: &Arc<EssentialServices>) {
@@ -21,7 +21,6 @@ pub struct CharacterControllerSystem {
     app_loop_state_watcher: AppLoopStateWatcher,
     entity_container: EntityContainer,
     entity_group: EntityGroup,
-    physics_engine: Arc<Rapier3dPhysicsEngineService>,
 }
 
 impl CharacterControllerSystem {
@@ -29,11 +28,9 @@ impl CharacterControllerSystem {
         Self {
             app_loop_state_watcher: essentials.app_loop_state_watcher.clone(),
             entity_container: essentials.entity_container.clone(),
-            entity_group: essentials
-                .entity_container
-                .lock()
-                .entity_group(component_type_list!(CharacterController, Transform<f32, f32, f32>)),
-            physics_engine: essentials.physics_engine.clone(),
+            entity_group: essentials.entity_container.lock().entity_group(
+                component_type_list!(CharacterControllerHandler, Transform<f32, f32, f32>),
+            ),
         }
     }
 
@@ -54,26 +51,20 @@ impl CharacterControllerSystem {
         }
     }
 
-    async fn tick(&mut self, delta_time_in_secs: f32) {
-        let mut physics_engine = self.physics_engine.write();
+    async fn tick(&mut self, _delta_time_in_secs: f32) {
+        let now = Instant::now();
 
         for entity_id in self.entity_group.iter_entity_ids() {
             if let Some(mut handler) = self.entity_container.lock().handler_for_entity(&entity_id) {
-                let mut new_position = None;
+                let character_controller_handler = handler
+                    .get_component_ref::<CharacterControllerHandler>()
+                    .as_deref()
+                    .cloned();
 
-                handler.change_component::<CharacterController>(|mut character_controller| {
-                    physics_engine.move_character(
-                        delta_time_in_secs,
-                        character_controller.deref_mut(),
-                        Vec3::new(1.0, -1.0, -1.0) * 0.1,
-                        // -Vec3::unit_y(),
-                    );
-                    new_position = Some(character_controller.get_position());
-                });
-
-                if let Some(new_position) = new_position {
+                if let Some(character_controller_handler) = character_controller_handler {
+                    let position = character_controller_handler.get_interpolated_position(now);
                     handler.change_component::<Transform<f32, f32, f32>>(|transform| {
-                        transform.position = new_position;
+                        transform.position = position;
                     });
                 }
             }

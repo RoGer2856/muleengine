@@ -292,21 +292,26 @@ async fn spawn_player(essentials: &Arc<EssentialServices>) {
         .build()
         .await;
 
-    let character_controller = essentials
+    let character_controller_builder = essentials
         .physics_engine
         .read()
         .character_controller_builder(ColliderShape::Capsule {
             radius: capsule_radius,
             height: capsule_height,
-        })
+        });
+
+    let mut character_controller_handler = character_controller_builder
+        .mass(80.0)
         .margin(CharacterLength::Absolute(0.01))
         .max_slope_climb_angle(35.0)
         .min_slope_slide_angle(45.0)
         .autostep(false, CharacterLength::Absolute(0.3))
         .snap_to_ground(CharacterLength::Absolute(0.3))
-        .build();
+        .build(&mut essentials.physics_engine.write());
 
-    let entity_builder = entity_builder.with_component(character_controller);
+    character_controller_handler.set_velocity(Vec3::new(0.0, 0.0, -3.0));
+
+    let entity_builder = entity_builder.with_component(character_controller_handler);
 
     entity_builder.build();
 }

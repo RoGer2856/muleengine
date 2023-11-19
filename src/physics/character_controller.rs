@@ -1,12 +1,17 @@
+use muleengine::bytifex_utils::{
+    containers::object_pool::ObjectPoolIndex,
+    sync::{types::ArcRwLock, usage_counter::UsageCounter},
+};
 use rapier3d::{
     control::{
         CharacterAutostep, CharacterLength as RapierCharacterLength, KinematicCharacterController,
     },
     prelude::{nalgebra::*, ColliderShape as RapierColliderShape, UnitVector},
 };
+use tokio::time::Instant;
 use vek::Vec3;
 
-use super::collider::ColliderShape;
+use super::{collider::ColliderShape, Rapier3dPhysicsEngine};
 
 pub enum CharacterLength {
     Absolute(f32),
@@ -22,20 +27,41 @@ impl CharacterLength {
     }
 }
 
-pub struct CharacterController {
+pub(super) struct CharacterController {
+    pub(super) last_update_time: Instant,
+    pub(super) predicted_next_update_time: Instant,
+    pub(super) previous_position: Vec3<f32>,
+
     pub(super) character_controller: KinematicCharacterController,
     pub(super) position: Vec3<f32>,
+    pub(super) velocity: Vec3<f32>,
+    pub(super) mass: f32,
     pub(super) shape: RapierColliderShape,
     pub(super) grounded: bool,
+    pub(super) falling_velocity: Vec3<f32>,
+    pub(super) gravity: Vec3<f32>,
 }
 
 impl CharacterController {
-    pub fn set_position(&mut self, position: Vec3<f32>) {
-        self.position = position;
+    pub fn set_gravity(&mut self, gravity: Vec3<f32>) {
+        self.gravity = gravity;
     }
 
-    pub fn get_position(&self) -> Vec3<f32> {
-        self.position
+    pub fn set_velocity(&mut self, velocity: Vec3<f32>) {
+        self.velocity = velocity;
+    }
+
+    pub fn set_mass(&mut self, mass: f32) {
+        self.mass = mass;
+    }
+
+    pub fn set_position(&mut self, position: Vec3<f32>) {
+        self.position = position;
+        self.previous_position = position;
+    }
+
+    pub fn set_interpolated_position(&mut self, position: Vec3<f32>) {
+        self.position = position;
     }
 
     pub fn set_collider_shape(&mut self, collider_shape: ColliderShape) {
@@ -85,12 +111,20 @@ pub struct CharacterControllerBuilder {
 }
 
 impl CharacterControllerBuilder {
-    pub(super) fn new(collider_shape: ColliderShape) -> Self {
+    pub(super) fn new(collider_shape: ColliderShape, gravity: Vec3<f32>, now: Instant) -> Self {
         let mut character_controller = CharacterController {
+            last_update_time: now,
+            predicted_next_update_time: now,
+
             character_controller: KinematicCharacterController::default(),
             position: Vec3::zero(),
+            previous_position: Vec3::zero(),
+            velocity: Vec3::zero(),
+            mass: 0.0,
             shape: collider_shape.as_rapier_collider_shape(),
             grounded: false,
+            gravity,
+            falling_velocity: Vec3::zero(),
         };
 
         character_controller.set_margin(CharacterLength::Absolute(0.01));
@@ -103,6 +137,16 @@ impl CharacterControllerBuilder {
         Self {
             character_controller,
         }
+    }
+
+    pub fn gravity(mut self, gravity: Vec3<f32>) -> Self {
+        self.character_controller.set_gravity(gravity);
+        self
+    }
+
+    pub fn mass(mut self, mass: f32) -> Self {
+        self.character_controller.set_mass(mass);
+        self
     }
 
     pub fn position(mut self, position: Vec3<f32>) -> Self {
@@ -161,7 +205,68 @@ impl CharacterControllerBuilder {
         self
     }
 
-    pub fn build(self) -> CharacterController {
+    pub fn build(self, physics_engine: &mut Rapier3dPhysicsEngine) -> CharacterControllerHandler {
+        physics_engine.add_character_controller(self.character_controller)
+    }
+}
+
+#[derive(Clone)]
+pub struct CharacterControllerHandler {
+    pub(super) usage_counter: UsageCounter,
+    pub(super) object_pool_index: ObjectPoolIndex,
+    pub(super) character_controller: ArcRwLock<CharacterController>,
+    pub(super) to_be_dropped_character_controllers: ArcRwLock<Vec<ObjectPoolIndex>>,
+}
+
+impl Drop for CharacterControllerHandler {
+    fn drop(&mut self) {
+        if self.usage_counter.is_this_the_last() {
+            self.to_be_dropped_character_controllers
+                .write()
+                .push(self.object_pool_index);
+        }
+    }
+}
+
+impl CharacterControllerHandler {
+    pub fn set_position(&mut self, position: Vec3<f32>) {
+        self.character_controller.write().set_position(position);
+    }
+
+    pub fn set_interpolated_position(&mut self, position: Vec3<f32>) {
         self.character_controller
+            .write()
+            .set_interpolated_position(position);
+    }
+
+    pub fn set_gravity(&mut self, gravity: Vec3<f32>) {
+        self.character_controller.write().set_gravity(gravity);
+    }
+
+    pub fn set_velocity(&mut self, velocity: Vec3<f32>) {
+        self.character_controller.write().set_velocity(velocity);
+    }
+
+    pub fn get_velocity(&self) -> Vec3<f32> {
+        self.character_controller.read().velocity
+    }
+
+    pub fn get_position(&self) -> Vec3<f32> {
+        self.character_controller.read().position
+    }
+
+    pub fn get_interpolated_position(&self, now: Instant) -> Vec3<f32> {
+        let character_controller = self.character_controller.read();
+
+        let time_elapsed_since_last_update_secs = now
+            .duration_since(character_controller.last_update_time)
+            .as_secs_f32();
+        let update_interval_duration_secs = character_controller
+            .predicted_next_update_time
+            .duration_since(character_controller.last_update_time)
+            .as_secs_f32();
+        let q = time_elapsed_since_last_update_secs / update_interval_duration_secs;
+
+        character_controller.previous_position * (1.0 - q) + character_controller.position * q
     }
 }

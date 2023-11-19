@@ -14,7 +14,7 @@ use crate::{
     essential_services::EssentialServices,
     physics::{
         collider::ColliderShape,
-        rigid_body::{RigidBody, RigidBodyType},
+        rigid_body::{RigidBodyBuilder, RigidBodyType},
     },
 };
 
@@ -27,7 +27,7 @@ pub struct GameObjectBuilder<'a> {
     mesh_handler: Option<RendererMeshHandler>,
     material_handler: Option<RendererMaterialHandler>,
     renderer_group_handler: Option<RendererGroupHandler>,
-    rigid_body: Option<RigidBody>,
+    rigid_body_builder: Option<RigidBodyBuilder>,
 }
 
 impl<'a> GameObjectBuilder<'a> {
@@ -40,7 +40,7 @@ impl<'a> GameObjectBuilder<'a> {
             mesh_handler: None,
             material_handler: None,
             renderer_group_handler: None,
-            rigid_body: None,
+            rigid_body_builder: None,
         }
     }
 
@@ -146,12 +146,11 @@ impl<'a> GameObjectBuilder<'a> {
 
         let collider = physics_engine.collider_builder(collider_shape).build();
 
-        let rigid_body = physics_engine
+        let rigid_body_builder = physics_engine
             .rigid_body_builder(collider, rigid_body_type)
-            .position(position)
-            .build();
+            .position(position);
 
-        self.rigid_body = Some(rigid_body);
+        self.rigid_body_builder = Some(rigid_body_builder);
 
         self
     }
@@ -229,12 +228,9 @@ impl<'a> GameObjectBuilder<'a> {
             entity_builder
         };
 
-        let entity_builder = if let Some(rigid_body) = &self.rigid_body {
-            let rigid_body_handler = self
-                .essentials
-                .physics_engine
-                .write()
-                .add_rigid_body(rigid_body.clone());
+        let entity_builder = if let Some(rigid_body_builder) = self.rigid_body_builder.clone() {
+            let rigid_body_handler =
+                rigid_body_builder.build(&mut self.essentials.physics_engine.write());
             entity_builder.with_component(rigid_body_handler)
         } else {
             entity_builder

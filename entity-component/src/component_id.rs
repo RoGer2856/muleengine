@@ -1,8 +1,8 @@
-use std::{any::TypeId, sync::Arc};
+use std::any::TypeId;
 
 use bytifex_utils::{
     containers::object_pool::{ObjectPool, ObjectPoolIndex},
-    sync::types::ArcMutex,
+    sync::{types::ArcMutex, usage_counter::UsageCounter},
 };
 
 use super::component::ComponentTrait;
@@ -12,7 +12,7 @@ pub struct ComponentId {
     pub(super) component_type_id: TypeId,
     pub(super) object_pool_index: ObjectPoolIndex,
 
-    pub(super) usage_counter: Arc<()>,
+    pub(super) usage_counter: UsageCounter,
     pub(super) component_storage: ArcMutex<ObjectPool<Box<dyn ComponentTrait>>>,
 }
 
@@ -51,8 +51,7 @@ impl PartialOrd for ComponentId {
 
 impl Drop for ComponentId {
     fn drop(&mut self) {
-        // only self.usage_counter exist
-        if Arc::strong_count(&self.usage_counter) == 1 {
+        if self.usage_counter.is_this_the_last() {
             self.component_storage
                 .lock()
                 .release_object(self.object_pool_index);

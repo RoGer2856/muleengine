@@ -202,8 +202,11 @@ impl FlyingSpectatorCameraController {
         }
 
         // transform the camera
+        const MOVE_CAMERA_ON_Z_PLANE: bool = false;
         let mut axis_z = self.camera.axis_z();
-        axis_z.y = 0.0;
+        if MOVE_CAMERA_ON_Z_PLANE {
+            axis_z.y = 0.0;
+        }
         let axis_z = axis_z.try_normalized().unwrap_or_else(Vec3::zero);
         let corrected_moving_direction = self.camera.axis_x() * moving_direction.x
             + Vec3::unit_y() * moving_direction.y

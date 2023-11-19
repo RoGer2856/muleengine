@@ -2,12 +2,14 @@ use std::{
     any::TypeId,
     marker::PhantomData,
     ops::{Deref, DerefMut},
-    sync::Arc,
 };
 
 use bytifex_utils::{
     containers::object_pool::{ObjectPool, ObjectPoolIndex},
-    sync::types::{arc_mutex_new, ArcMutex, MutexGuard},
+    sync::{
+        types::{arc_mutex_new, ArcMutex, MutexGuard},
+        usage_counter::UsageCounter,
+    },
 };
 
 use super::{component::ComponentTrait, ComponentId};
@@ -120,7 +122,7 @@ impl ComponentStorage {
         Some(ComponentId {
             component_type_id: *component_type_id,
             object_pool_index: self.components.lock().create_object(component),
-            usage_counter: Arc::new(()),
+            usage_counter: UsageCounter::new(),
             component_storage: self.components.clone(),
         })
     }

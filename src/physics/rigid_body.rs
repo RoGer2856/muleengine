@@ -1,8 +1,10 @@
 use rapier3d::prelude::Collider;
 use vek::Vec3;
 
+use super::{Rapier3dPhysicsEngine, RigidBodyHandler};
+
 #[derive(Clone)]
-pub struct RigidBody {
+pub(super) struct RigidBody {
     pub(super) colliders: Vec<Collider>,
     pub(super) position: Vec3<f32>,
     pub(super) rigid_body_type: RigidBodyType,
@@ -16,6 +18,7 @@ pub enum RigidBodyType {
     KinematicVelocityBased,
 }
 
+#[derive(Clone)]
 pub struct RigidBodyBuilder {
     rigid_body: RigidBody,
 }
@@ -41,7 +44,7 @@ impl RigidBodyBuilder {
         self
     }
 
-    pub fn build(self) -> RigidBody {
-        self.rigid_body
+    pub fn build(self, physics_engine: &mut Rapier3dPhysicsEngine) -> RigidBodyHandler {
+        physics_engine.add_rigid_body(self.rigid_body)
     }
 }

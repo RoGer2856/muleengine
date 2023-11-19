@@ -2,7 +2,7 @@ pub mod character_controller;
 pub mod collider;
 pub mod rigid_body;
 
-use std::{collections::VecDeque, time::Duration};
+use std::{collections::VecDeque, mem::swap, ops::DerefMut, time::Duration};
 
 use method_taskifier::{
     method_taskifier_impl,
@@ -10,7 +10,14 @@ use method_taskifier::{
 };
 use muleengine::{
     application_runner::ApplicationContext,
-    bytifex_utils::sync::{app_loop_state::AppLoopStateWatcher, types::ArcRwLock},
+    bytifex_utils::{
+        containers::object_pool::{ObjectPool, ObjectPoolIndex},
+        sync::{
+            app_loop_state::AppLoopStateWatcher,
+            types::{arc_rw_lock_new, ArcRwLock},
+            usage_counter::UsageCounter,
+        },
+    },
 };
 use parking_lot::RwLock;
 use rapier3d::{
@@ -27,7 +34,9 @@ use tokio::time::{interval, Instant, MissedTickBehavior};
 use vek::{Quaternion, Vec3};
 
 use self::{
-    character_controller::{CharacterController, CharacterControllerBuilder},
+    character_controller::{
+        CharacterController, CharacterControllerBuilder, CharacterControllerHandler,
+    },
     collider::{ColliderBuilder, ColliderShape},
     rigid_body::{RigidBody, RigidBodyBuilder, RigidBodyType},
 };
@@ -53,6 +62,7 @@ pub struct Rapier3dPhysicsEngine {
     last_tick_time: Instant,
     predicted_next_tick_time: Instant,
 
+    gravity: Vec3<f32>,
     integration_parameters: IntegrationParameters,
 
     physics_pipeline: PhysicsPipeline,
@@ -62,12 +72,16 @@ pub struct Rapier3dPhysicsEngine {
     broad_phase: BroadPhase,
     narrow_phase: NarrowPhase,
 
+    character_controllers: ObjectPool<ArcRwLock<CharacterController>>,
+
     current_state: Rapier3dObjectsState,
     previous_states: VecDeque<Rapier3dObjectsState>,
 
     ccd_solver: CCDSolver,
     physics_hooks: (),
     event_handler: (),
+
+    to_be_dropped_character_controllers: ArcRwLock<Vec<ObjectPoolIndex>>,
 }
 
 pub fn run(app_context: &mut ApplicationContext) {
@@ -102,7 +116,7 @@ impl Rapier3dPhysicsEngine {
         &self,
         collider_shape: ColliderShape,
     ) -> CharacterControllerBuilder {
-        CharacterControllerBuilder::new(collider_shape)
+        CharacterControllerBuilder::new(collider_shape, self.gravity, self.predicted_next_tick_time)
     }
 
     pub fn collider_builder(&self, shape: ColliderShape) -> ColliderBuilder {
@@ -115,40 +129,6 @@ impl Rapier3dPhysicsEngine {
         rigid_body_type: RigidBodyType,
     ) -> RigidBodyBuilder {
         RigidBodyBuilder::new(collider, rigid_body_type)
-    }
-
-    pub fn add_rigid_body(&mut self, rigid_body: RigidBody) -> RigidBodyHandler {
-        let rigid_body_builder = match rigid_body.rigid_body_type {
-            RigidBodyType::Dynamic => RapierRigidBodyBuilder::dynamic(),
-            RigidBodyType::Static => RapierRigidBodyBuilder::fixed(),
-            RigidBodyType::KinematicPositionBased => {
-                RapierRigidBodyBuilder::kinematic_position_based()
-            }
-            RigidBodyType::KinematicVelocityBased => {
-                RapierRigidBodyBuilder::kinematic_velocity_based()
-            }
-        };
-        let rapier_rigid_body = rigid_body_builder
-            .translation(vector![
-                rigid_body.position.x,
-                rigid_body.position.y,
-                rigid_body.position.z
-            ])
-            .build();
-
-        let rigid_body_handle = self.current_state.rigid_body_set.insert(rapier_rigid_body);
-
-        for collider in rigid_body.colliders {
-            self.current_state.collider_set.insert_with_parent(
-                collider,
-                rigid_body_handle,
-                &mut self.current_state.rigid_body_set,
-            );
-        }
-
-        RigidBodyHandler {
-            inner_handle: rigid_body_handle,
-        }
     }
 
     pub fn get_interpolated_transform_of_rigidbody(
@@ -183,11 +163,11 @@ impl Rapier3dPhysicsEngine {
 
                 let time_elapsed_since_last_tick_secs =
                     now.duration_since(self.last_tick_time).as_secs_f32();
-                let tick_duration_secs = self
+                let tick_interval_duration_secs = self
                     .predicted_next_tick_time
                     .duration_since(self.last_tick_time)
                     .as_secs_f32();
-                let q = time_elapsed_since_last_tick_secs / tick_duration_secs;
+                let q = time_elapsed_since_last_tick_secs / tick_interval_duration_secs;
 
                 (
                     previous_position * (1.0 - q) + current_position * q,
@@ -205,6 +185,55 @@ impl Rapier3dPhysicsEngine {
         })
     }
 
+    fn add_character_controller(
+        &mut self,
+        character_controller: CharacterController,
+    ) -> CharacterControllerHandler {
+        let character_controller = arc_rw_lock_new(character_controller);
+        CharacterControllerHandler {
+            object_pool_index: self
+                .character_controllers
+                .create_object(character_controller.clone()),
+            character_controller,
+            to_be_dropped_character_controllers: self.to_be_dropped_character_controllers.clone(),
+            usage_counter: UsageCounter::new(),
+        }
+    }
+
+    fn add_rigid_body(&mut self, rigid_body: RigidBody) -> RigidBodyHandler {
+        let rigid_body_builder = match rigid_body.rigid_body_type {
+            RigidBodyType::Dynamic => RapierRigidBodyBuilder::dynamic(),
+            RigidBodyType::Static => RapierRigidBodyBuilder::fixed(),
+            RigidBodyType::KinematicPositionBased => {
+                RapierRigidBodyBuilder::kinematic_position_based()
+            }
+            RigidBodyType::KinematicVelocityBased => {
+                RapierRigidBodyBuilder::kinematic_velocity_based()
+            }
+        };
+        let rapier_rigid_body = rigid_body_builder
+            .translation(vector![
+                rigid_body.position.x,
+                rigid_body.position.y,
+                rigid_body.position.z
+            ])
+            .build();
+
+        let rigid_body_handle = self.current_state.rigid_body_set.insert(rapier_rigid_body);
+
+        for collider in rigid_body.colliders {
+            self.current_state.collider_set.insert_with_parent(
+                collider,
+                rigid_body_handle,
+                &mut self.current_state.rigid_body_set,
+            );
+        }
+
+        RigidBodyHandler {
+            inner_handle: rigid_body_handle,
+        }
+    }
+
     fn from_objects_state(state: Rapier3dObjectsState) -> Self {
         let mut previous_states = VecDeque::with_capacity(NUMBER_OF_STORED_STATES);
         previous_states.push_back(state.clone());
@@ -215,6 +244,7 @@ impl Rapier3dPhysicsEngine {
             last_tick_time: current_time,
             predicted_next_tick_time: current_time,
 
+            gravity: Vec3::new(0.0, -9.81, 0.0),
             integration_parameters: IntegrationParameters::default(),
 
             physics_pipeline: PhysicsPipeline::new(),
@@ -224,12 +254,16 @@ impl Rapier3dPhysicsEngine {
             broad_phase: BroadPhase::new(),
             narrow_phase: NarrowPhase::new(),
 
+            character_controllers: ObjectPool::new(),
+
             current_state: state,
             previous_states,
 
             ccd_solver: CCDSolver::new(),
             physics_hooks: (),
             event_handler: (),
+
+            to_be_dropped_character_controllers: arc_rw_lock_new(Vec::new()),
         }
     }
 
@@ -261,82 +295,117 @@ impl Rapier3dPhysicsEngine {
         }
     }
 
-    pub fn move_character(
-        &mut self,
-        delta_time_in_secs: f32,
-        character_controller: &mut CharacterController,
-        translation: Vec3<f32>,
-    ) {
-        // let mut position = Isometry::default();
-        // position.translation = Translation3::new(
-        //     character_controller.position.x,
-        //     character_controller.position.y,
-        //     character_controller.position.z,
-        // );
+    fn move_characters(&mut self, delta_time_in_secs: f32) {
+        for character_controller in self.character_controllers.iter_mut() {
+            let mut character_controller = character_controller.write();
 
-        // let max_toi = translation.magnitude() * 1.1;
+            character_controller.last_update_time = self.last_tick_time;
+            character_controller.predicted_next_update_time = self.predicted_next_tick_time;
 
-        // let translation = if let Some((_collider_handle, toi)) = self.query_pipeline.cast_shape(
-        //     &self.current_state.rigid_body_set,
-        //     &self.current_state.collider_set,
-        //     &position,
-        //     &Vector3::new(translation.x, translation.y, translation.z),
-        //     character_controller.shape.0.as_ref(),
-        //     max_toi,
-        //     true,
-        //     QueryFilter::default(),
-        // ) {
-        //     translation.normalized() * toi.toi
-        // } else {
-        //     translation
-        // };
+            character_controller.previous_position = character_controller.position;
 
-        // character_controller.position += translation;
+            let initial_falling_velocity = character_controller.falling_velocity;
+            character_controller.falling_velocity =
+                initial_falling_velocity + character_controller.gravity * delta_time_in_secs;
 
-        let position = Isometry {
-            translation: Translation3::new(
-                character_controller.position.x,
-                character_controller.position.y,
-                character_controller.position.z,
-            ),
-            ..Default::default()
-        };
+            let falling_translation = initial_falling_velocity * delta_time_in_secs
+                + 0.5 * character_controller.gravity * delta_time_in_secs * delta_time_in_secs;
 
-        let corrected_movement = character_controller.character_controller.move_shape(
-            delta_time_in_secs,
-            &self.current_state.rigid_body_set,
-            &self.current_state.collider_set,
-            &self.query_pipeline,
-            character_controller.shape.0.as_ref(),
-            &position,
-            Vector3::new(translation.x, translation.y, translation.z),
-            QueryFilter::default(),
-            |_| {},
-        );
+            let translation =
+                character_controller.velocity * delta_time_in_secs + falling_translation;
 
-        character_controller.grounded = corrected_movement.grounded;
+            // let mut position = Isometry::default();
+            // position.translation = Translation3::new(
+            //     character_controller.position.x,
+            //     character_controller.position.y,
+            //     character_controller.position.z,
+            // );
 
-        character_controller.position += Vec3::new(
-            corrected_movement.translation.x,
-            corrected_movement.translation.y,
-            corrected_movement.translation.z,
-        );
+            // let max_toi = translation.magnitude() * 1.1;
+
+            // let translation = if let Some((_collider_handle, toi)) = self.query_pipeline.cast_shape(
+            //     &self.current_state.rigid_body_set,
+            //     &self.current_state.collider_set,
+            //     &position,
+            //     &Vector3::new(translation.x, translation.y, translation.z),
+            //     character_controller.shape.0.as_ref(),
+            //     max_toi,
+            //     true,
+            //     QueryFilter::default(),
+            // ) {
+            //     translation.normalized() * toi.toi
+            // } else {
+            //     translation
+            // };
+
+            // character_controller.position += translation;
+
+            let position = Isometry {
+                translation: Translation3::new(
+                    character_controller.position.x,
+                    character_controller.position.y,
+                    character_controller.position.z,
+                ),
+                ..Default::default()
+            };
+
+            let mut collisions = vec![];
+            let corrected_movement = character_controller.character_controller.move_shape(
+                delta_time_in_secs,
+                &self.current_state.rigid_body_set,
+                &self.current_state.collider_set,
+                &self.query_pipeline,
+                character_controller.shape.0.as_ref(),
+                &position,
+                Vector3::new(translation.x, translation.y, translation.z),
+                QueryFilter::default(),
+                |collision| collisions.push(collision),
+            );
+
+            character_controller.grounded = corrected_movement.grounded;
+            if character_controller.grounded {
+                character_controller.falling_velocity = Vec3::zero();
+            }
+
+            character_controller.position += Vec3::new(
+                corrected_movement.translation.x,
+                corrected_movement.translation.y,
+                corrected_movement.translation.z,
+            );
+
+            for collision in collisions {
+                character_controller
+                    .character_controller
+                    .solve_character_collision_impulses(
+                        delta_time_in_secs,
+                        &mut self.current_state.rigid_body_set,
+                        &self.current_state.collider_set,
+                        &self.query_pipeline,
+                        character_controller.shape.0.as_ref(),
+                        character_controller.mass,
+                        &collision,
+                        QueryFilter::default(),
+                    );
+            }
+        }
     }
 
     fn step(&mut self, delta_time_in_secs: f32) {
+        self.integration_parameters.dt = delta_time_in_secs;
+
         self.last_tick_time = Instant::now();
         self.predicted_next_tick_time =
             self.last_tick_time + Duration::from_secs_f32(delta_time_in_secs);
-
-        let gravity = vector![0.0, -9.81, 0.0];
-
-        self.integration_parameters.dt = delta_time_in_secs;
 
         if self.previous_states.len() == NUMBER_OF_STORED_STATES {
             self.previous_states.pop_front();
         }
         self.previous_states.push_back(self.current_state.clone());
 
+        self.handle_to_be_dropped_character_controllers();
+        self.move_characters(delta_time_in_secs);
+
+        let gravity = vector![self.gravity.x, self.gravity.y, self.gravity.z];
         self.physics_pipeline.step(
             &gravity,
             &self.integration_parameters,
@@ -356,6 +425,17 @@ impl Rapier3dPhysicsEngine {
             &self.current_state.rigid_body_set,
             &self.current_state.collider_set,
         );
+    }
+
+    fn handle_to_be_dropped_character_controllers(&mut self) {
+        let mut to_be_dropped_character_controllers = Vec::new();
+        swap(
+            self.to_be_dropped_character_controllers.write().deref_mut(),
+            &mut to_be_dropped_character_controllers,
+        );
+        for object_pool_index in to_be_dropped_character_controllers {
+            self.character_controllers.release_object(object_pool_index);
+        }
     }
 }
 
