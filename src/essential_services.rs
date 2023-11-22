@@ -9,6 +9,7 @@ use muleengine::{
     },
     renderer::renderer_system::renderer_decoupler,
     service_container::ServiceContainer,
+    window_context::EventReceiver,
 };
 
 use crate::{
@@ -16,6 +17,7 @@ use crate::{
 };
 
 pub struct EssentialServices {
+    pub event_receiver: EventReceiver,
     pub app_loop_state_watcher: AppLoopStateWatcher,
 
     pub service_container: ServiceContainer,
@@ -33,6 +35,12 @@ pub struct EssentialServices {
 impl EssentialServices {
     pub fn new(service_container: ServiceContainer) -> Self {
         Self {
+            event_receiver: service_container
+                .get_service::<EventReceiver>()
+                .inspect_err(|e| log::error!("{e:?}"))
+                .unwrap()
+                .as_ref()
+                .clone(),
             app_loop_state_watcher: service_container
                 .get_service::<AppLoopStateWatcher>()
                 .inspect_err(|e| log::error!("{e:?}"))

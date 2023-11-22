@@ -1,37 +1,25 @@
 use std::sync::Arc;
 
 use entity_component::{component_type_list, EntityContainer, EntityGroup};
-use muleengine::{
-    application_runner::ApplicationContext, bytifex_utils::result_option_inspect::ResultInspector,
-    system_container::System,
-};
+use muleengine::system_container::System;
 use tokio::time::Instant;
 use vek::Transform;
 
-use crate::physics::{Rapier3dPhysicsEngineService, RigidBodyHandler};
+use crate::{
+    essential_services::EssentialServices,
+    physics::{Rapier3dPhysicsEngineService, RigidBodyHandler},
+};
 
 pub struct TransformToPhysicsObjectCouplerSystem {
     physics_engine: Arc<Rapier3dPhysicsEngineService>,
 
-    entity_container: Arc<EntityContainer>,
+    entity_container: EntityContainer,
     entity_group: EntityGroup,
 }
 
 impl TransformToPhysicsObjectCouplerSystem {
-    pub fn new(app_context: &mut ApplicationContext) -> Self {
-        let physics_engine = app_context
-            .service_container_ref()
-            .get_service::<Rapier3dPhysicsEngineService>()
-            .inspect_err(|e| log::error!("{e:?}"))
-            .unwrap();
-
-        let entity_container = app_context
-            .service_container_ref()
-            .get_service::<EntityContainer>()
-            .inspect_err(|e| log::error!("{e:?}"))
-            .unwrap();
-
-        let mut entity_container_guard = entity_container.lock();
+    pub fn new(essentials: &Arc<EssentialServices>) -> Self {
+        let mut entity_container_guard = essentials.entity_container.lock();
 
         let entity_group = entity_container_guard.entity_group(component_type_list!(
             RigidBodyHandler,
@@ -41,9 +29,8 @@ impl TransformToPhysicsObjectCouplerSystem {
         drop(entity_container_guard);
 
         Self {
-            physics_engine,
-
-            entity_container,
+            physics_engine: essentials.physics_engine.clone(),
+            entity_container: essentials.entity_container.clone(),
             entity_group,
         }
     }

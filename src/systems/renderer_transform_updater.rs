@@ -2,8 +2,6 @@ use std::sync::Arc;
 
 use entity_component::{component_type_list, EntityContainer, EntityGroup};
 use muleengine::{
-    application_runner::ApplicationContext,
-    bytifex_utils::result_option_inspect::ResultInspector,
     renderer::{
         renderer_system::renderer_decoupler, RendererObjectHandler, RendererTransformHandler,
     },
@@ -11,30 +9,18 @@ use muleengine::{
 };
 use vek::Transform;
 
+use crate::essential_services::EssentialServices;
+
 pub struct RendererTransformUpdaterSystem {
     renderer_client: renderer_decoupler::Client,
 
-    entity_container: Arc<EntityContainer>,
+    entity_container: EntityContainer,
     entity_group: EntityGroup,
 }
 
 impl RendererTransformUpdaterSystem {
-    pub fn new(app_context: &mut ApplicationContext) -> Self {
-        let renderer_client = app_context
-            .service_container_ref()
-            .get_service::<renderer_decoupler::Client>()
-            .inspect_err(|e| log::error!("{e:?}"))
-            .unwrap()
-            .as_ref()
-            .clone();
-
-        let entity_container = app_context
-            .service_container_ref()
-            .get_service::<EntityContainer>()
-            .inspect_err(|e| log::error!("{e:?}"))
-            .unwrap();
-
-        let mut entity_container_guard = entity_container.lock();
+    pub fn new(essentials: &Arc<EssentialServices>) -> Self {
+        let mut entity_container_guard = essentials.entity_container.lock();
 
         let entity_group = entity_container_guard.entity_group(component_type_list!(
             RendererObjectHandler,
@@ -45,9 +31,9 @@ impl RendererTransformUpdaterSystem {
         drop(entity_container_guard);
 
         Self {
-            renderer_client,
+            renderer_client: essentials.renderer_client.clone(),
 
-            entity_container,
+            entity_container: essentials.entity_container.clone(),
             entity_group,
         }
     }

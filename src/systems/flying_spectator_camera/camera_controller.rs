@@ -18,12 +18,9 @@ use muleengine::{
 use tokio::time::{interval, MissedTickBehavior};
 use vek::{Vec2, Vec3};
 
-use super::{
-    flying_spectator_camera_input::{FlyingSpectatorCameraInput, VelocityChangeEvent},
-    flying_spectator_camera_input_provider::FlyingSpectatorCameraInputSystem,
-};
+use super::input::{InputProvider, InputReceiver, VelocityChangeEvent};
 
-pub(super) struct FlyingSpectatorCameraController {
+pub(super) struct CameraController {
     app_loop_state_watcher: AppLoopStateWatcher,
     should_run: Arc<AtomicBool>,
     task_receiver: TaskReceiver<client::ChanneledTask>,
@@ -31,7 +28,7 @@ pub(super) struct FlyingSpectatorCameraController {
     skydome_camera_transform_handler: RendererTransformHandler,
     main_camera_transform_handler: RendererTransformHandler,
     renderer_client: renderer_decoupler::Client,
-    flying_spectator_camera_input: FlyingSpectatorCameraInput,
+    input_receiver: InputReceiver,
     mouse_sensitivity: f32,
     camera_vertical_angle_rad: f32,
     weighted_turn_value: Vec2<f32>,
@@ -39,14 +36,14 @@ pub(super) struct FlyingSpectatorCameraController {
 }
 
 #[method_taskifier_impl(module_name = client)]
-impl FlyingSpectatorCameraController {
+impl CameraController {
     pub(super) fn new(
         app_loop_state_watcher: AppLoopStateWatcher,
         task_receiver: TaskReceiver<client::ChanneledTask>,
         renderer_client: renderer_decoupler::Client,
         skydome_camera_transform_handler: RendererTransformHandler,
         main_camera_transform_handler: RendererTransformHandler,
-        flying_spectator_camera_input: FlyingSpectatorCameraInput,
+        input_receiver: InputReceiver,
     ) -> Self {
         Self {
             app_loop_state_watcher,
@@ -56,7 +53,7 @@ impl FlyingSpectatorCameraController {
             skydome_camera_transform_handler,
             main_camera_transform_handler,
             renderer_client,
-            flying_spectator_camera_input,
+            input_receiver,
             mouse_sensitivity: 0.5,
             camera_vertical_angle_rad: 0.0,
             weighted_turn_value: Vec2::zero(),
@@ -67,9 +64,7 @@ impl FlyingSpectatorCameraController {
     #[method_taskifier_client_fn]
     pub fn remove_later(&self, closure_task_sender: &ClosureTaskSender) {
         closure_task_sender.add_task(|app_context| {
-            app_context
-                .system_container_mut()
-                .remove::<FlyingSpectatorCameraInputSystem>();
+            app_context.system_container_mut().remove::<InputProvider>();
             app_context
                 .service_container_ref()
                 .remove::<client::Client>();
@@ -135,11 +130,7 @@ impl FlyingSpectatorCameraController {
 
     async fn tick(&mut self, delta_time_in_secs: f32) {
         // accelerating or decelerating the camera
-        while let Some(event) = self
-            .flying_spectator_camera_input
-            .velocity_change_event_receiver
-            .pop()
-        {
+        while let Some(event) = self.input_receiver.velocity_change_event_receiver.pop() {
             match event {
                 VelocityChangeEvent::Accelerate => {
                     self.moving_velocity *= 1.5;
@@ -151,27 +142,15 @@ impl FlyingSpectatorCameraController {
         }
 
         // moving the camera
-        let mut moving_direction = Vec3::<f32>::zero();
-        while let Some(moving_input) = self
-            .flying_spectator_camera_input
-            .moving_event_receiver
-            .pop()
-        {
-            moving_direction += moving_input;
-        }
-
-        if moving_direction != Vec3::zero() {
-            moving_direction.normalize();
-        }
+        let moving_direction = self
+            .input_receiver
+            .movement_event_receiver
+            .get_normalized_aggregated_moving_direction();
 
         // turning the camera
         const TURNING_VELOCITY_RAD: f32 = std::f32::consts::FRAC_PI_2 * 0.1;
         let mut accumulated_camera_turn_input = Vec2::<f32>::zero();
-        while let Some(camera_turn_input) = self
-            .flying_spectator_camera_input
-            .turning_event_receiver
-            .pop()
-        {
+        while let Some(camera_turn_input) = self.input_receiver.turning_event_receiver.pop() {
             let direction = camera_turn_input
                 .try_normalized()
                 .unwrap_or_else(Vec2::zero);

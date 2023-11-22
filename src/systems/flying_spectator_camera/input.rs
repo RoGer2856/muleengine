@@ -2,27 +2,33 @@ use muleengine::{
     bytifex_utils::sync::broadcast,
     bytifex_utils::sync::types::ArcRwLock,
     system_container::System,
-    window_context::{Event, EventReceiver, Key, MouseButton, WindowContext},
+    window_context::{Event, EventReceiver, MouseButton, WindowContext},
 };
 
-use vek::{Vec2, Vec3};
+use vek::Vec2;
 
-use super::flying_spectator_camera_input::{FlyingSpectatorCameraInput, VelocityChangeEvent};
+use super::flying_movement_input::{FlyingMovementEventProvider, FlyingMovementEventReceiver};
 
-pub(super) struct FlyingSpectatorCameraInputSystem {
+#[derive(Clone)]
+pub enum VelocityChangeEvent {
+    Accelerate,
+    Decelerate,
+}
+
+pub(super) struct InputProvider {
     window_context: ArcRwLock<dyn WindowContext>,
-    data: FlyingSpectatorCameraInput,
+    data: InputReceiver,
 
     event_receiver: EventReceiver,
 
     velocity_change_event_sender: broadcast::Sender<VelocityChangeEvent>,
-    moving_event_sender: broadcast::Sender<Vec3<f32>>,
+    movement_event_provider: FlyingMovementEventProvider,
     turning_event_sender: broadcast::Sender<Vec2<f32>>,
 
     was_active_last_tick: bool,
 }
 
-impl FlyingSpectatorCameraInputSystem {
+impl InputProvider {
     pub fn new(window_context: ArcRwLock<dyn WindowContext>) -> Self {
         let velocity_change_event_sender = broadcast::Sender::new();
         let velocity_change_event_receiver = velocity_change_event_sender.create_receiver();
@@ -30,35 +36,35 @@ impl FlyingSpectatorCameraInputSystem {
         let turning_event_sender = broadcast::Sender::new();
         let turning_event_receiver = turning_event_sender.create_receiver();
 
-        let moving_event_sender = broadcast::Sender::new();
-        let moving_event_receiver = moving_event_sender.create_receiver();
+        let movement_event_provider = FlyingMovementEventProvider::new();
+        let movement_event_consumer = movement_event_provider.create_receiver();
 
         let event_receiver = window_context.read().event_receiver();
 
         Self {
             window_context,
-            data: FlyingSpectatorCameraInput {
+            data: InputReceiver {
                 velocity_change_event_receiver,
-                moving_event_receiver,
+                movement_event_receiver: movement_event_consumer,
                 turning_event_receiver,
             },
 
             event_receiver,
 
             velocity_change_event_sender,
-            moving_event_sender,
+            movement_event_provider,
             turning_event_sender,
 
             was_active_last_tick: false,
         }
     }
 
-    pub fn data(&self) -> FlyingSpectatorCameraInput {
+    pub fn input_receiver(&self) -> InputReceiver {
         self.data.clone()
     }
 }
 
-impl System for FlyingSpectatorCameraInputSystem {
+impl System for InputProvider {
     fn tick(&mut self, _delta_time_in_secs: f32) {
         let mut window_context = self.window_context.write();
 
@@ -77,33 +83,7 @@ impl System for FlyingSpectatorCameraInputSystem {
         let should_be_active = window_context.is_mouse_button_pressed(MouseButton::Right);
         if should_be_active {
             if self.was_active_last_tick {
-                // moving the camera with the keyboard
-                let mut moving_direction = Vec3::zero();
-                if window_context.is_key_pressed(Key::W) {
-                    moving_direction.z = -1.0;
-                }
-                if window_context.is_key_pressed(Key::S) {
-                    moving_direction.z = 1.0;
-                }
-
-                if window_context.is_key_pressed(Key::A) {
-                    moving_direction.x = -1.0;
-                }
-                if window_context.is_key_pressed(Key::D) {
-                    moving_direction.x = 1.0;
-                }
-
-                if window_context.is_key_pressed(Key::Space) {
-                    moving_direction.y = 1.0;
-                }
-                if window_context.is_key_pressed(Key::C)
-                    || window_context.is_key_pressed(Key::CtrlLeft)
-                    || window_context.is_key_pressed(Key::CtrlRight)
-                {
-                    moving_direction.y = -1.0;
-                }
-
-                self.moving_event_sender.send(moving_direction);
+                self.movement_event_provider.tick(&*window_context);
 
                 // turning the camera with the mouse
                 let mouse_camera_turn = {
@@ -136,4 +116,11 @@ impl System for FlyingSpectatorCameraInputSystem {
 
         self.was_active_last_tick = should_be_active;
     }
+}
+
+#[derive(Clone)]
+pub(super) struct InputReceiver {
+    pub(super) velocity_change_event_receiver: broadcast::Receiver<VelocityChangeEvent>,
+    pub(super) movement_event_receiver: FlyingMovementEventReceiver,
+    pub(super) turning_event_receiver: broadcast::Receiver<Vec2<f32>>,
 }

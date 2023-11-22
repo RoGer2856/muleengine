@@ -94,9 +94,11 @@ impl Game2 {
             .add_system(renderer_system);
 
         let event_receiver = window_context.read().event_receiver();
+        app_context
+            .service_container_ref()
+            .insert(event_receiver.clone());
 
         let app_loop_state = AppLoopState::new();
-
         app_context
             .service_container_ref()
             .insert(app_loop_state.watcher());
@@ -109,17 +111,6 @@ impl Game2 {
 
         physics::run(app_context);
 
-        let transform_to_physics_object_coupler_system =
-            TransformToPhysicsObjectCouplerSystem::new(app_context);
-        app_context
-            .system_container_mut()
-            .add_system(transform_to_physics_object_coupler_system);
-
-        let renderer_transform_updater = RendererTransformUpdaterSystem::new(app_context);
-        app_context
-            .system_container_mut()
-            .add_system(renderer_transform_updater);
-
         let essentials = app_context
             .service_container_ref()
             .insert(EssentialServices::new(
@@ -128,6 +119,17 @@ impl Game2 {
             .new_item
             .as_arc_ref()
             .clone();
+
+        let transform_to_physics_object_coupler_system =
+            TransformToPhysicsObjectCouplerSystem::new(&essentials);
+        app_context
+            .system_container_mut()
+            .add_system(transform_to_physics_object_coupler_system);
+
+        let renderer_transform_updater = RendererTransformUpdaterSystem::new(&essentials);
+        app_context
+            .system_container_mut()
+            .add_system(renderer_transform_updater);
 
         flying_spectator_camera::run(
             window_context,
