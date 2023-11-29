@@ -39,16 +39,6 @@ impl MovementEventProvider {
             moving_direction.x = 1.0;
         }
 
-        if window_context.is_key_pressed(Key::Space) {
-            moving_direction.y = 1.0;
-        }
-        if window_context.is_key_pressed(Key::C)
-            || window_context.is_key_pressed(Key::CtrlLeft)
-            || window_context.is_key_pressed(Key::CtrlRight)
-        {
-            moving_direction.y = -1.0;
-        }
-
         self.0.send(moving_direction);
     }
 }

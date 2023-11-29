@@ -37,7 +37,7 @@ pub(super) struct CameraController {
 
 #[method_taskifier_impl(module_name = client)]
 impl CameraController {
-    pub(super) fn new(
+    pub fn new(
         app_loop_state_watcher: AppLoopStateWatcher,
         task_receiver: TaskReceiver<client::ChanneledTask>,
         renderer_client: renderer_decoupler::Client,
@@ -72,12 +72,12 @@ impl CameraController {
     }
 
     #[method_taskifier_client_fn]
-    pub fn stop(&self) {
-        drop(self.async_stop());
+    pub fn pause(&self) {
+        drop(self.async_pause());
     }
 
     #[method_taskifier_worker_fn]
-    fn async_stop(&self) {
+    fn async_pause(&self) {
         self.should_run.store(false, atomic::Ordering::SeqCst);
     }
 
@@ -91,7 +91,7 @@ impl CameraController {
         self.should_run.store(true, atomic::Ordering::SeqCst);
     }
 
-    pub(super) async fn run(&mut self) {
+    pub async fn run(&mut self) {
         let interval_secs = 1.0 / 30.0;
         let mut interval = interval(Duration::from_secs_f32(interval_secs));
         interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
@@ -116,10 +116,8 @@ impl CameraController {
                     }
                 }
                 _ = interval.tick() => {
-                    if self.should_run.load(atomic::Ordering::SeqCst) {
-                        // self.tick(delta_time_secs).await;
-                        self.tick(interval_secs).await;
-                    }
+                    // self.tick(delta_time_secs).await;
+                    self.tick(interval_secs).await;
                 }
             }
 
@@ -191,31 +189,29 @@ impl CameraController {
             + Vec3::unit_y() * moving_direction.y
             + axis_z * moving_direction.z;
 
-        self.camera
-            .move_by(corrected_moving_direction * self.moving_velocity * delta_time_in_secs);
+        if self.should_run.load(atomic::Ordering::SeqCst) {
+            self.camera
+                .move_by(corrected_moving_direction * self.moving_velocity * delta_time_in_secs);
 
-        self.camera_vertical_angle_rad += self.weighted_turn_value.x;
-        self.camera.pitch(self.weighted_turn_value.x);
-        self.camera.rotate_around_unit_y(self.weighted_turn_value.y);
+            self.camera_vertical_angle_rad += self.weighted_turn_value.x;
+            self.camera.pitch(self.weighted_turn_value.x);
+            self.camera.rotate_around_unit_y(self.weighted_turn_value.y);
 
-        let _ = self
-            .renderer_client
-            .update_transform(
-                self.main_camera_transform_handler.clone(),
-                *self.camera.transform_ref(),
-            )
-            .await
-            .inspect_err(|e| log::error!("{e:?}"));
+            let _ = self
+                .renderer_client
+                .update_transform(
+                    self.main_camera_transform_handler.clone(),
+                    *self.camera.transform_ref(),
+                )
+                .await
+                .inspect_err(|e| log::error!("{e:?}"));
 
-        let mut skybox_camera_transform = *self.camera.transform_ref();
-        skybox_camera_transform.position = Vec3::zero();
-        let _ = self
-            .renderer_client
-            .update_transform(
+            let mut skybox_camera_transform = *self.camera.transform_ref();
+            skybox_camera_transform.position = Vec3::zero();
+            drop(self.renderer_client.update_transform(
                 self.skydome_camera_transform_handler.clone(),
                 skybox_camera_transform,
-            )
-            .await
-            .inspect_err(|e| log::error!("{e:?}"));
+            ));
+        }
     }
 }

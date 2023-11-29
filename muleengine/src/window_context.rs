@@ -4,7 +4,7 @@ use crate::system_container::System;
 
 use bytifex_utils::sync::broadcast;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Key {
     A,
     B,
@@ -166,7 +166,7 @@ pub enum Key {
     Unknown(usize),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum MouseButton {
     Left,
     Middle,
@@ -175,7 +175,7 @@ pub enum MouseButton {
     X2,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Event {
     Closed,
     Resized {

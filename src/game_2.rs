@@ -22,9 +22,9 @@ use crate::{
     game_objects::populate_with_objects,
     physics,
     systems::{
-        character_controller_system, flying_spectator_camera,
+        character_controller_system, controller_changer, flying_spectator_camera,
         renderer_configuration::RendererConfiguration,
-        renderer_transform_updater::RendererTransformUpdaterSystem,
+        renderer_transform_updater::RendererTransformUpdaterSystem, top_down_player_controller,
         transform_to_physics_object_coupler_system::TransformToPhysicsObjectCouplerSystem,
     },
 };
@@ -132,10 +132,16 @@ impl Game2 {
             .add_system(renderer_transform_updater);
 
         flying_spectator_camera::run(
-            window_context,
+            window_context.clone(),
             app_context.system_container_mut(),
             essentials.clone(),
         );
+        top_down_player_controller::run(
+            window_context.clone(),
+            app_context.system_container_mut(),
+            essentials.clone(),
+        );
+        controller_changer::run(window_context.read().event_receiver().clone(), &essentials);
         character_controller_system::run(&essentials);
 
         tokio::spawn(async move {

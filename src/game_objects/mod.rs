@@ -9,6 +9,7 @@ use muleengine::{
 use vek::{Transform, Vec3};
 
 use crate::{
+    components::CurrentlyControlledCharacter,
     essential_services::EssentialServices,
     physics::{
         character_controller::CharacterLength, collider::ColliderShape, rigid_body::RigidBodyType,
@@ -300,7 +301,7 @@ async fn spawn_player(essentials: &Arc<EssentialServices>) {
             height: capsule_height,
         });
 
-    let mut character_controller_handler = character_controller_builder
+    let character_controller_handler = character_controller_builder
         .mass(80.0)
         .margin(CharacterLength::Absolute(0.01))
         .max_slope_climb_angle(35.0)
@@ -309,9 +310,9 @@ async fn spawn_player(essentials: &Arc<EssentialServices>) {
         .snap_to_ground(CharacterLength::Absolute(0.3))
         .build(&mut essentials.physics_engine.write());
 
-    character_controller_handler.set_velocity(Vec3::new(0.0, 0.0, -3.0));
-
-    let entity_builder = entity_builder.with_component(character_controller_handler);
+    let entity_builder = entity_builder
+        .with_component(character_controller_handler)
+        .with_component(CurrentlyControlledCharacter);
 
     entity_builder.build();
 }

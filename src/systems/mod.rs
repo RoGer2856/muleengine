@@ -1,4 +1,5 @@
 pub mod character_controller_system;
+pub mod controller_changer;
 pub mod flying_spectator_camera;
 pub mod general_input_providers;
 pub mod renderer_configuration;

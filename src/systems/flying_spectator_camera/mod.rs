@@ -16,6 +16,8 @@ use crate::essential_services::EssentialServices;
 
 use self::{camera_controller::client::Client, input::InputProvider};
 
+pub use camera_controller::client::Client as FlyingSpectatorCameraControllerClient;
+
 pub fn run(
     window_context: ArcRwLock<dyn WindowContext>,
     system_container: &mut SystemContainer,
@@ -30,15 +32,15 @@ pub fn run(
         .clone();
     system_container.add_system(input_provider);
 
+    let (task_sender, task_receiver) = task_channel();
+
+    let client = Client::new(task_sender);
+    essentials.service_container.insert(client.clone());
+
     tokio::spawn(async move {
-        let (command_sender, command_receiver) = task_channel();
-
-        let client = Client::new(command_sender);
-        essentials.service_container.insert(client.clone());
-
         CameraController::new(
             essentials.app_loop_state_watcher.clone(),
-            command_receiver,
+            task_receiver,
             essentials.renderer_client.clone(),
             essentials
                 .renderer_configuration
