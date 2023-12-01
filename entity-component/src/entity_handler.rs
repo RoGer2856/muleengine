@@ -91,7 +91,10 @@ impl EntityHandler<'_, '_> {
         component_storage.get_component_ref::<ComponentType>(component_id)
     }
 
-    pub fn change_component<ComponentType>(&mut self, f: impl FnOnce(&mut ComponentType)) -> bool
+    pub fn change_component<ComponentType, ReturnType>(
+        &mut self,
+        f: impl FnOnce(&mut ComponentType) -> ReturnType,
+    ) -> Option<ReturnType>
     where
         ComponentType: ComponentTrait,
     {
@@ -108,7 +111,7 @@ impl EntityHandler<'_, '_> {
             };
 
             if let Some(mut component_mut) = component_storage.get_component_mut(component_id_ref) {
-                f(&mut *component_mut);
+                let ret = f(&mut *component_mut);
 
                 self.entity_modified_event_guard
                     .trigger(&EntityModifiedEvent::ComponentChanged {
@@ -117,12 +120,12 @@ impl EntityHandler<'_, '_> {
                         component_ids: &self.entity.component_ids,
                     });
 
-                true
+                Some(ret)
             } else {
-                false
+                None
             }
         } else {
-            false
+            None
         }
     }
 

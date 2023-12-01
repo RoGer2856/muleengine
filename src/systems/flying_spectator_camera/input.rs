@@ -37,7 +37,7 @@ impl InputProvider {
         let turning_event_receiver = turning_event_sender.create_receiver();
 
         let movement_event_provider = FlyingMovementEventProvider::new();
-        let movement_event_consumer = movement_event_provider.create_receiver();
+        let movement_event_receiver = movement_event_provider.create_receiver();
 
         let event_receiver = window_context.read().event_receiver();
 
@@ -45,7 +45,7 @@ impl InputProvider {
             window_context,
             data: InputReceiver {
                 velocity_change_event_receiver,
-                movement_event_receiver: movement_event_consumer,
+                movement_event_receiver,
                 turning_event_receiver,
             },
 

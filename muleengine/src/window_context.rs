@@ -235,4 +235,21 @@ pub trait WindowContext: System {
             self.event_sender().send(event);
         }
     }
+
+    fn mouse_pos_ndc(&self) -> Vec2<f32> {
+        let window_dimensions = self.window_dimensions();
+        let mouse_pos = self.mouse_pos();
+
+        let window_dimensions_minus_1 = Vec2::new(
+            (window_dimensions.x - 1) as f32,
+            (window_dimensions.y - 1) as f32,
+        );
+        let mut mouse_pos = Vec2::new(mouse_pos.x as f32, mouse_pos.y as f32);
+
+        mouse_pos /= window_dimensions_minus_1;
+        mouse_pos *= 2.0;
+        mouse_pos -= 1.0;
+
+        mouse_pos
+    }
 }

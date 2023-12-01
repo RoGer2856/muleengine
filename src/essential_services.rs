@@ -7,7 +7,7 @@ use muleengine::{
     bytifex_utils::{
         result_option_inspect::ResultInspector, sync::app_loop_state::AppLoopStateWatcher,
     },
-    renderer::renderer_system::renderer_decoupler,
+    renderer::renderer_system::RendererClient,
     service_container::ServiceContainer,
     window_context::EventReceiver,
 };
@@ -25,7 +25,7 @@ pub struct EssentialServices {
     pub asset_container: AssetContainer,
 
     pub renderer_configuration: Arc<RendererConfiguration>,
-    pub renderer_client: renderer_decoupler::Client,
+    pub renderer_client: RendererClient,
 
     pub physics_engine: Arc<Rapier3dPhysicsEngineService>,
 
@@ -59,7 +59,7 @@ impl EssentialServices {
                 .inspect_err(|e| log::error!("{e:?}"))
                 .unwrap(),
             renderer_client: service_container
-                .get_service::<renderer_decoupler::Client>()
+                .get_service::<RendererClient>()
                 .inspect_err(|e| log::error!("{e:?}"))
                 .unwrap()
                 .as_ref()

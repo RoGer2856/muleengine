@@ -38,9 +38,20 @@ pub async fn populate_with_objects(essentials: &Arc<EssentialServices>) {
 }
 
 async fn spawn_ground(essentials: &Arc<EssentialServices>) {
+    // rigid_bodies::create_box(
+    //     essentials,
+    //     Vec3::new(0.0, -2.0, 0.0),
+    //     Vec3::new(100.0, 2.0, 100.0),
+    //     RigidBodyType::Static,
+    // )
+    // .await;
+
+    let dimensions = Vec3::new(50.0, 2.0, 50.0);
+
     add_heightmap(
         essentials,
         Vec3::new(-25.0, -2.0, 0.0),
+        dimensions,
         "Assets/heightmap.png",
         None,
     )
@@ -50,6 +61,7 @@ async fn spawn_ground(essentials: &Arc<EssentialServices>) {
     add_heightmap(
         essentials,
         Vec3::new(-25.0, -2.0, -50.0),
+        dimensions,
         &format!("Assets/ADG_Textures/walls_vol1/{wall_prefix}/{wall_prefix}_Height.png"),
         Some(&format!(
             "Assets/ADG_Textures/walls_vol1/{wall_prefix}/{wall_prefix}_Diffuse.png"
@@ -60,6 +72,7 @@ async fn spawn_ground(essentials: &Arc<EssentialServices>) {
     add_heightmap(
         essentials,
         Vec3::new(25.0, -2.0, -50.0),
+        dimensions,
         &format!("Assets/ADG_Textures/walls_vol1/{wall_prefix}/{wall_prefix}_Height.png"),
         None,
     )
@@ -69,6 +82,7 @@ async fn spawn_ground(essentials: &Arc<EssentialServices>) {
     add_heightmap(
         essentials,
         Vec3::new(25.0, -2.0, 0.0),
+        dimensions,
         &format!("Assets/ADG_Textures/walls_vol1/{wall_prefix}/{wall_prefix}_Height.png"),
         Some(&format!(
             "Assets/ADG_Textures/walls_vol1/{wall_prefix}/{wall_prefix}_Diffuse.png"
@@ -80,11 +94,10 @@ async fn spawn_ground(essentials: &Arc<EssentialServices>) {
 async fn add_heightmap(
     essentials: &Arc<EssentialServices>,
     position: Vec3<f32>,
+    dimensions: Vec3<f32>,
     heightmap_path: &str,
     albedo_path: Option<&str>,
 ) {
-    let scale = Vec3::new(50.0, 2.0, 50.0);
-
     let mut material = Material::new();
     if let Some(albedo_path) = albedo_path {
         let albedo_image = essentials
@@ -121,7 +134,7 @@ async fn add_heightmap(
         .await
         .transform(Transform {
             position,
-            scale,
+            scale: dimensions,
             ..Default::default()
         })
         .await
@@ -134,7 +147,10 @@ async fn add_heightmap(
         )
         .simple_rigid_body(
             position,
-            ColliderShape::Heightmap { heightmap, scale },
+            ColliderShape::Heightmap {
+                heightmap,
+                scale: dimensions,
+            },
             RigidBodyType::Static,
         )
         .build()
@@ -173,9 +189,21 @@ async fn spawn_physics_entities(essentials: &Arc<EssentialServices>) {
                     z as f32 * SPACE_BETWEEN_OBJECTS,
                 ) + POSITION_OFFSET;
                 if is_cube {
-                    rigid_bodies::create_box(essentials, position, CUBE_DIMENSIONS).await;
+                    rigid_bodies::create_box(
+                        essentials,
+                        position,
+                        CUBE_DIMENSIONS,
+                        RigidBodyType::Dynamic,
+                    )
+                    .await;
                 } else {
-                    rigid_bodies::create_sphere(essentials, position, SPHERE_RADIUS).await;
+                    rigid_bodies::create_sphere(
+                        essentials,
+                        position,
+                        SPHERE_RADIUS,
+                        RigidBodyType::Dynamic,
+                    )
+                    .await;
                 }
 
                 is_cube = !is_cube;
@@ -312,7 +340,10 @@ async fn spawn_player(essentials: &Arc<EssentialServices>) {
 
     let entity_builder = entity_builder
         .with_component(character_controller_handler)
-        .with_component(CurrentlyControlledCharacter);
+        .with_component(CurrentlyControlledCharacter {
+            max_velocity: 2.0,
+            camera_distance: 20.0,
+        });
 
     entity_builder.build();
 }

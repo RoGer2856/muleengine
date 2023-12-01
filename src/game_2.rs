@@ -22,10 +22,11 @@ use crate::{
     game_objects::populate_with_objects,
     physics,
     systems::{
-        character_controller_system, controller_changer, flying_spectator_camera,
+        character_controller_to_transform_coupler_system::CharacterControllerToTransformCouplerSystem,
+        controller_changer, flying_spectator_camera,
+        physics_object_to_transform_coupler_system::PhysicsObjectToTransformCouplerSystem,
         renderer_configuration::RendererConfiguration,
         renderer_transform_updater::RendererTransformUpdaterSystem, top_down_player_controller,
-        transform_to_physics_object_coupler_system::TransformToPhysicsObjectCouplerSystem,
     },
 };
 
@@ -120,11 +121,12 @@ impl Game2 {
             .as_arc_ref()
             .clone();
 
-        let transform_to_physics_object_coupler_system =
-            TransformToPhysicsObjectCouplerSystem::new(&essentials);
         app_context
             .system_container_mut()
-            .add_system(transform_to_physics_object_coupler_system);
+            .add_system(PhysicsObjectToTransformCouplerSystem::new(&essentials));
+        app_context.system_container_mut().add_system(
+            CharacterControllerToTransformCouplerSystem::new(&essentials),
+        );
 
         let renderer_transform_updater = RendererTransformUpdaterSystem::new(&essentials);
         app_context
@@ -142,7 +144,6 @@ impl Game2 {
             essentials.clone(),
         );
         controller_changer::run(window_context.read().event_receiver().clone(), &essentials);
-        character_controller_system::run(&essentials);
 
         tokio::spawn(async move {
             populate_with_objects(&essentials).await;

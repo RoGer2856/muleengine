@@ -9,11 +9,9 @@ use std::{
 use method_taskifier::{method_taskifier_impl, task_channel::TaskReceiver};
 use muleengine::{
     application_runner::ClosureTaskSender,
-    bytifex_utils::{
-        result_option_inspect::ResultInspector, sync::app_loop_state::AppLoopStateWatcher,
-    },
+    bytifex_utils::sync::app_loop_state::AppLoopStateWatcher,
     camera::Camera,
-    renderer::{renderer_system::renderer_decoupler, RendererTransformHandler},
+    renderer::{renderer_system::RendererClient, RendererTransformHandler},
 };
 use tokio::time::{interval, MissedTickBehavior};
 use vek::{Vec2, Vec3};
@@ -27,7 +25,7 @@ pub(super) struct CameraController {
     camera: Camera,
     skydome_camera_transform_handler: RendererTransformHandler,
     main_camera_transform_handler: RendererTransformHandler,
-    renderer_client: renderer_decoupler::Client,
+    renderer_client: RendererClient,
     input_receiver: InputReceiver,
     mouse_sensitivity: f32,
     camera_vertical_angle_rad: f32,
@@ -40,7 +38,7 @@ impl CameraController {
     pub fn new(
         app_loop_state_watcher: AppLoopStateWatcher,
         task_receiver: TaskReceiver<client::ChanneledTask>,
-        renderer_client: renderer_decoupler::Client,
+        renderer_client: RendererClient,
         skydome_camera_transform_handler: RendererTransformHandler,
         main_camera_transform_handler: RendererTransformHandler,
         input_receiver: InputReceiver,
@@ -197,14 +195,10 @@ impl CameraController {
             self.camera.pitch(self.weighted_turn_value.x);
             self.camera.rotate_around_unit_y(self.weighted_turn_value.y);
 
-            let _ = self
-                .renderer_client
-                .update_transform(
-                    self.main_camera_transform_handler.clone(),
-                    *self.camera.transform_ref(),
-                )
-                .await
-                .inspect_err(|e| log::error!("{e:?}"));
+            drop(self.renderer_client.update_transform(
+                self.main_camera_transform_handler.clone(),
+                *self.camera.transform_ref(),
+            ));
 
             let mut skybox_camera_transform = *self.camera.transform_ref();
             skybox_camera_transform.position = Vec3::zero();

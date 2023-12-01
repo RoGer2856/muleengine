@@ -2,9 +2,7 @@ use std::sync::Arc;
 
 use entity_component::{component_type_list, EntityContainer, EntityGroup};
 use muleengine::{
-    renderer::{
-        renderer_system::renderer_decoupler, RendererObjectHandler, RendererTransformHandler,
-    },
+    renderer::{renderer_system::RendererClient, RendererObjectHandler, RendererTransformHandler},
     system_container::System,
 };
 use vek::Transform;
@@ -12,7 +10,7 @@ use vek::Transform;
 use crate::essential_services::EssentialServices;
 
 pub struct RendererTransformUpdaterSystem {
-    renderer_client: renderer_decoupler::Client,
+    renderer_client: RendererClient,
 
     entity_container: EntityContainer,
     entity_group: EntityGroup,
@@ -42,9 +40,11 @@ impl RendererTransformUpdaterSystem {
 impl System for RendererTransformUpdaterSystem {
     fn tick(&mut self, _delta_time_in_secs: f32) {
         for entity_id in self.entity_group.iter_entity_ids() {
-            if let Some(handler) = self.entity_container.lock().handler_for_entity(&entity_id) {
+            if let Some(entity_handler) =
+                self.entity_container.lock().handler_for_entity(&entity_id)
+            {
                 let transform = if let Some(component) =
-                    handler.get_component_ref::<Transform<f32, f32, f32>>()
+                    entity_handler.get_component_ref::<Transform<f32, f32, f32>>()
                 {
                     *component
                 } else {
@@ -52,7 +52,7 @@ impl System for RendererTransformUpdaterSystem {
                 };
 
                 let transform_handler = if let Some(component) =
-                    handler.get_component_ref::<RendererTransformHandler>()
+                    entity_handler.get_component_ref::<RendererTransformHandler>()
                 {
                     component.clone()
                 } else {

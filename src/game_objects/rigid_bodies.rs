@@ -15,6 +15,7 @@ pub async fn create_box(
     essentials: &Arc<EssentialServices>,
     position: Vec3<f32>,
     dimensions: Vec3<f32>,
+    rigid_body_type: RigidBodyType,
 ) -> EntityId {
     let entity_builder = GameObjectBuilder::new(essentials)
         .renderer_group_handler(
@@ -41,7 +42,7 @@ pub async fn create_box(
                 y: dimensions.y,
                 z: dimensions.z,
             },
-            RigidBodyType::Dynamic,
+            rigid_body_type,
         )
         .build()
         .await;
@@ -53,6 +54,7 @@ pub async fn create_sphere(
     essentials: &Arc<EssentialServices>,
     position: Vec3<f32>,
     radius: f32,
+    rigid_body_type: RigidBodyType,
 ) -> EntityId {
     let entity_builder = GameObjectBuilder::new(essentials)
         .renderer_group_handler(
@@ -72,11 +74,7 @@ pub async fn create_sphere(
         .await
         .mesh(Arc::new(mesh_creator::sphere::create(0.5, 16)))
         .await
-        .simple_rigid_body(
-            position,
-            ColliderShape::Sphere { radius },
-            RigidBodyType::Dynamic,
-        )
+        .simple_rigid_body(position, ColliderShape::Sphere { radius }, rigid_body_type)
         .build()
         .await;
 

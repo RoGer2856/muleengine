@@ -10,14 +10,14 @@ use crate::{
     physics::{Rapier3dPhysicsEngineService, RigidBodyHandler},
 };
 
-pub struct TransformToPhysicsObjectCouplerSystem {
+pub struct PhysicsObjectToTransformCouplerSystem {
     physics_engine: Arc<Rapier3dPhysicsEngineService>,
 
     entity_container: EntityContainer,
     entity_group: EntityGroup,
 }
 
-impl TransformToPhysicsObjectCouplerSystem {
+impl PhysicsObjectToTransformCouplerSystem {
     pub fn new(essentials: &Arc<EssentialServices>) -> Self {
         let mut entity_container_guard = essentials.entity_container.lock();
 
@@ -36,25 +36,28 @@ impl TransformToPhysicsObjectCouplerSystem {
     }
 }
 
-impl System for TransformToPhysicsObjectCouplerSystem {
+impl System for PhysicsObjectToTransformCouplerSystem {
     fn tick(&mut self, _delta_time_in_secs: f32) {
         let now = Instant::now();
 
         let physics_engine = self.physics_engine.read();
 
         for entity_id in self.entity_group.iter_entity_ids() {
-            if let Some(mut handler) = self.entity_container.lock().handler_for_entity(&entity_id) {
-                let rigid_body_handler =
-                    if let Some(component) = handler.get_component_ref::<RigidBodyHandler>() {
-                        component.clone()
-                    } else {
-                        continue;
-                    };
+            if let Some(mut entity_handler) =
+                self.entity_container.lock().handler_for_entity(&entity_id)
+            {
+                let rigid_body_handler = if let Some(component) =
+                    entity_handler.get_component_ref::<RigidBodyHandler>()
+                {
+                    component.clone()
+                } else {
+                    continue;
+                };
 
                 if let Some((position, rotation)) =
                     physics_engine.get_interpolated_transform_of_rigidbody(&rigid_body_handler, now)
                 {
-                    handler.change_component::<Transform<f32, f32, f32>>(|transform| {
+                    entity_handler.change_component(|transform: &mut Transform<f32, f32, f32>| {
                         transform.position = position;
                         transform.orientation = rotation;
                     });

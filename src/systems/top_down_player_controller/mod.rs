@@ -38,14 +38,10 @@ pub fn run(
     essentials.service_container.insert(client.clone());
 
     tokio::spawn(async move {
-        PlayerController::new(
-            essentials.app_loop_state_watcher.clone(),
-            task_receiver,
-            input_receiver,
-            essentials.entity_container.clone(),
-        )
-        .run()
-        .await;
+        PlayerController::new(task_receiver, input_receiver, &essentials)
+            .await
+            .run()
+            .await;
 
         client.remove_later(&essentials.closure_task_sender);
     });

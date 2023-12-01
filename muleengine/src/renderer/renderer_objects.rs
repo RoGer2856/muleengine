@@ -5,7 +5,7 @@ macro_rules! renderer_object_mod {
 
             use crate::{
                 bytifex_utils::{cast::AsAny, containers::object_pool::ObjectPoolIndex},
-                renderer::renderer_system::renderer_decoupler,
+                renderer::renderer_system::RendererClient,
             };
 
             pub trait $trait_name: AsAny + Sync + Send + 'static {}
@@ -13,7 +13,7 @@ macro_rules! renderer_object_mod {
             #[derive(Clone)]
             pub(crate) struct HandlerDestructor {
                 pub(crate) object_pool_index: ObjectPoolIndex,
-                renderer_client: renderer_decoupler::Client,
+                renderer_client: RendererClient,
             }
 
             #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
@@ -22,7 +22,7 @@ macro_rules! renderer_object_mod {
             impl $handler_name {
                 pub fn new(
                     object_pool_index: ObjectPoolIndex,
-                    renderer_client: renderer_decoupler::Client,
+                    renderer_client: RendererClient,
                 ) -> Self {
                     Self(Arc::new(HandlerDestructor {
                         object_pool_index,

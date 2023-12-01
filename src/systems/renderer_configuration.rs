@@ -1,7 +1,7 @@
 use muleengine::{
     bytifex_utils::{result_option_inspect::ResultInspector, sync::async_item::AsyncItem},
     renderer::{
-        renderer_pipeline_step::RendererPipelineStep, renderer_system::renderer_decoupler,
+        renderer_pipeline_step::RendererPipelineStep, renderer_system::RendererClient,
         RendererCameraHandler, RendererGroupHandler, RendererLayerHandler,
         RendererTransformHandler,
     },
@@ -29,7 +29,7 @@ pub struct RendererConfiguration {
 }
 
 impl RendererConfigurationData {
-    pub async fn new(renderer_client: renderer_decoupler::Client) -> Self {
+    pub async fn new(renderer_client: RendererClient) -> Self {
         let skydome_camera_transform_handler = renderer_client
             .create_transform(Transform::default())
             .await
@@ -157,7 +157,7 @@ impl RendererConfiguration {
             let data = data.clone();
             tokio::spawn(async move {
                 let renderer_client = service_container
-                    .get_service::<renderer_decoupler::Client>()
+                    .get_service::<RendererClient>()
                     .inspect_err(|e| log::error!("{e:?}"))
                     .unwrap()
                     .as_ref()

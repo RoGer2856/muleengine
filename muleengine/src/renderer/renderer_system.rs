@@ -67,8 +67,8 @@ pub(super) struct RendererPri<T: RendererImpl + ?Sized> {
     pub(super) renderer_meshes: ArcRwLock<ObjectPool<ArcRwLock<dyn RendererMesh>>>,
     pub(super) renderer_objects: ArcRwLock<ObjectPool<RendererObjectData>>,
 
-    task_receiver: TaskReceiver<renderer_decoupler::ChanneledTask>,
-    task_sender: TaskSender<renderer_decoupler::ChanneledTask>,
+    task_receiver: TaskReceiver<client::ChanneledTask>,
+    task_sender: TaskSender<client::ChanneledTask>,
 
     renderer_impl: Box<T>,
 }
@@ -108,7 +108,7 @@ impl SyncRenderer {
         self.renderer_pri.renderer_impl.render();
     }
 
-    pub fn client(&self) -> renderer_decoupler::Client {
+    pub fn client(&self) -> RendererClient {
         self.renderer_pri.client()
     }
 }
@@ -150,15 +150,17 @@ impl AsyncRenderer {
         self.renderer_impl.render();
     }
 
-    pub fn client(&self) -> renderer_decoupler::Client {
+    pub fn client(&self) -> RendererClient {
         self.renderer_pri.client()
     }
 }
 
-#[method_taskifier_impl(module_name = renderer_decoupler)]
+pub use client::Client as RendererClient;
+
+#[method_taskifier_impl(module_name = client)]
 impl<T: RendererImpl + ?Sized> RendererPri<T> {
     pub fn new(renderer_impl: Box<T>) -> Self {
-        let (sender, receiver) = renderer_decoupler::channel();
+        let (sender, receiver) = client::channel();
 
         Self {
             renderer_cameras: arc_rw_lock_new(ObjectPool::new()),
@@ -177,8 +179,8 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
         }
     }
 
-    pub fn client(&self) -> renderer_decoupler::Client {
-        renderer_decoupler::Client::new(self.task_sender.clone())
+    pub fn client(&self) -> RendererClient {
+        RendererClient::new(self.task_sender.clone())
     }
 
     #[method_taskifier_worker_fn]
