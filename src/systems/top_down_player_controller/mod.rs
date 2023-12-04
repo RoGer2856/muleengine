@@ -5,7 +5,7 @@ use std::{ops::Deref, sync::Arc};
 
 use method_taskifier::task_channel::task_channel;
 use muleengine::{
-    bytifex_utils::sync::types::ArcRwLock, system_container::SystemContainer,
+    application_runner::ApplicationContext, bytifex_utils::sync::types::ArcRwLock,
     window_context::WindowContext,
 };
 
@@ -18,9 +18,9 @@ use self::{
 
 pub use player_controller::client::Client as TopDownPlayerControllerClient;
 
-pub fn run(
+pub fn init(
     window_context: ArcRwLock<dyn WindowContext>,
-    system_container: &mut SystemContainer,
+    app_context: &mut ApplicationContext,
     essentials: Arc<EssentialServices>,
 ) {
     let input_provider = InputProvider::new(window_context.clone());
@@ -30,19 +30,22 @@ pub fn run(
         .new_item
         .deref()
         .clone();
-    system_container.add_system(input_provider);
+    app_context
+        .system_container_mut()
+        .add_system(input_provider);
 
     let (task_sender, task_receiver) = task_channel();
 
     let client = Client::new(task_sender);
     essentials.service_container.insert(client.clone());
 
-    tokio::spawn(async move {
-        PlayerController::new(task_receiver, input_receiver, &essentials)
-            .await
-            .run()
-            .await;
+    let sendable_system_container = app_context.sendable_system_container().clone();
 
-        client.remove_later(&essentials.closure_task_sender);
+    tokio::spawn(async move {
+        let player_controller =
+            PlayerController::new(task_receiver, input_receiver, &essentials).await;
+        sendable_system_container
+            .write()
+            .add_system(player_controller);
     });
 }

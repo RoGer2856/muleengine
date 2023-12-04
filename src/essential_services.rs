@@ -2,12 +2,14 @@ use std::sync::Arc;
 
 use entity_component::EntityContainer;
 use muleengine::{
-    application_runner::ClosureTaskSender,
+    application_runner::{ApplicationContext, ClosureTaskSender},
     asset_container::AssetContainer,
     bytifex_utils::{
-        result_option_inspect::ResultInspector, sync::app_loop_state::AppLoopStateWatcher,
+        result_option_inspect::ResultInspector,
+        sync::{app_loop_state::AppLoopStateWatcher, types::ArcRwLock},
     },
     renderer::renderer_system::RendererClient,
+    sendable_system_container::SendableSystemContainer,
     service_container::ServiceContainer,
     window_context::EventReceiver,
 };
@@ -20,6 +22,7 @@ pub struct EssentialServices {
     pub event_receiver: EventReceiver,
     pub app_loop_state_watcher: AppLoopStateWatcher,
 
+    pub sendable_system_container: ArcRwLock<SendableSystemContainer>,
     pub service_container: ServiceContainer,
     pub closure_task_sender: ClosureTaskSender,
     pub asset_container: AssetContainer,
@@ -33,50 +36,59 @@ pub struct EssentialServices {
 }
 
 impl EssentialServices {
-    pub fn new(service_container: ServiceContainer) -> Self {
+    pub fn new(app_context: &ApplicationContext) -> Self {
         Self {
-            event_receiver: service_container
+            event_receiver: app_context
+                .service_container_ref()
                 .get_service::<EventReceiver>()
                 .inspect_err(|e| log::error!("{e:?}"))
                 .unwrap()
                 .as_ref()
                 .clone(),
-            app_loop_state_watcher: service_container
+            app_loop_state_watcher: app_context
+                .service_container_ref()
                 .get_service::<AppLoopStateWatcher>()
                 .inspect_err(|e| log::error!("{e:?}"))
                 .unwrap()
                 .as_ref()
                 .clone(),
-            service_container: service_container.clone(),
-            closure_task_sender: service_container
+            sendable_system_container: app_context.sendable_system_container().clone(),
+            service_container: app_context.service_container_ref().clone(),
+            closure_task_sender: app_context
+                .service_container_ref()
                 .get_service::<ClosureTaskSender>()
                 .inspect_err(|e| log::error!("{e:?}"))
                 .unwrap()
                 .as_ref()
                 .clone(),
-            renderer_configuration: service_container
+            renderer_configuration: app_context
+                .service_container_ref()
                 .get_service::<RendererConfiguration>()
                 .inspect_err(|e| log::error!("{e:?}"))
                 .unwrap(),
-            renderer_client: service_container
+            renderer_client: app_context
+                .service_container_ref()
                 .get_service::<RendererClient>()
                 .inspect_err(|e| log::error!("{e:?}"))
                 .unwrap()
                 .as_ref()
                 .clone(),
-            asset_container: service_container
+            asset_container: app_context
+                .service_container_ref()
                 .get_service::<AssetContainer>()
                 .inspect_err(|e| log::error!("{e:?}"))
                 .unwrap()
                 .as_ref()
                 .clone(),
-            entity_container: service_container
+            entity_container: app_context
+                .service_container_ref()
                 .get_service::<EntityContainer>()
                 .inspect_err(|e| log::error!("{e:?}"))
                 .unwrap()
                 .as_ref()
                 .clone(),
-            physics_engine: service_container
+            physics_engine: app_context
+                .service_container_ref()
                 .get_service::<Rapier3dPhysicsEngineService>()
                 .inspect_err(|e| log::error!("{e:?}"))
                 .unwrap()

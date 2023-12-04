@@ -183,7 +183,7 @@ checksum = "a2bd12c1caf447e69cd4528f47f94d203fd2582878ecb9e9465484c4148a8223"
 [[package]]
 name = "bytifex-utils"
 version = "0.1.0"
-source = "git+https://github.com/bytifex/bytifex-utils.git#6e3f9e9fe9a8747c0e7f753cac6ca0e9c368b2ad"
+source = "git+https://github.com/bytifex/bytifex-utils.git#207b01253972c3e7c8627c6d25888ef9f11812c6"
 dependencies = [
  "parking_lot",
  "tokio",

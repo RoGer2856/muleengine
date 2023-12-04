@@ -18,7 +18,7 @@ use self::{camera_controller::client::Client, input::InputProvider};
 
 pub use camera_controller::client::Client as FlyingSpectatorCameraControllerClient;
 
-pub fn run(
+pub fn init(
     window_context: ArcRwLock<dyn WindowContext>,
     system_container: &mut SystemContainer,
     essentials: Arc<EssentialServices>,

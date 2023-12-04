@@ -45,6 +45,7 @@ impl Game2 {
     }
 
     pub fn new(app_context: &mut ApplicationContext) -> Self {
+        let app_loop_state = AppLoopState::new();
         Self::add_basic_services(app_context.service_container_ref());
 
         let window_context = {
@@ -63,6 +64,8 @@ impl Game2 {
 
             window_context
         };
+
+        let event_receiver = window_context.event_receiver();
 
         let window_context = app_context
             .system_container_mut()
@@ -94,12 +97,10 @@ impl Game2 {
             .system_container_mut()
             .add_system(renderer_system);
 
-        let event_receiver = window_context.read().event_receiver();
         app_context
             .service_container_ref()
             .insert(event_receiver.clone());
 
-        let app_loop_state = AppLoopState::new();
         app_context
             .service_container_ref()
             .insert(app_loop_state.watcher());
@@ -110,13 +111,11 @@ impl Game2 {
                 app_context.service_container_ref().clone(),
             ));
 
-        physics::run(app_context);
+        physics::init(app_context);
 
         let essentials = app_context
             .service_container_ref()
-            .insert(EssentialServices::new(
-                app_context.service_container_ref().clone(),
-            ))
+            .insert(EssentialServices::new(app_context))
             .new_item
             .as_arc_ref()
             .clone();
@@ -133,17 +132,13 @@ impl Game2 {
             .system_container_mut()
             .add_system(renderer_transform_updater);
 
-        flying_spectator_camera::run(
+        flying_spectator_camera::init(
             window_context.clone(),
             app_context.system_container_mut(),
             essentials.clone(),
         );
-        top_down_player_controller::run(
-            window_context.clone(),
-            app_context.system_container_mut(),
-            essentials.clone(),
-        );
-        controller_changer::run(window_context.read().event_receiver().clone(), &essentials);
+        top_down_player_controller::init(window_context.clone(), app_context, essentials.clone());
+        controller_changer::init(window_context.read().event_receiver().clone(), &essentials);
 
         tokio::spawn(async move {
             populate_with_objects(&essentials).await;
@@ -167,7 +162,13 @@ impl Application for Game2 {
         self.app_loop_state.should_run()
     }
 
-    fn tick(&mut self, _delta_time_in_secs: f32, app_context: &mut ApplicationContext) {
+    fn tick(&mut self, delta_time_in_secs: f32, app_context: &mut ApplicationContext) {
+        app_context.system_container_mut().tick(delta_time_in_secs);
+        app_context
+            .sendable_system_container()
+            .write()
+            .tick(delta_time_in_secs);
+
         while let Some(event) = self.event_receiver.pop() {
             log::trace!("EVENT = {event:?}");
 

@@ -1,14 +1,20 @@
 use std::{panic, thread, time::Duration};
 
-use bytifex_utils::{result_option_inspect::ResultInspector, sync::app_loop_state::AppLoopState};
+use bytifex_utils::{
+    result_option_inspect::ResultInspector,
+    sync::{
+        app_loop_state::AppLoopState,
+        types::{arc_rw_lock_new, ArcRwLock},
+    },
+};
 use tokio::{
     sync::mpsc,
     time::{sleep_until, Instant},
 };
 
 use crate::{
-    fps_counter::FpsCounter, service_container::ServiceContainer, stopwatch::Stopwatch,
-    system_container::SystemContainer,
+    fps_counter::FpsCounter, sendable_system_container::SendableSystemContainer,
+    service_container::ServiceContainer, stopwatch::Stopwatch, system_container::SystemContainer,
 };
 
 pub type BoxedTask = Box<dyn FnOnce(&mut ApplicationContext) + Send>;
@@ -27,6 +33,7 @@ impl ClosureTaskSender {
 
 pub struct ApplicationContext {
     system_container: SystemContainer,
+    sendable_system_container: ArcRwLock<SendableSystemContainer>,
     service_container: ServiceContainer,
     closure_task_sender: ClosureTaskSender,
 }
@@ -34,11 +41,16 @@ pub struct ApplicationContext {
 impl ApplicationContext {
     pub fn new(sync_task_sender: mpsc::UnboundedSender<BoxedTask>) -> Self {
         let closure_task_sender = ClosureTaskSender(sync_task_sender);
+
         let service_container = ServiceContainer::new();
         service_container.insert(closure_task_sender.clone());
 
+        let sendable_system_container = arc_rw_lock_new(SendableSystemContainer::new());
+        service_container.insert(sendable_system_container.clone());
+
         Self {
             system_container: SystemContainer::new(),
+            sendable_system_container,
             service_container,
             closure_task_sender,
         }
@@ -50,6 +62,10 @@ impl ApplicationContext {
 
     pub fn system_container_mut(&mut self) -> &mut SystemContainer {
         &mut self.system_container
+    }
+
+    pub fn sendable_system_container(&self) -> &ArcRwLock<SendableSystemContainer> {
+        &self.sendable_system_container
     }
 
     pub fn service_container_ref(&self) -> &ServiceContainer {
@@ -120,8 +136,6 @@ pub async fn async_run<ApplicationType>(
         while let Ok(task) = sync_task_receiver.try_recv() {
             task(&mut app_context);
         }
-
-        app_context.system_container.tick(delta_time_in_secs);
 
         application.tick(delta_time_in_secs, &mut app_context);
 

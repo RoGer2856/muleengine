@@ -13,7 +13,7 @@ use super::{
     top_down_player_controller::TopDownPlayerControllerClient,
 };
 
-pub fn run(event_receiver: EventReceiver, essentials: &Arc<EssentialServices>) {
+pub fn init(event_receiver: EventReceiver, essentials: &Arc<EssentialServices>) {
     let app_loop_state_watcher = essentials.app_loop_state_watcher.clone();
 
     let flying_spectator_camera_client = essentials

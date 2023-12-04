@@ -4,18 +4,16 @@ use std::{
         atomic::{self, AtomicBool},
         Arc,
     },
-    time::Duration,
 };
 
 use entity_component::{component_type_list, EntityContainer, EntityGroup};
 use method_taskifier::{method_taskifier_impl, task_channel::TaskReceiver};
 use muleengine::{
     application_runner::ClosureTaskSender,
-    bytifex_utils::sync::app_loop_state::AppLoopStateWatcher,
     camera::Camera,
     renderer::{renderer_system::RendererClient, RendererTransformHandler},
+    system_container::System,
 };
-use tokio::time::{interval, MissedTickBehavior};
 use vek::{Transform, Vec3};
 
 use crate::{
@@ -26,7 +24,6 @@ use crate::{
 use super::input::{InputProvider, InputReceiver};
 
 pub struct PlayerController {
-    app_loop_state_watcher: AppLoopStateWatcher,
     should_run: Arc<AtomicBool>,
     task_receiver: TaskReceiver<client::ChanneledTask>,
     input_receiver: InputReceiver,
@@ -53,7 +50,6 @@ impl PlayerController {
         ]);
 
         Self {
-            app_loop_state_watcher: essentials.app_loop_state_watcher.clone(),
             should_run: Arc::new(AtomicBool::new(true)),
             task_receiver,
             input_receiver,
@@ -72,6 +68,16 @@ impl PlayerController {
     }
 
     #[method_taskifier_client_fn]
+    pub fn start(&self) {
+        drop(self.async_start());
+    }
+
+    #[method_taskifier_worker_fn]
+    fn async_start(&self) {
+        self.should_run.store(true, atomic::Ordering::SeqCst);
+    }
+
+    #[method_taskifier_client_fn]
     pub fn pause(&self) {
         drop(self.async_pause());
     }
@@ -82,43 +88,26 @@ impl PlayerController {
     }
 
     #[method_taskifier_client_fn]
-    pub fn start(&self) {
-        drop(self.async_start());
+    pub fn remove_later(&self, closure_task_sender: &ClosureTaskSender) {
+        closure_task_sender.add_task(|app_context| {
+            app_context.system_container_mut().remove::<InputProvider>();
+            app_context
+                .sendable_system_container()
+                .write()
+                .remove::<PlayerController>();
+            app_context
+                .service_container_ref()
+                .remove::<client::Client>();
+        });
     }
+}
 
-    #[method_taskifier_worker_fn]
-    fn async_start(&self) {
-        self.should_run.store(true, atomic::Ordering::SeqCst);
-    }
-
-    pub async fn run(&mut self) {
-        let interval_secs = 1.0 / 30.0;
-        let mut interval = interval(Duration::from_secs_f32(interval_secs));
-        interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
-
-        let mut task_receiver = self.task_receiver.clone();
-
-        loop {
-            tokio::select! {
-                _ = self.app_loop_state_watcher.wait_for_quit() => {
-                    break;
-                }
-                task = task_receiver.recv_async() => {
-                    if let Ok(task) = task {
-                        self.execute_channeled_task(task);
-                    } else {
-                        log::info!("All task sender is dropped, therefore exiting, module = {}", module_path!());
-                        break;
-                    }
-                }
-                _ = interval.tick() => {
-                    self.tick(interval_secs).await;
-                }
-            }
+impl System for PlayerController {
+    fn tick(&mut self, _delta_time_in_secs: f32) {
+        while let Ok(task) = self.task_receiver.try_pop() {
+            self.execute_channeled_task(task);
         }
-    }
 
-    async fn tick(&mut self, _delta_time_in_secs: f32) {
         // moving the camera
         let movement_direction = self
             .input_receiver
@@ -182,15 +171,5 @@ impl PlayerController {
                 }
             }
         }
-    }
-
-    #[method_taskifier_client_fn]
-    pub fn remove_later(&self, closure_task_sender: &ClosureTaskSender) {
-        closure_task_sender.add_task(|app_context| {
-            app_context.system_container_mut().remove::<InputProvider>();
-            app_context
-                .service_container_ref()
-                .remove::<client::Client>();
-        });
     }
 }

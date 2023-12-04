@@ -84,7 +84,7 @@ pub struct Rapier3dPhysicsEngine {
     to_be_dropped_character_controllers: ArcRwLock<Vec<ObjectPoolIndex>>,
 }
 
-pub fn run(app_context: &mut ApplicationContext) {
+pub fn init(app_context: &mut ApplicationContext) {
     let app_loop_state_watcher = app_context
         .service_container_ref()
         .get_service::<AppLoopStateWatcher>()
