@@ -1,25 +1,22 @@
-use std::{
-    sync::{
-        atomic::{self, AtomicBool},
-        Arc,
-    },
-    time::Duration,
+use std::sync::{
+    atomic::{self, AtomicBool},
+    Arc,
 };
 
 use method_taskifier::{method_taskifier_impl, task_channel::TaskReceiver};
 use muleengine::{
     application_runner::ClosureTaskSender,
-    bytifex_utils::sync::app_loop_state::AppLoopStateWatcher,
     camera::Camera,
     renderer::{renderer_system::RendererClient, RendererTransformHandler},
+    system_container::System,
 };
-use tokio::time::{interval, MissedTickBehavior};
 use vek::{Vec2, Vec3};
+
+use crate::essential_services::EssentialServices;
 
 use super::input::{InputProvider, InputReceiver, VelocityChangeEvent};
 
 pub(super) struct CameraController {
-    app_loop_state_watcher: AppLoopStateWatcher,
     should_run: Arc<AtomicBool>,
     task_receiver: TaskReceiver<client::ChanneledTask>,
     camera: Camera,
@@ -35,22 +32,24 @@ pub(super) struct CameraController {
 
 #[method_taskifier_impl(module_name = client)]
 impl CameraController {
-    pub fn new(
-        app_loop_state_watcher: AppLoopStateWatcher,
+    pub async fn new(
         task_receiver: TaskReceiver<client::ChanneledTask>,
-        renderer_client: RendererClient,
-        skydome_camera_transform_handler: RendererTransformHandler,
-        main_camera_transform_handler: RendererTransformHandler,
         input_receiver: InputReceiver,
+        essentials: &Arc<EssentialServices>,
     ) -> Self {
         Self {
-            app_loop_state_watcher,
             should_run: Arc::new(AtomicBool::new(true)),
             task_receiver,
             camera: Camera::new(),
-            skydome_camera_transform_handler,
-            main_camera_transform_handler,
-            renderer_client,
+            skydome_camera_transform_handler: essentials
+                .renderer_configuration
+                .skydome_camera_transform_handler()
+                .await,
+            main_camera_transform_handler: essentials
+                .renderer_configuration
+                .main_camera_transform_handler()
+                .await,
+            renderer_client: essentials.renderer_client.clone(),
             input_receiver,
             mouse_sensitivity: 0.5,
             camera_vertical_angle_rad: 0.0,
@@ -63,6 +62,10 @@ impl CameraController {
     pub fn remove_later(&self, closure_task_sender: &ClosureTaskSender) {
         closure_task_sender.add_task(|app_context| {
             app_context.system_container_mut().remove::<InputProvider>();
+            app_context
+                .sendable_system_container()
+                .write()
+                .remove::<CameraController>();
             app_context
                 .service_container_ref()
                 .remove::<client::Client>();
@@ -88,43 +91,14 @@ impl CameraController {
     fn async_start(&self) {
         self.should_run.store(true, atomic::Ordering::SeqCst);
     }
+}
 
-    pub async fn run(&mut self) {
-        let interval_secs = 1.0 / 30.0;
-        let mut interval = interval(Duration::from_secs_f32(interval_secs));
-        interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
-
-        let mut task_receiver = self.task_receiver.clone();
-
-        // let mut delta_time_secs = 0.0;
-
-        loop {
-            // let start = Instant::now();
-
-            tokio::select! {
-                _ = self.app_loop_state_watcher.wait_for_quit() => {
-                    break;
-                }
-                task = task_receiver.recv_async() => {
-                    if let Ok(task) = task {
-                        self.execute_channeled_task(task);
-                    } else {
-                        log::info!("All task sender is dropped, therefore exiting, module = {}", module_path!());
-                        break;
-                    }
-                }
-                _ = interval.tick() => {
-                    // self.tick(delta_time_secs).await;
-                    self.tick(interval_secs).await;
-                }
-            }
-
-            // let end = Instant::now();
-            // delta_time_secs = (end - start).as_secs_f32();
+impl System for CameraController {
+    fn tick(&mut self, delta_time_in_secs: f32) {
+        while let Ok(task) = self.task_receiver.try_pop() {
+            self.execute_channeled_task(task);
         }
-    }
 
-    async fn tick(&mut self, delta_time_in_secs: f32) {
         // accelerating or decelerating the camera
         while let Some(event) = self.input_receiver.velocity_change_event_receiver.pop() {
             match event {

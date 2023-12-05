@@ -8,7 +8,7 @@ use camera_controller::*;
 
 use method_taskifier::task_channel::task_channel;
 use muleengine::{
-    bytifex_utils::sync::types::ArcRwLock, system_container::SystemContainer,
+    application_runner::ApplicationContext, bytifex_utils::sync::types::ArcRwLock,
     window_context::WindowContext,
 };
 
@@ -20,7 +20,7 @@ pub use camera_controller::client::Client as FlyingSpectatorCameraControllerClie
 
 pub fn init(
     window_context: ArcRwLock<dyn WindowContext>,
-    system_container: &mut SystemContainer,
+    app_context: &mut ApplicationContext,
     essentials: Arc<EssentialServices>,
 ) {
     let input_provider = InputProvider::new(window_context.clone());
@@ -30,31 +30,22 @@ pub fn init(
         .new_item
         .deref()
         .clone();
-    system_container.add_system(input_provider);
+    app_context
+        .system_container_mut()
+        .add_system(input_provider);
 
     let (task_sender, task_receiver) = task_channel();
 
     let client = Client::new(task_sender);
     essentials.service_container.insert(client.clone());
 
-    tokio::spawn(async move {
-        CameraController::new(
-            essentials.app_loop_state_watcher.clone(),
-            task_receiver,
-            essentials.renderer_client.clone(),
-            essentials
-                .renderer_configuration
-                .skydome_camera_transform_handler()
-                .await,
-            essentials
-                .renderer_configuration
-                .main_camera_transform_handler()
-                .await,
-            input_receiver,
-        )
-        .run()
-        .await;
+    let sendable_system_container = essentials.sendable_system_container.clone();
 
-        client.remove_later(&essentials.closure_task_sender);
+    tokio::spawn(async move {
+        let camera_controller =
+            CameraController::new(task_receiver, input_receiver, &essentials).await;
+        sendable_system_container
+            .write()
+            .add_system(camera_controller);
     });
 }

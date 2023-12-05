@@ -132,11 +132,7 @@ impl Game2 {
             .system_container_mut()
             .add_system(renderer_transform_updater);
 
-        flying_spectator_camera::init(
-            window_context.clone(),
-            app_context.system_container_mut(),
-            essentials.clone(),
-        );
+        flying_spectator_camera::init(window_context.clone(), app_context, essentials.clone());
         top_down_player_controller::init(window_context.clone(), app_context, essentials.clone());
         controller_changer::init(window_context.read().event_receiver().clone(), &essentials);
 

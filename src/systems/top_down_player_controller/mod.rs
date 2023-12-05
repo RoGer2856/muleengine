@@ -39,7 +39,7 @@ pub fn init(
     let client = Client::new(task_sender);
     essentials.service_container.insert(client.clone());
 
-    let sendable_system_container = app_context.sendable_system_container().clone();
+    let sendable_system_container = essentials.sendable_system_container.clone();
 
     tokio::spawn(async move {
         let player_controller =
