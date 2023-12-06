@@ -7,9 +7,7 @@ use std::{
 };
 
 use entity_component::{component_type_list, EntityContainer, EntityGroup};
-use method_taskifier::{method_taskifier_impl, task_channel::TaskReceiver};
 use muleengine::{
-    application_runner::ClosureTaskSender,
     camera::Camera,
     renderer::{renderer_system::RendererClient, RendererTransformHandler},
     system_container::System,
@@ -21,11 +19,10 @@ use crate::{
     physics::character_controller::CharacterControllerHandler,
 };
 
-use super::input::{InputProvider, InputReceiver};
+use super::input::InputReceiver;
 
 pub struct PlayerController {
-    should_run: Arc<AtomicBool>,
-    task_receiver: TaskReceiver<client::ChanneledTask>,
+    enabled: Arc<AtomicBool>,
     input_receiver: InputReceiver,
     entity_container: EntityContainer,
     entity_group: EntityGroup,
@@ -34,10 +31,9 @@ pub struct PlayerController {
     skydome_camera_transform_handler: RendererTransformHandler,
 }
 
-#[method_taskifier_impl(module_name = client)]
 impl PlayerController {
     pub async fn new(
-        task_receiver: TaskReceiver<client::ChanneledTask>,
+        enabled: Arc<AtomicBool>,
         input_receiver: InputReceiver,
         essentials: &Arc<EssentialServices>,
     ) -> Self {
@@ -50,8 +46,7 @@ impl PlayerController {
         ]);
 
         Self {
-            should_run: Arc::new(AtomicBool::new(true)),
-            task_receiver,
+            enabled,
             input_receiver,
             entity_container,
             entity_group,
@@ -66,55 +61,17 @@ impl PlayerController {
                 .await,
         }
     }
-
-    #[method_taskifier_client_fn]
-    pub fn start(&self) {
-        drop(self.async_start());
-    }
-
-    #[method_taskifier_worker_fn]
-    fn async_start(&self) {
-        self.should_run.store(true, atomic::Ordering::SeqCst);
-    }
-
-    #[method_taskifier_client_fn]
-    pub fn pause(&self) {
-        drop(self.async_pause());
-    }
-
-    #[method_taskifier_worker_fn]
-    fn async_pause(&self) {
-        self.should_run.store(false, atomic::Ordering::SeqCst);
-    }
-
-    #[method_taskifier_client_fn]
-    pub fn remove_later(&self, closure_task_sender: &ClosureTaskSender) {
-        closure_task_sender.add_task(|app_context| {
-            app_context.system_container_mut().remove::<InputProvider>();
-            app_context
-                .sendable_system_container()
-                .write()
-                .remove::<PlayerController>();
-            app_context
-                .service_container_ref()
-                .remove::<client::Client>();
-        });
-    }
 }
 
 impl System for PlayerController {
     fn tick(&mut self, _delta_time_in_secs: f32) {
-        while let Ok(task) = self.task_receiver.try_pop() {
-            self.execute_channeled_task(task);
-        }
-
         // moving the camera
         let movement_direction = self
             .input_receiver
             .movement_event_receiver
             .get_normalized_aggregated_moving_direction();
 
-        if self.should_run.load(atomic::Ordering::SeqCst) {
+        if self.enabled.load(atomic::Ordering::SeqCst) {
             let mut entity_container = self.entity_container.lock();
             for entity_id in self.entity_group.iter_entity_ids() {
                 if let Some(mut entity_handler) = entity_container.handler_for_entity(&entity_id) {

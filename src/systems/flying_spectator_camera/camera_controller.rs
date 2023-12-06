@@ -3,9 +3,7 @@ use std::sync::{
     Arc,
 };
 
-use method_taskifier::{method_taskifier_impl, task_channel::TaskReceiver};
 use muleengine::{
-    application_runner::ClosureTaskSender,
     camera::Camera,
     renderer::{renderer_system::RendererClient, RendererTransformHandler},
     system_container::System,
@@ -14,11 +12,10 @@ use vek::{Vec2, Vec3};
 
 use crate::essential_services::EssentialServices;
 
-use super::input::{InputProvider, InputReceiver, VelocityChangeEvent};
+use super::input::{InputReceiver, VelocityChangeEvent};
 
 pub(super) struct CameraController {
-    should_run: Arc<AtomicBool>,
-    task_receiver: TaskReceiver<client::ChanneledTask>,
+    enabled: Arc<AtomicBool>,
     camera: Camera,
     skydome_camera_transform_handler: RendererTransformHandler,
     main_camera_transform_handler: RendererTransformHandler,
@@ -30,16 +27,14 @@ pub(super) struct CameraController {
     moving_velocity: f32,
 }
 
-#[method_taskifier_impl(module_name = client)]
 impl CameraController {
     pub async fn new(
-        task_receiver: TaskReceiver<client::ChanneledTask>,
+        enabled: Arc<AtomicBool>,
         input_receiver: InputReceiver,
         essentials: &Arc<EssentialServices>,
     ) -> Self {
         Self {
-            should_run: Arc::new(AtomicBool::new(true)),
-            task_receiver,
+            enabled,
             camera: Camera::new(),
             skydome_camera_transform_handler: essentials
                 .renderer_configuration
@@ -57,48 +52,10 @@ impl CameraController {
             moving_velocity: 0.5,
         }
     }
-
-    #[method_taskifier_client_fn]
-    pub fn remove_later(&self, closure_task_sender: &ClosureTaskSender) {
-        closure_task_sender.add_task(|app_context| {
-            app_context.system_container_mut().remove::<InputProvider>();
-            app_context
-                .sendable_system_container()
-                .write()
-                .remove::<CameraController>();
-            app_context
-                .service_container_ref()
-                .remove::<client::Client>();
-        });
-    }
-
-    #[method_taskifier_client_fn]
-    pub fn pause(&self) {
-        drop(self.async_pause());
-    }
-
-    #[method_taskifier_worker_fn]
-    fn async_pause(&self) {
-        self.should_run.store(false, atomic::Ordering::SeqCst);
-    }
-
-    #[method_taskifier_client_fn]
-    pub fn start(&self) {
-        drop(self.async_start());
-    }
-
-    #[method_taskifier_worker_fn]
-    fn async_start(&self) {
-        self.should_run.store(true, atomic::Ordering::SeqCst);
-    }
 }
 
 impl System for CameraController {
     fn tick(&mut self, delta_time_in_secs: f32) {
-        while let Ok(task) = self.task_receiver.try_pop() {
-            self.execute_channeled_task(task);
-        }
-
         // accelerating or decelerating the camera
         while let Some(event) = self.input_receiver.velocity_change_event_receiver.pop() {
             match event {
@@ -161,7 +118,7 @@ impl System for CameraController {
             + Vec3::unit_y() * moving_direction.y
             + axis_z * moving_direction.z;
 
-        if self.should_run.load(atomic::Ordering::SeqCst) {
+        if self.enabled.load(atomic::Ordering::SeqCst) {
             self.camera
                 .move_by(corrected_moving_direction * self.moving_velocity * delta_time_in_secs);
 

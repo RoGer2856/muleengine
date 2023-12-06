@@ -1,7 +1,10 @@
 mod input;
 mod player_controller;
 
-use std::{ops::Deref, sync::Arc};
+use std::{
+    ops::Deref,
+    sync::{atomic::AtomicBool, Arc},
+};
 
 use method_taskifier::task_channel::task_channel;
 use muleengine::{
@@ -12,18 +15,21 @@ use muleengine::{
 use crate::essential_services::EssentialServices;
 
 use self::{
-    input::InputProvider,
-    player_controller::{client::Client, PlayerController},
+    input::{client::Client, InputProvider},
+    player_controller::PlayerController,
 };
 
-pub use player_controller::client::Client as TopDownPlayerControllerClient;
+pub use input::client::Client as TopDownPlayerControllerClient;
 
 pub fn init(
     window_context: ArcRwLock<dyn WindowContext>,
     app_context: &mut ApplicationContext,
     essentials: Arc<EssentialServices>,
 ) {
-    let input_provider = InputProvider::new(window_context.clone());
+    let enabled = Arc::new(AtomicBool::new(true));
+    let (task_sender, task_receiver) = task_channel();
+
+    let input_provider = InputProvider::new(enabled.clone(), window_context.clone(), task_receiver);
     let input_receiver = essentials
         .service_container
         .insert(input_provider.input_receiver())
@@ -34,16 +40,13 @@ pub fn init(
         .system_container_mut()
         .add_system(input_provider);
 
-    let (task_sender, task_receiver) = task_channel();
-
     let client = Client::new(task_sender);
     essentials.service_container.insert(client.clone());
 
     let sendable_system_container = essentials.sendable_system_container.clone();
 
     tokio::spawn(async move {
-        let player_controller =
-            PlayerController::new(task_receiver, input_receiver, &essentials).await;
+        let player_controller = PlayerController::new(enabled, input_receiver, &essentials).await;
         sendable_system_container
             .write()
             .add_system(player_controller);

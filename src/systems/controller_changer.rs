@@ -35,8 +35,8 @@ pub fn init(event_receiver: EventReceiver, essentials: &Arc<EssentialServices>) 
     tokio::spawn(async move {
         let mut spectator_mode = false;
 
-        let _ = flying_spectator_camera_client.async_pause().await;
-        let _ = top_town_player_controller_client.async_start().await;
+        let _ = flying_spectator_camera_client.async_disable().await;
+        let _ = top_town_player_controller_client.async_enable().await;
 
         let interval_secs = 1.0 / 30.0;
         let mut interval = interval(Duration::from_secs_f32(interval_secs));
@@ -53,11 +53,11 @@ pub fn init(event_receiver: EventReceiver, essentials: &Arc<EssentialServices>) 
                             if key == Key::F1 {
                                 spectator_mode = !spectator_mode;
                                 if spectator_mode {
-                                    let _ = top_town_player_controller_client.async_pause().await;
-                                    let _ = flying_spectator_camera_client.async_start().await;
+                                    let _ = top_town_player_controller_client.async_disable().await;
+                                    let _ = flying_spectator_camera_client.async_enable().await;
                                 } else {
-                                    let _ = flying_spectator_camera_client.async_pause().await;
-                                    let _ = top_town_player_controller_client.async_start().await;
+                                    let _ = flying_spectator_camera_client.async_disable().await;
+                                    let _ = top_town_player_controller_client.async_enable().await;
                                 }
                             }
                         }
