@@ -11,9 +11,3 @@ log = "0.4"
 parking_lot = "0.12"
 async_worker_macros = { path = "async_worker_macros" }
 async_worker_client_fn = { path = "async_worker_client_fn" }
-
-[workspace]
-members = [
-	"async_worker_client_fn",
-	"async_worker_macros"
-]
