@@ -5,12 +5,11 @@ use muleengine::{
     application_runner::{ApplicationContext, ClosureTaskSender},
     asset_container::AssetContainer,
     bytifex_utils::{
-        result_option_inspect::ResultInspector,
-        sync::{app_loop_state::AppLoopStateWatcher, types::ArcRwLock},
+        result_option_inspect::ResultInspector, sync::app_loop_state::AppLoopStateWatcher,
     },
     renderer::renderer_system::RendererClient,
-    sendable_system_container::SendableSystemContainer,
     service_container::ServiceContainer,
+    system_container::SystemContainerClient,
     window_context::EventReceiver,
 };
 
@@ -22,7 +21,7 @@ pub struct EssentialServices {
     pub event_receiver: EventReceiver,
     pub app_loop_state_watcher: AppLoopStateWatcher,
 
-    pub sendable_system_container: ArcRwLock<SendableSystemContainer>,
+    pub system_container_client: SystemContainerClient,
     pub service_container: ServiceContainer,
     pub closure_task_sender: ClosureTaskSender,
     pub asset_container: AssetContainer,
@@ -52,7 +51,7 @@ impl EssentialServices {
                 .unwrap()
                 .as_ref()
                 .clone(),
-            sendable_system_container: app_context.sendable_system_container().clone(),
+            system_container_client: app_context.system_container_client().clone(),
             service_container: app_context.service_container_ref().clone(),
             closure_task_sender: app_context
                 .service_container_ref()

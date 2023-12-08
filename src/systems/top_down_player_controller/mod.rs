@@ -43,12 +43,12 @@ pub fn init(
     let client = Client::new(task_sender);
     essentials.service_container.insert(client.clone());
 
-    let sendable_system_container = essentials.sendable_system_container.clone();
+    let system_container_client = essentials.system_container_client.clone();
 
     tokio::spawn(async move {
         let player_controller = PlayerController::new(enabled, input_receiver, &essentials).await;
-        sendable_system_container
-            .write()
-            .add_system(player_controller);
+        system_container_client.execute_closure_async(|system_container| {
+            system_container.add_system(player_controller);
+        });
     });
 }

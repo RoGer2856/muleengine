@@ -89,8 +89,7 @@ impl InputProvider {
         closure_task_sender.add_task(|app_context| {
             app_context.system_container_mut().remove::<InputProvider>();
             app_context
-                .sendable_system_container()
-                .write()
+                .system_container_mut()
                 .remove::<PlayerController>();
             app_context
                 .service_container_ref()

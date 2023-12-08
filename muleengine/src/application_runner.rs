@@ -1,20 +1,16 @@
 use std::{panic, thread, time::Duration};
 
-use bytifex_utils::{
-    result_option_inspect::ResultInspector,
-    sync::{
-        app_loop_state::AppLoopState,
-        types::{arc_rw_lock_new, ArcRwLock},
-    },
-};
+use bytifex_utils::{result_option_inspect::ResultInspector, sync::app_loop_state::AppLoopState};
 use tokio::{
     sync::mpsc,
     time::{sleep_until, Instant},
 };
 
 use crate::{
-    fps_counter::FpsCounter, sendable_system_container::SendableSystemContainer,
-    service_container::ServiceContainer, stopwatch::Stopwatch, system_container::SystemContainer,
+    fps_counter::FpsCounter,
+    service_container::ServiceContainer,
+    stopwatch::Stopwatch,
+    system_container::{SystemContainer, SystemContainerClient},
 };
 
 pub type BoxedTask = Box<dyn FnOnce(&mut ApplicationContext) + Send>;
@@ -33,7 +29,7 @@ impl ClosureTaskSender {
 
 pub struct ApplicationContext {
     system_container: SystemContainer,
-    sendable_system_container: ArcRwLock<SendableSystemContainer>,
+    system_container_client: SystemContainerClient,
     service_container: ServiceContainer,
     closure_task_sender: ClosureTaskSender,
 }
@@ -45,15 +41,19 @@ impl ApplicationContext {
         let service_container = ServiceContainer::new();
         service_container.insert(closure_task_sender.clone());
 
-        let sendable_system_container = arc_rw_lock_new(SendableSystemContainer::new());
-        service_container.insert(sendable_system_container.clone());
+        let (system_container, system_container_client) = SystemContainer::new_with_client();
+        service_container.insert(system_container_client.clone());
 
         Self {
-            system_container: SystemContainer::new(),
-            sendable_system_container,
+            system_container,
+            system_container_client,
             service_container,
             closure_task_sender,
         }
+    }
+
+    pub fn system_container_client(&self) -> &SystemContainerClient {
+        &self.system_container_client
     }
 
     pub fn system_container_ref(&self) -> &SystemContainer {
@@ -62,10 +62,6 @@ impl ApplicationContext {
 
     pub fn system_container_mut(&mut self) -> &mut SystemContainer {
         &mut self.system_container
-    }
-
-    pub fn sendable_system_container(&self) -> &ArcRwLock<SendableSystemContainer> {
-        &self.sendable_system_container
     }
 
     pub fn service_container_ref(&self) -> &ServiceContainer {

@@ -43,12 +43,12 @@ pub fn init(
         .system_container_mut()
         .add_system(input_provider);
 
-    let sendable_system_container = essentials.sendable_system_container.clone();
+    let system_container_client = essentials.system_container_client.clone();
 
     tokio::spawn(async move {
         let camera_controller = CameraController::new(enabled, input_receiver, &essentials).await;
-        sendable_system_container
-            .write()
-            .add_system(camera_controller);
+        system_container_client.execute_closure_async(|system_container| {
+            system_container.add_system(camera_controller);
+        });
     });
 }

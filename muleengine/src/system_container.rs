@@ -1,5 +1,10 @@
 use std::{any::TypeId, collections::HashMap};
 
+use method_taskifier::{
+    method_taskifier_impl,
+    task_channel::{task_channel, TaskReceiver},
+    AllWorkersDroppedError,
+};
 use parking_lot::RwLock;
 
 use bytifex_utils::{
@@ -14,26 +19,58 @@ pub trait System: 'static {
 pub struct SystemContainer {
     systems_multi_type_dict: MultiTypeDict,
     systems_by_type_id: HashMap<TypeId, ArcRwLock<dyn System>>,
+    task_receiver: TaskReceiver<client::ChanneledTask>,
 }
 
-impl Default for SystemContainer {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+pub use client::Client as SystemContainerClient;
 
+#[method_taskifier_impl(module_name = client)]
 impl SystemContainer {
-    pub fn new() -> Self {
-        Self {
-            systems_multi_type_dict: MultiTypeDict::new(),
-            systems_by_type_id: HashMap::new(),
-        }
+    pub fn new_with_client() -> (Self, SystemContainerClient) {
+        let (task_sender, task_receiver) = task_channel();
+
+        (
+            Self {
+                systems_multi_type_dict: MultiTypeDict::new(),
+                systems_by_type_id: HashMap::new(),
+                task_receiver,
+            },
+            SystemContainerClient::new(task_sender),
+        )
     }
 
     pub fn tick(&mut self, delta_time_in_secs: f32) {
+        while let Ok(task) = self.task_receiver.try_pop() {
+            self.execute_channeled_task(task);
+        }
+
         for system in self.systems_by_type_id.iter() {
             system.1.write().tick(delta_time_in_secs);
         }
+    }
+
+    #[method_taskifier_client_fn]
+    pub fn execute_closure_async(
+        &self,
+        closure: impl FnOnce(&mut SystemContainer) + Send + 'static,
+    ) {
+        drop(self.execute_boxed_closure_async(Box::new(closure)));
+    }
+
+    #[method_taskifier_client_fn]
+    pub async fn execute_closure(
+        &self,
+        closure: impl FnOnce(&mut SystemContainer) + Send + 'static,
+    ) -> Result<(), AllWorkersDroppedError> {
+        self.execute_boxed_closure_async(Box::new(closure)).await
+    }
+
+    #[method_taskifier_worker_fn]
+    pub fn execute_boxed_closure_async(
+        &mut self,
+        closure: Box<dyn FnOnce(&mut SystemContainer) + Send>,
+    ) {
+        closure(self)
     }
 
     pub fn add_system<SystemType: System>(

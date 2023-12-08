@@ -160,10 +160,6 @@ impl Application for Game2 {
 
     fn tick(&mut self, delta_time_in_secs: f32, app_context: &mut ApplicationContext) {
         app_context.system_container_mut().tick(delta_time_in_secs);
-        app_context
-            .sendable_system_container()
-            .write()
-            .tick(delta_time_in_secs);
 
         while let Some(event) = self.event_receiver.pop() {
             log::trace!("EVENT = {event:?}");
