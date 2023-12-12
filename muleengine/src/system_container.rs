@@ -40,7 +40,7 @@ impl SystemContainer {
     }
 
     pub fn tick(&mut self, delta_time_in_secs: f32) {
-        while let Ok(task) = self.task_receiver.try_pop() {
+        while let Ok(task) = self.task_receiver.try_recv() {
             self.execute_channeled_task(task);
         }
 

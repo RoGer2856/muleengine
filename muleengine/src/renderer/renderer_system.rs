@@ -879,10 +879,9 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
 
 impl System for SyncRenderer {
     fn tick(&mut self, _delta_time_in_secs: f32) {
-        let mut task_receiver = self.renderer_pri.task_receiver.clone();
-        let _ = self
-            .renderer_pri
-            .execute_remaining_channeled_tasks_from_queue(&mut task_receiver);
+        while let Ok(task) = self.renderer_pri.task_receiver.try_recv() {
+            self.renderer_pri.execute_channeled_task(task);
+        }
 
         self.render();
     }

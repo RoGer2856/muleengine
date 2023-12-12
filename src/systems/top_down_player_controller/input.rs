@@ -100,7 +100,7 @@ impl InputProvider {
 
 impl System for InputProvider {
     fn tick(&mut self, _delta_time_in_secs: f32) {
-        while let Ok(task) = self.task_receiver.try_pop() {
+        while let Ok(task) = self.task_receiver.try_recv() {
             self.execute_channeled_task(task);
         }
 

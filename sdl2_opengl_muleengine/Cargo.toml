@@ -9,7 +9,7 @@ edition = "2021"
 log = "0.4"
 vek = "0.16"
 parking_lot = "*"
-sdl2 = "0.35"
-sdl2-sys = { version = "0.35", features = ["bundled", "static-link"] }
+sdl2 = "0.36"
+sdl2-sys = { version = "0.36", features = ["bundled", "static-link"] }
 gl = "0.14"
 muleengine = { path = "../muleengine" }
