@@ -215,7 +215,7 @@ pub type EventReceiver = broadcast::Receiver<Event>;
 pub trait WindowContext: System {
     fn is_key_pressed(&self, key: Key) -> bool;
     fn is_mouse_button_pressed(&self, button: MouseButton) -> bool;
-    fn mouse_pos(&self) -> Vec2<usize>;
+    fn mouse_pos(&self) -> Vec2<isize>;
     fn set_fullscreen(&mut self, fullscreen: bool);
     fn window_dimensions(&self) -> Vec2<usize>;
     fn show_cursor(&mut self, show: bool);

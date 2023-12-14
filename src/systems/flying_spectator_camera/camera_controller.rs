@@ -107,8 +107,6 @@ impl System for CameraController {
             self.weighted_turn_value.x = MIN_VERTICAL_ANGLE_RAD - self.camera_vertical_angle_rad
         }
 
-        log::info!("{}", self.weighted_turn_value);
-
         // transform the camera
         const MOVE_CAMERA_ON_Z_PLANE: bool = false;
         let mut axis_z = self.camera.axis_z();

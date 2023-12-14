@@ -171,7 +171,7 @@ impl System for InputProvider {
             let window_center = window_context.window_dimensions() / 2;
 
             let mouse_pos = window_context.mouse_pos();
-            if mouse_pos.x != window_center.x || mouse_pos.y != window_center.y {
+            if mouse_pos.x != window_center.x as isize || mouse_pos.y != window_center.y as isize {
                 window_context.warp_mouse_normalized_screen_space(Vec2::new(0.5, 0.5));
             }
         } else {

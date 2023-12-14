@@ -199,9 +199,9 @@ impl WindowContext for Sdl2GlContext {
         mouse_state.is_mouse_button_pressed(from_mouse_button_to_sdl_mouse_button(button))
     }
 
-    fn mouse_pos(&self) -> Vec2<usize> {
+    fn mouse_pos(&self) -> Vec2<isize> {
         let mouse_state = self.event_pump.mouse_state();
-        Vec2::new(mouse_state.x() as usize, mouse_state.y() as usize)
+        Vec2::new(mouse_state.x() as isize, mouse_state.y() as isize)
     }
 
     fn window_dimensions(&self) -> Vec2<usize> {
