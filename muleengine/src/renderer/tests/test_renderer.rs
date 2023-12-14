@@ -569,7 +569,9 @@ impl TestLoopSync {
     pub async fn block_on_main_loop(&mut self, timeout: Duration) {
         let start = Instant::now();
         while self.app_loop_state_watcher.should_run() {
-            self.renderer_system.tick(1.0 / 30.0);
+            let loop_start = Instant::now();
+
+            self.renderer_system.tick(&loop_start, 1.0 / 30.0);
 
             tokio::task::yield_now().await;
 
@@ -579,7 +581,8 @@ impl TestLoopSync {
             }
         }
 
-        self.renderer_system.tick(1.0 / 30.0);
+        let loop_start = Instant::now();
+        self.renderer_system.tick(&loop_start, 1.0 / 30.0);
     }
 
     pub fn renderer_system(&self) -> &SyncRenderer {

@@ -75,7 +75,12 @@ impl ApplicationContext {
 
 pub trait Application: 'static {
     fn should_run(&self, app_context: &mut ApplicationContext) -> bool;
-    fn tick(&mut self, delta_time_in_secs: f32, app_context: &mut ApplicationContext);
+    fn tick(
+        &mut self,
+        loop_start: &std::time::Instant,
+        last_loop_duration_secs: f32,
+        app_context: &mut ApplicationContext,
+    );
 }
 
 pub fn run<ApplicationType>(
@@ -126,14 +131,16 @@ pub async fn async_run<ApplicationType>(
     let mut fps_counter = FpsCounter::new();
 
     let mut delta_time_stopwatch = Stopwatch::start_new();
-    let mut delta_time_in_secs = 1.0 / 60.0;
+    let mut last_loop_duration_secs = 1.0 / 60.0;
 
     while application.should_run(&mut app_context) && app_loop_state_watcher.should_run() {
+        let loop_start = std::time::Instant::now();
+
         while let Ok(task) = sync_task_receiver.try_recv() {
             task(&mut app_context);
         }
 
-        application.tick(delta_time_in_secs, &mut app_context);
+        application.tick(&loop_start, last_loop_duration_secs, &mut app_context);
 
         fps_counter.draw_happened();
         if fps_counter_stopwatch.elapsed() > Duration::from_millis(1000) {
@@ -144,7 +151,7 @@ pub async fn async_run<ApplicationType>(
 
         tokio::task::yield_now().await;
 
-        delta_time_in_secs = delta_time_stopwatch.restart().as_secs_f32();
+        last_loop_duration_secs = delta_time_stopwatch.restart().as_secs_f32();
     }
 
     let drop_task = async move {

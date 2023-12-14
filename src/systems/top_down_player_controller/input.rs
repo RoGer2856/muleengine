@@ -99,7 +99,7 @@ impl InputProvider {
 }
 
 impl System for InputProvider {
-    fn tick(&mut self, _delta_time_in_secs: f32) {
+    fn tick(&mut self, _loop_start: &std::time::Instant, _last_loop_time_secs: f32) {
         while let Ok(task) = self.task_receiver.try_recv() {
             self.execute_channeled_task(task);
         }

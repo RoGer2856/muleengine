@@ -55,7 +55,7 @@ impl CameraController {
 }
 
 impl System for CameraController {
-    fn tick(&mut self, delta_time_in_secs: f32) {
+    fn tick(&mut self, _loop_start: &std::time::Instant, last_loop_time_secs: f32) {
         // accelerating or decelerating the camera
         while let Some(event) = self.input_receiver.velocity_change_event_receiver.pop() {
             match event {
@@ -95,7 +95,7 @@ impl System for CameraController {
         } else {
             self.weighted_turn_value * (1.0 - self.mouse_sensitivity)
                 + accumulated_camera_turn_input * self.mouse_sensitivity
-        } * delta_time_in_secs;
+        } * last_loop_time_secs;
 
         const MIN_VERTICAL_ANGLE_RAD: f32 = -std::f32::consts::FRAC_PI_2;
         const MAX_VERTICAL_ANGLE_RAD: f32 = std::f32::consts::FRAC_PI_2;
@@ -106,6 +106,8 @@ impl System for CameraController {
         {
             self.weighted_turn_value.x = MIN_VERTICAL_ANGLE_RAD - self.camera_vertical_angle_rad
         }
+
+        log::info!("{}", self.weighted_turn_value);
 
         // transform the camera
         const MOVE_CAMERA_ON_Z_PLANE: bool = false;
@@ -120,7 +122,7 @@ impl System for CameraController {
 
         if self.enabled.load(atomic::Ordering::SeqCst) {
             self.camera
-                .move_by(corrected_moving_direction * self.moving_velocity * delta_time_in_secs);
+                .move_by(corrected_moving_direction * self.moving_velocity * last_loop_time_secs);
 
             self.camera_vertical_angle_rad += self.weighted_turn_value.x;
             self.camera.pitch(self.weighted_turn_value.x);

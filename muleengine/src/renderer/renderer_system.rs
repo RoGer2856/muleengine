@@ -878,7 +878,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
 }
 
 impl System for SyncRenderer {
-    fn tick(&mut self, _delta_time_in_secs: f32) {
+    fn tick(&mut self, _loop_start: &std::time::Instant, _last_loop_time_secs: f32) {
         while let Ok(task) = self.renderer_pri.task_receiver.try_recv() {
             self.renderer_pri.execute_channeled_task(task);
         }
@@ -888,7 +888,7 @@ impl System for SyncRenderer {
 }
 
 impl System for AsyncRenderer {
-    fn tick(&mut self, _delta_time_in_secs: f32) {
+    fn tick(&mut self, _loop_start: &std::time::Instant, _last_loop_time_secs: f32) {
         self.render();
     }
 }

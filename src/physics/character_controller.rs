@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use muleengine::bytifex_utils::{
     containers::object_pool::ObjectPoolIndex,
     sync::{types::ArcRwLock, usage_counter::UsageCounter},
@@ -8,7 +10,6 @@ use rapier3d::{
     },
     prelude::{nalgebra::*, ColliderShape as RapierColliderShape, UnitVector},
 };
-use tokio::time::Instant;
 use vek::Vec3;
 
 use super::{collider::ColliderShape, Rapier3dPhysicsEngine};
@@ -255,7 +256,7 @@ impl CharacterControllerHandler {
         self.character_controller.read().position
     }
 
-    pub fn get_interpolated_position(&self, now: Instant) -> Vec3<f32> {
+    pub fn get_interpolated_position(&self, now: &Instant) -> Vec3<f32> {
         let character_controller = self.character_controller.read();
 
         let time_elapsed_since_last_update_secs = now

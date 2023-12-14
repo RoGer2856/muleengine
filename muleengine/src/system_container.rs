@@ -13,7 +13,7 @@ use bytifex_utils::{
 };
 
 pub trait System: 'static {
-    fn tick(&mut self, delta_time_in_secs: f32);
+    fn tick(&mut self, loop_start: &std::time::Instant, last_loop_time_secs: f32);
 }
 
 pub struct SystemContainer {
@@ -39,13 +39,13 @@ impl SystemContainer {
         )
     }
 
-    pub fn tick(&mut self, delta_time_in_secs: f32) {
+    pub fn tick(&mut self, loop_start: &std::time::Instant, last_loop_time_secs: f32) {
         while let Ok(task) = self.task_receiver.try_recv() {
             self.execute_channeled_task(task);
         }
 
         for system in self.systems_by_type_id.iter() {
-            system.1.write().tick(delta_time_in_secs);
+            system.1.write().tick(loop_start, last_loop_time_secs);
         }
     }
 

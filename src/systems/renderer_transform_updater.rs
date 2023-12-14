@@ -38,7 +38,7 @@ impl RendererTransformUpdaterSystem {
 }
 
 impl System for RendererTransformUpdaterSystem {
-    fn tick(&mut self, _delta_time_in_secs: f32) {
+    fn tick(&mut self, _loop_start: &std::time::Instant, _last_loop_time_secs: f32) {
         for entity_id in self.entity_group.iter_entity_ids() {
             if let Some(entity_handler) =
                 self.entity_container.lock().handler_for_entity(&entity_id)

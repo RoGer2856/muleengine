@@ -2,7 +2,12 @@ pub mod character_controller;
 pub mod collider;
 pub mod rigid_body;
 
-use std::{collections::VecDeque, mem::swap, ops::DerefMut, time::Duration};
+use std::{
+    collections::VecDeque,
+    mem::swap,
+    ops::DerefMut,
+    time::{Duration, Instant},
+};
 
 use method_taskifier::{
     method_taskifier_impl,
@@ -30,7 +35,7 @@ use rapier3d::{
         RigidBodySet,
     },
 };
-use tokio::time::{interval, Instant, MissedTickBehavior};
+use tokio::time::{interval, MissedTickBehavior};
 use vek::{Quaternion, Vec3};
 
 use self::{
@@ -134,7 +139,7 @@ impl Rapier3dPhysicsEngine {
     pub fn get_interpolated_transform_of_rigidbody(
         &self,
         rigid_body_handler: &RigidBodyHandler,
-        now: Instant,
+        now: &Instant,
     ) -> Option<(Vec3<f32>, Quaternion<f32>)> {
         let previous_state = if let Some(previous_state) = self.previous_states.back() {
             previous_state
@@ -295,7 +300,7 @@ impl Rapier3dPhysicsEngine {
         }
     }
 
-    fn move_characters(&mut self, delta_time_in_secs: f32) {
+    fn move_characters(&mut self, last_loop_time_secs: f32) {
         for character_controller in self.character_controllers.iter_mut() {
             let mut character_controller = character_controller.write();
 
@@ -306,13 +311,13 @@ impl Rapier3dPhysicsEngine {
 
             let initial_falling_velocity = character_controller.falling_velocity;
             character_controller.falling_velocity =
-                initial_falling_velocity + character_controller.gravity * delta_time_in_secs;
+                initial_falling_velocity + character_controller.gravity * last_loop_time_secs;
 
-            let falling_translation = initial_falling_velocity * delta_time_in_secs
-                + 0.5 * character_controller.gravity * delta_time_in_secs * delta_time_in_secs;
+            let falling_translation = initial_falling_velocity * last_loop_time_secs
+                + 0.5 * character_controller.gravity * last_loop_time_secs * last_loop_time_secs;
 
             let translation =
-                character_controller.velocity * delta_time_in_secs + falling_translation;
+                character_controller.velocity * last_loop_time_secs + falling_translation;
 
             // let mut position = Isometry::default();
             // position.translation = Translation3::new(
@@ -351,7 +356,7 @@ impl Rapier3dPhysicsEngine {
 
             let mut collisions = vec![];
             let corrected_movement = character_controller.character_controller.move_shape(
-                delta_time_in_secs,
+                last_loop_time_secs,
                 &self.current_state.rigid_body_set,
                 &self.current_state.collider_set,
                 &self.query_pipeline,
@@ -377,7 +382,7 @@ impl Rapier3dPhysicsEngine {
                 character_controller
                     .character_controller
                     .solve_character_collision_impulses(
-                        delta_time_in_secs,
+                        last_loop_time_secs,
                         &mut self.current_state.rigid_body_set,
                         &self.current_state.collider_set,
                         &self.query_pipeline,
@@ -390,12 +395,12 @@ impl Rapier3dPhysicsEngine {
         }
     }
 
-    fn step(&mut self, delta_time_in_secs: f32) {
-        self.integration_parameters.dt = delta_time_in_secs;
+    fn step(&mut self, delta_time_secs: f32) {
+        self.integration_parameters.dt = delta_time_secs;
 
         self.last_tick_time = Instant::now();
         self.predicted_next_tick_time =
-            self.last_tick_time + Duration::from_secs_f32(delta_time_in_secs);
+            self.last_tick_time + Duration::from_secs_f32(delta_time_secs);
 
         if self.previous_states.len() == NUMBER_OF_STORED_STATES {
             self.previous_states.pop_front();
@@ -403,7 +408,7 @@ impl Rapier3dPhysicsEngine {
         self.previous_states.push_back(self.current_state.clone());
 
         self.handle_to_be_dropped_character_controllers();
-        self.move_characters(delta_time_in_secs);
+        self.move_characters(delta_time_secs);
 
         let gravity = vector![self.gravity.x, self.gravity.y, self.gravity.z];
         self.physics_pipeline.step(

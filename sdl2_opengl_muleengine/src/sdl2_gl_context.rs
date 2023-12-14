@@ -178,7 +178,7 @@ impl Sdl2GlContext {
 }
 
 impl System for Sdl2GlContext {
-    fn tick(&mut self, _delta_time_in_secs: f32) {
+    fn tick(&mut self, _loop_start: &std::time::Instant, _last_loop_time_secs: f32) {
         self.flush_events();
     }
 }

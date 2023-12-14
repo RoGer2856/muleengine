@@ -92,11 +92,6 @@ impl Game2 {
         let renderer_client = renderer_system.client();
         app_context.service_container_ref().insert(renderer_client);
 
-        // adding Renderer as the first system
-        app_context
-            .system_container_mut()
-            .add_system(renderer_system);
-
         app_context
             .service_container_ref()
             .insert(event_receiver.clone());
@@ -136,6 +131,11 @@ impl Game2 {
         top_down_player_controller::init(window_context.clone(), app_context, essentials.clone());
         controller_changer::init(window_context.read().event_receiver().clone(), &essentials);
 
+        // adding Renderer as the last system
+        app_context
+            .system_container_mut()
+            .add_system(renderer_system);
+
         tokio::spawn(async move {
             populate_with_objects(&essentials).await;
         });
@@ -158,8 +158,15 @@ impl Application for Game2 {
         self.app_loop_state.should_run()
     }
 
-    fn tick(&mut self, delta_time_in_secs: f32, app_context: &mut ApplicationContext) {
-        app_context.system_container_mut().tick(delta_time_in_secs);
+    fn tick(
+        &mut self,
+        loop_start: &std::time::Instant,
+        last_loop_time_secs: f32,
+        app_context: &mut ApplicationContext,
+    ) {
+        app_context
+            .system_container_mut()
+            .tick(loop_start, last_loop_time_secs);
 
         while let Some(event) = self.event_receiver.pop() {
             log::trace!("EVENT = {event:?}");

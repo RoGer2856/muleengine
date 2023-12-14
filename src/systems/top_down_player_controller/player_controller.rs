@@ -64,7 +64,7 @@ impl PlayerController {
 }
 
 impl System for PlayerController {
-    fn tick(&mut self, _delta_time_in_secs: f32) {
+    fn tick(&mut self, _loop_start: &std::time::Instant, _last_loop_time_secs: f32) {
         // moving the camera
         let movement_direction = self
             .input_receiver

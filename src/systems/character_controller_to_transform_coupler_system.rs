@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use entity_component::{component_type_list, EntityContainer, EntityGroup};
 use muleengine::system_container::System;
-use tokio::time::Instant;
 use vek::Transform;
 
 use crate::{
@@ -27,9 +26,7 @@ impl CharacterControllerToTransformCouplerSystem {
 }
 
 impl System for CharacterControllerToTransformCouplerSystem {
-    fn tick(&mut self, _delta_time_in_secs: f32) {
-        let now = Instant::now();
-
+    fn tick(&mut self, loop_start: &std::time::Instant, _last_loop_time_secs: f32) {
         for entity_id in self.entity_group.iter_entity_ids() {
             if let Some(mut entity_handler) =
                 self.entity_container.lock().handler_for_entity(&entity_id)
@@ -40,7 +37,8 @@ impl System for CharacterControllerToTransformCouplerSystem {
                     .cloned();
 
                 if let Some(character_controller_handler) = character_controller_handler {
-                    let position = character_controller_handler.get_interpolated_position(now);
+                    let position =
+                        character_controller_handler.get_interpolated_position(loop_start);
                     entity_handler.change_component(|transform: &mut Transform<f32, f32, f32>| {
                         transform.position = position;
                     });
