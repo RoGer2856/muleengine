@@ -25,7 +25,9 @@ impl HeightMap {
 
             for x in 0..relief_map_image.width() {
                 for y in 0..relief_map_image.height() {
-                    height_map[x][y] = relief_map_image.color_at_f32(x, y).0;
+                    if let Some(color) = relief_map_image.color_f32_at(x, y) {
+                        height_map[x][y] = color.0;
+                    }
                 }
             }
 
@@ -42,7 +44,9 @@ impl HeightMap {
                 } else {
                     for x in 0..mask_map_image.width() {
                         for y in 0..mask_map_image.height() {
-                            mask_map[x][y] = (mask_map_image.color_at_f32(x, y).0 * 255.0) as u8;
+                            if let Some(color) = mask_map_image.color_f32_at(x, y) {
+                                mask_map[x][y] = (color.0 * 255.0) as u8;
+                            }
                         }
                     }
                 }
