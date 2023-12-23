@@ -7,11 +7,6 @@
 			"args": [
 				"--release"
 			],
-			// "command": "test",
-			// "args": [
-			// 	"--release",
-			// 	"--all"
-			// ],
 			"problemMatcher": [
 				"$rustc"
 			],
@@ -28,6 +23,73 @@
 				"showReuseMessage": true,
 				"clear": true
 			}
-		}
+		},
+		{
+			"type": "cargo",
+			"command": "build",
+			"args": [
+				"--release"
+			],
+			"problemMatcher": [
+				"$rustc"
+			],
+			"label": "rust: cargo build",
+			"group": {
+				"kind": "build",
+				// "isDefault": true
+			},
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": true
+			}
+		},
+		{
+			"type": "cargo",
+			"command": "clippy",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"label": "rust: cargo clippy",
+			"group": {
+				"kind": "build",
+				// "isDefault": true
+			},
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": true
+			}
+		},
+		{
+			"type": "cargo",
+			"command": "test",
+			"args": [
+				"--release",
+				"--all"
+			],
+			"problemMatcher": [
+				"$rustc"
+			],
+			"label": "rust: cargo test",
+			"group": {
+				"kind": "test",
+				"isDefault": true
+			},
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": true
+			}
+		},
 	]
 }
