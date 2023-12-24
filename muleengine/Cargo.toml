@@ -16,6 +16,7 @@ parking_lot = "*"
 tokio = { version = "1.20", features = ["full"] }
 futures = "0.3"
 serde = { version = "1.0", features = ["derive"] }
+ab_glyph = "0.2.23"
 
 # todo!("miniz_oxide = "0.7"")
 minizip-sys = { git = "https://github.com/bytifex/minizip-sys.git" }

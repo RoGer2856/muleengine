@@ -4,6 +4,7 @@ use muleengine::{
     asset_container::AssetContainer,
     asset_reader::AssetReader,
     bytifex_utils::{result_option_inspect::ResultInspector, sync::app_loop_state::AppLoopState},
+    font::HackFontContainer,
     image_container::ImageContainer,
     renderer::renderer_system::SyncRenderer,
     scene_container::SceneContainer,
@@ -42,6 +43,7 @@ impl Game2 {
         service_container.get_or_insert_service(|| RwLock::new(SceneContainer::new()));
         service_container.get_or_insert_service(|| AssetContainer::new(service_container));
         service_container.get_or_insert_service(EntityContainer::new);
+        service_container.get_or_insert_service(HackFontContainer::new);
     }
 
     pub fn new(app_context: &mut ApplicationContext) -> Self {

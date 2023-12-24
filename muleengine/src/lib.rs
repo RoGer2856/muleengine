@@ -17,6 +17,7 @@ pub mod application_runner;
 pub mod asset_container;
 pub mod asset_reader;
 pub mod camera;
+pub mod font;
 pub mod fps_counter;
 pub mod heightmap;
 pub mod image;
