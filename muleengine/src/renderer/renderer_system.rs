@@ -15,6 +15,7 @@ use vek::Transform;
 use crate::{
     mesh::{Material, Mesh},
     system_container::System,
+    window_context::{Event, EventReceiver, WindowContext},
 };
 
 use super::{
@@ -33,12 +34,15 @@ use super::{
 
 pub struct SyncRenderer {
     pub(super) renderer_pri: RendererPri<dyn RendererImpl>,
+    _window_context: ArcRwLock<dyn WindowContext>,
+    event_receiver: EventReceiver,
 }
 
 pub struct AsyncRenderer {
     pub(super) renderer_pri: RendererPri<dyn RendererImplAsync>,
     renderer_impl: Box<dyn RendererImplAsync>,
     worker_runner: AsyncWorkerRunner,
+    _window_context: ArcRwLock<dyn WindowContext>,
 }
 
 pub(super) struct RendererLayerData {
@@ -94,18 +98,30 @@ impl Clone for RendererPri<dyn RendererImplAsync> {
 }
 
 impl SyncRenderer {
-    pub fn new(renderer_impl: impl RendererImpl + 'static) -> Self {
-        Self::new_from_box(Box::new(renderer_impl))
+    pub fn new(
+        renderer_impl: impl RendererImpl + 'static,
+        window_context: ArcRwLock<dyn WindowContext>,
+    ) -> Self {
+        Self::new_from_box(Box::new(renderer_impl), window_context)
     }
 
-    pub fn new_from_box(renderer_impl: Box<dyn RendererImpl + 'static>) -> Self {
+    pub fn new_from_box(
+        renderer_impl: Box<dyn RendererImpl + 'static>,
+        window_context: ArcRwLock<dyn WindowContext>,
+    ) -> Self {
+        let mut renderer_pri = RendererPri::new(renderer_impl);
+        let window_dimensions = window_context.read().window_dimensions();
+        let _ = renderer_pri
+            .window_dimensions_changed(window_dimensions.x, window_dimensions.y)
+            .inspect_err(|e| {
+                log::error!("SyncRenderer::new_from_box: window_dimensions_changed, error = {e:?}")
+            });
+
         Self {
-            renderer_pri: RendererPri::new(renderer_impl),
+            renderer_pri,
+            _window_context: window_context.clone(),
+            event_receiver: window_context.read().event_receiver(),
         }
-    }
-
-    pub fn render(&mut self) {
-        self.renderer_pri.renderer_impl.render();
     }
 
     pub fn client(&self) -> RendererClient {
@@ -117,24 +133,48 @@ impl AsyncRenderer {
     pub fn new(
         number_of_executors: u8,
         renderer_impl: impl RendererImplAsync,
+        window_context: ArcRwLock<dyn WindowContext>,
     ) -> Result<Self, InvalidNumberOfExecutors> {
         let renderer_impl = Box::new(renderer_impl);
-        let renderer_pri = RendererPri::new(renderer_impl.box_clone());
 
+        let mut renderer_pri = RendererPri::new(renderer_impl.box_clone());
+        let window_dimensions = window_context.read().window_dimensions();
+        let _ = renderer_pri
+            .window_dimensions_changed(window_dimensions.x, window_dimensions.y)
+            .inspect_err(|e| {
+                log::error!("AsyncRenderer::new: window_dimensions_changed, error = {e:?}")
+            });
         let task_receiver = renderer_pri.task_receiver.clone();
+        let mut event_receiver = window_context.read().event_receiver();
+        event_receiver.stop();
 
         let worker_runner = {
             let renderer_pri = renderer_pri.clone();
             let task_receiver = task_receiver.clone();
+            let mut event_receiver = event_receiver.clone();
+            event_receiver.stop();
+
             AsyncWorkerRunner::run_worker(number_of_executors, move || {
                 let mut renderer_pri = renderer_pri.clone();
                 let mut task_receiver = task_receiver.clone();
+                let event_receiver = event_receiver.clone();
+
                 || async move {
                     let _ = renderer_pri
                         .execute_channeled_tasks_from_queue_until_clients_dropped(
                             &mut task_receiver,
                         )
                         .await;
+
+                    while let Some(event) = event_receiver.pop() {
+                        if let Event::Resized { width, height } = event {
+                            let _ = renderer_pri
+                                .window_dimensions_changed(width, height)
+                                .inspect_err(|e| {
+                                    log::error!("AsyncRenderer::tick: window_dimensions_changed, error = {e:?}")
+                                });
+                        }
+                    }
                 }
             })?
         };
@@ -143,11 +183,8 @@ impl AsyncRenderer {
             renderer_pri,
             renderer_impl,
             worker_runner,
+            _window_context: window_context.clone(),
         })
-    }
-
-    pub fn render(&mut self) {
-        self.renderer_impl.render();
     }
 
     pub fn client(&self) -> RendererClient {
@@ -179,6 +216,16 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
         }
     }
 
+    pub fn window_dimensions_changed(
+        &mut self,
+        width: usize,
+        height: usize,
+    ) -> Result<(), RendererError> {
+        self.renderer_impl
+            .window_dimensions_changed(width, height)
+            .map_err(RendererError::RendererImplError)
+    }
+
     pub fn client(&self) -> RendererClient {
         RendererClient::new(self.task_sender.clone())
     }
@@ -206,6 +253,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
                     renderer_layer_handler,
                     viewport_start_ndc,
                     viewport_end_ndc,
+                    compute_projection_matrix,
                 } => {
                     let renderer_layer = self
                         .renderer_layers
@@ -221,6 +269,8 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
                         renderer_layer,
                         viewport_start_ndc,
                         viewport_end_ndc,
+
+                        compute_projection_matrix,
                     }
                 }
             };
@@ -883,13 +933,24 @@ impl System for SyncRenderer {
             self.renderer_pri.execute_channeled_task(task);
         }
 
-        self.render();
+        while let Some(event) = self.event_receiver.pop() {
+            if let Event::Resized { width, height } = event {
+                let _ = self
+                    .renderer_pri
+                    .window_dimensions_changed(width, height)
+                    .inspect_err(|e| {
+                        log::error!("SyncRenderer::tick: window_dimensions_changed, error = {e:?}")
+                    });
+            }
+        }
+
+        self.renderer_pri.renderer_impl.render();
     }
 }
 
 impl System for AsyncRenderer {
     fn tick(&mut self, _loop_start: &std::time::Instant, _last_loop_time_secs: f32) {
-        self.render();
+        self.renderer_impl.render();
     }
 }
 

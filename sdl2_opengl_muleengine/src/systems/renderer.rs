@@ -19,7 +19,7 @@ use muleengine::{
     },
     window_context::WindowContext,
 };
-use vek::{Mat4, Transform, Vec2, Vec4};
+use vek::{Transform, Vec2, Vec4};
 
 use crate::{
     gl_drawable_mesh::GLDrawableMesh,
@@ -67,7 +67,6 @@ pub struct Renderer {
 
     screen_clear_color: Vec4<f32>,
 
-    projection_matrix: Mat4<f32>,
     window_dimensions: Vec2<usize>,
     window_context: ArcRwLock<dyn WindowContext>,
 
@@ -80,11 +79,10 @@ pub struct Renderer {
 
 impl Renderer {
     pub fn new(
-        initial_window_dimensions: Vec2<usize>,
         window_context: ArcRwLock<dyn WindowContext>,
         asset_container: AssetContainer,
     ) -> Self {
-        let mut ret = Self {
+        Self {
             renderer_pipeline_steps: Vec::new(),
 
             renderer_cameras: ObjectPool::new(),
@@ -99,7 +97,6 @@ impl Renderer {
 
             screen_clear_color: Vec4::zero(),
 
-            projection_matrix: Mat4::identity(),
             window_dimensions: Vec2::zero(),
             window_context,
 
@@ -108,11 +105,7 @@ impl Renderer {
             gl_mesh_container: GLMeshContainer::new(),
             gl_shader_program_container: arc_mutex_new(GLShaderProgramContainer::new()),
             gl_texture_container: GLTextureContainer::new(),
-        };
-
-        ret.set_window_dimensions(initial_window_dimensions);
-
-        ret
+        }
     }
 
     fn get_renderer_layer_index(
@@ -230,28 +223,10 @@ impl Renderer {
             );
         }
     }
-
-    fn set_window_dimensions(&mut self, window_dimensions: Vec2<usize>) {
-        self.window_dimensions = window_dimensions;
-
-        let fov_y_degrees = 45.0f32;
-        let near_plane = 0.01;
-        let far_plane = 1000.0;
-        self.projection_matrix = Mat4::perspective_fov_rh_zo(
-            fov_y_degrees.to_radians(),
-            window_dimensions.x as f32,
-            window_dimensions.y as f32,
-            near_plane,
-            far_plane,
-        );
-    }
 }
 
 impl RendererImpl for Renderer {
     fn render(&mut self) {
-        let window_dimensions = self.window_context.read().window_dimensions();
-        self.set_window_dimensions(window_dimensions);
-
         unsafe {
             gl::ClearColor(
                 self.screen_clear_color.x,
@@ -290,15 +265,34 @@ impl RendererImpl for Renderer {
                     renderer_layer: renderer_layer_object,
                     viewport_start_ndc,
                     viewport_end_ndc: viewport_dimensions_ndc,
+                    projection_matrix,
+                    ..
                 } => {
                     self.set_gl_viewport(viewport_start_ndc, viewport_dimensions_ndc);
 
-                    renderer_layer_object.read().draw(&self.projection_matrix);
+                    renderer_layer_object.read().draw(projection_matrix);
                 }
             }
         }
 
         self.window_context.read().swap_buffers();
+    }
+
+    fn window_dimensions_changed(&mut self, width: usize, height: usize) -> Result<(), String> {
+        self.window_dimensions = Vec2::new(width, height);
+
+        for step in self.renderer_pipeline_steps.iter_mut() {
+            if let RendererPipelineStepObject::Draw {
+                projection_matrix,
+                compute_projection_matrix,
+                ..
+            } = step
+            {
+                *projection_matrix = compute_projection_matrix(width, height);
+            }
+        }
+
+        Ok(())
     }
 
     fn set_renderer_pipeline(
@@ -323,6 +317,7 @@ impl RendererImpl for Renderer {
                     renderer_layer,
                     viewport_start_ndc,
                     viewport_end_ndc,
+                    compute_projection_matrix,
                 } => {
                     let renderer_layer = {
                         let index = self
@@ -342,6 +337,11 @@ impl RendererImpl for Renderer {
                         renderer_layer,
                         viewport_start_ndc,
                         viewport_end_ndc,
+                        projection_matrix: compute_projection_matrix(
+                            self.window_dimensions.x,
+                            self.window_dimensions.y,
+                        ),
+                        compute_projection_matrix,
                     }
                 }
             };

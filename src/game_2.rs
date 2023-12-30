@@ -77,7 +77,6 @@ impl Game2 {
             .clone();
 
         let renderer_impl = Renderer::new(
-            window_context.read().window_dimensions(),
             window_context.clone(),
             app_context
                 .service_container_ref()
@@ -89,7 +88,7 @@ impl Game2 {
         );
 
         // todo!("choose between SyncRenderer and AsyncRenderer automatically");
-        let renderer_system = SyncRenderer::new(renderer_impl);
+        let renderer_system = SyncRenderer::new(renderer_impl, window_context.clone());
 
         let renderer_client = renderer_system.client();
         app_context.service_container_ref().insert(renderer_client);

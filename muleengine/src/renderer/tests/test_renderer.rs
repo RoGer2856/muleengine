@@ -22,7 +22,66 @@ use crate::{
     },
     system_container::System,
     test_utils::sendable_ptr::SendablePtr,
+    window_context::{EventSender, WindowContext},
 };
+
+pub struct TestWindowContext {
+    event_sender: EventSender,
+}
+
+impl TestWindowContext {
+    pub fn new() -> Self {
+        Self {
+            event_sender: EventSender::new(),
+        }
+    }
+}
+
+impl WindowContext for TestWindowContext {
+    fn is_key_pressed(&self, _key: crate::window_context::Key) -> bool {
+        todo!()
+    }
+
+    fn is_mouse_button_pressed(&self, _button: crate::window_context::MouseButton) -> bool {
+        todo!()
+    }
+
+    fn mouse_pos(&self) -> vek::Vec2<isize> {
+        todo!()
+    }
+
+    fn set_fullscreen(&mut self, _fullscreen: bool) {
+        todo!()
+    }
+
+    fn window_dimensions(&self) -> vek::Vec2<usize> {
+        vek::Vec2::new(800, 600)
+    }
+
+    fn show_cursor(&mut self, _show: bool) {
+        todo!()
+    }
+
+    fn warp_mouse_normalized_screen_space(&mut self, _pos: vek::Vec2<f32>) {
+        todo!()
+    }
+
+    fn event_sender(&self) -> &crate::window_context::EventSender {
+        &self.event_sender
+    }
+
+    fn poll_event(&mut self) -> Option<crate::window_context::Event> {
+        todo!()
+    }
+
+    fn swap_buffers(&self) {
+        todo!()
+    }
+}
+
+impl System for TestWindowContext {
+    fn tick(&mut self, _loop_start: &std::time::Instant, _last_loop_time_secs: f32) {}
+}
 
 #[derive(Clone)]
 pub struct TestRendererImpl {
@@ -131,6 +190,10 @@ pub struct TestRendererObjectImpl;
 impl RendererObject for TestRendererObjectImpl {}
 
 impl RendererImpl for TestRendererImpl {
+    fn window_dimensions_changed(&mut self, _width: usize, _height: usize) -> Result<(), String> {
+        Ok(())
+    }
+
     fn set_renderer_pipeline(
         &mut self,
         steps: Vec<renderer_pipeline_step_impl::RendererPipelineStepImpl>,
@@ -529,7 +592,8 @@ pub fn init_test_sync() -> (TestLoopSync, TestLoopClient) {
     let renderer_impl = TestRendererImpl::new();
     let app_loop_state = AppLoopState::new();
     let app_loop_state_watcher = app_loop_state.watcher();
-    let renderer_system = SyncRenderer::new(renderer_impl.clone());
+    let window_context = arc_rw_lock_new(TestWindowContext::new());
+    let renderer_system = SyncRenderer::new(renderer_impl.clone(), window_context);
     let renderer_client = renderer_system.client();
 
     (
@@ -549,7 +613,8 @@ pub fn init_test_async() -> (TestLoopAsync, TestLoopClient) {
     let renderer_impl = TestRendererImpl::new();
     let app_loop_state = AppLoopState::new();
     let app_loop_state_watcher = app_loop_state.watcher();
-    let renderer_system = AsyncRenderer::new(4, renderer_impl.clone()).unwrap();
+    let window_context = arc_rw_lock_new(TestWindowContext::new());
+    let renderer_system = AsyncRenderer::new(4, renderer_impl.clone(), window_context).unwrap();
     let renderer_client = renderer_system.client();
 
     (

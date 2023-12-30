@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use muleengine::{
     bytifex_utils::{result_option_inspect::ResultInspector, sync::async_item::AsyncItem},
     renderer::{
@@ -7,7 +9,7 @@ use muleengine::{
     },
     service_container::ServiceContainer,
 };
-use vek::{Transform, Vec2};
+use vek::{Mat4, Transform, Vec2};
 
 pub struct RendererConfigurationData {
     skydome_camera_transform_handler: RendererTransformHandler,
@@ -100,6 +102,10 @@ impl RendererConfigurationData {
             .unwrap()
             .unwrap();
 
+        let fov_y_degrees = 45.0f32;
+        let near_plane = 0.01;
+        let far_plane = 1000.0;
+
         renderer_client
             .set_renderer_pipeline(vec![
                 RendererPipelineStep::Clear {
@@ -114,6 +120,16 @@ impl RendererConfigurationData {
 
                     viewport_start_ndc: Vec2::broadcast(0.0),
                     viewport_end_ndc: Vec2::broadcast(1.0),
+
+                    compute_projection_matrix: Arc::new(move |window_width, window_height| {
+                        Mat4::perspective_fov_rh_zo(
+                            fov_y_degrees.to_radians(),
+                            window_width as f32,
+                            window_height as f32,
+                            near_plane,
+                            far_plane,
+                        )
+                    }),
                 },
                 RendererPipelineStep::Clear {
                     viewport_start_ndc: Vec2::broadcast(0.0),
@@ -126,6 +142,16 @@ impl RendererConfigurationData {
 
                     viewport_start_ndc: Vec2::broadcast(0.0),
                     viewport_end_ndc: Vec2::broadcast(1.0),
+
+                    compute_projection_matrix: Arc::new(move |window_width, window_height| {
+                        Mat4::perspective_fov_rh_zo(
+                            fov_y_degrees.to_radians(),
+                            window_width as f32,
+                            window_height as f32,
+                            near_plane,
+                            far_plane,
+                        )
+                    }),
                 },
             ])
             .await

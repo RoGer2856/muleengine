@@ -1,8 +1,9 @@
-use vek::Vec2;
+use std::sync::Arc;
+
+use vek::{Mat4, Vec2};
 
 use super::RendererLayerHandler;
 
-#[derive(Debug, Clone)]
 pub enum RendererPipelineStep {
     Clear {
         depth: bool,
@@ -16,5 +17,7 @@ pub enum RendererPipelineStep {
 
         viewport_start_ndc: Vec2<f32>,
         viewport_end_ndc: Vec2<f32>,
+
+        compute_projection_matrix: Arc<dyn Fn(usize, usize) -> Mat4<f32> + Send + Sync>,
     },
 }

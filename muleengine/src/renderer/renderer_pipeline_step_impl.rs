@@ -1,5 +1,7 @@
+use std::sync::Arc;
+
 use bytifex_utils::sync::types::ArcRwLock;
-use vek::Vec2;
+use vek::{Mat4, Vec2};
 
 use super::RendererLayer;
 
@@ -17,5 +19,7 @@ pub enum RendererPipelineStepImpl {
 
         viewport_start_ndc: Vec2<f32>,
         viewport_end_ndc: Vec2<f32>,
+
+        compute_projection_matrix: Arc<dyn Fn(usize, usize) -> Mat4<f32> + Send + Sync>,
     },
 }

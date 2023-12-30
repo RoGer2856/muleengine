@@ -15,6 +15,8 @@ use super::{
 pub trait RendererImpl {
     fn render(&mut self);
 
+    fn window_dimensions_changed(&mut self, width: usize, height: usize) -> Result<(), String>;
+
     fn set_renderer_pipeline(&mut self, steps: Vec<RendererPipelineStepImpl>)
         -> Result<(), String>;
 
