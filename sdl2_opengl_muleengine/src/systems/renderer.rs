@@ -235,6 +235,8 @@ impl RendererImpl for Renderer {
                 self.screen_clear_color.w,
             );
             gl::Enable(gl::DEPTH_TEST);
+            gl::Enable(gl::BLEND);
+            gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
         }
 
         for step in self.renderer_pipeline_steps.iter() {

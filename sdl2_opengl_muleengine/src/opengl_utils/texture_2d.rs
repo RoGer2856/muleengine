@@ -179,6 +179,33 @@ impl Texture2D {
         set_texture_map_mode(GLTextureMapMode::Repeat);
         set_texture_sampling_mode(GLTextureSamplingMode::LinearMipmapLinear);
 
+        match image.color_type() {
+            ColorType::L8 => unsafe {
+                gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_SWIZZLE_G, gl::RED as i32);
+                gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_SWIZZLE_B, gl::RED as i32);
+            },
+            ColorType::La8 => unsafe {
+                gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_SWIZZLE_G, gl::RED as i32);
+                gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_SWIZZLE_B, gl::RED as i32);
+                gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_SWIZZLE_A, gl::GREEN as i32);
+            },
+            ColorType::Rgb8 => {}
+            ColorType::Rgba8 => {}
+            ColorType::L16 => unsafe {
+                gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_SWIZZLE_G, gl::RED as i32);
+                gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_SWIZZLE_B, gl::RED as i32);
+            },
+            ColorType::La16 => unsafe {
+                gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_SWIZZLE_G, gl::RED as i32);
+                gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_SWIZZLE_B, gl::RED as i32);
+                gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_SWIZZLE_A, gl::GREEN as i32);
+            },
+            ColorType::Rgb16 => {}
+            ColorType::Rgba16 => {}
+            ColorType::RgbF32 => {}
+            ColorType::RgbaF32 => {}
+        }
+
         Self { texture_id }
     }
 
