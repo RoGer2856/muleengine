@@ -2,10 +2,11 @@ use std::sync::Arc;
 
 use muleengine::{
     bytifex_utils::result_option_inspect::ResultInspector,
-    font::HackFontContainer,
+    font::{HackFontContainer, RenderedGlyph},
     heightmap::HeightMap,
     mesh::{Material, MaterialTexture, MaterialTextureType, TextureMapMode},
     mesh_creator,
+    renderer::RendererGroupHandler,
 };
 use vek::{Transform, Vec3};
 
@@ -15,6 +16,7 @@ use crate::{
     physics::{
         character_controller::CharacterLength, collider::ColliderShape, rigid_body::RigidBodyType,
     },
+    systems::ui_text_positioner::UiEntityPosition,
 };
 
 use self::{skybox::spawn_skybox, tools::game_object_builder::GameObjectBuilder};
@@ -44,51 +46,87 @@ fn create_material_for_char(
     chr: char,
     font: &mut HackFontContainer,
     pixel_scale: usize,
-) -> Option<Material> {
+) -> Option<(Material, RenderedGlyph)> {
     let glyph = font.get_rendered_glyph(chr, pixel_scale)?;
-    Some(Material {
-        textures: vec![MaterialTexture {
-            image: glyph.image().clone(),
-            texture_type: MaterialTextureType::Albedo,
-            texture_map_mode: TextureMapMode::Clamp,
-            blend: 1.0,
-            uv_channel_id: 0,
-        }],
-        opacity: 1.0,
-        albedo_color: Vec3::broadcast(1.0),
-        shininess_color: Vec3::broadcast(0.0),
-        emissive_color: Vec3::broadcast(0.0),
-    })
+    Some((
+        Material {
+            textures: vec![MaterialTexture {
+                image: glyph.image().clone(),
+                texture_type: MaterialTextureType::Albedo,
+                texture_map_mode: TextureMapMode::Clamp,
+                blend: 1.0,
+                uv_channel_id: 0,
+            }],
+            opacity: 1.0,
+            albedo_color: Vec3::broadcast(1.0),
+            shininess_color: Vec3::broadcast(0.0),
+            emissive_color: Vec3::broadcast(0.0),
+        },
+        glyph,
+    ))
+}
+
+async fn spawn_text(
+    text: &str,
+    pixel_scale: usize,
+    text_scale: f32,
+    renderer_group_handler: RendererGroupHandler,
+    essentials: &Arc<EssentialServices>,
+) {
+    let text_scale = text_scale.abs();
+    let pixel_scale_f32 = pixel_scale as f32;
+    let mut position_offset = Vec3::new(text_scale / 2.0, -1.5 * text_scale, 0.0);
+
+    for chr in text.chars() {
+        let material_and_glyph =
+            create_material_for_char(chr, &mut essentials.hack_font.write(), pixel_scale);
+
+        if let Some((material, glyph)) = material_and_glyph {
+            let entity_builder = GameObjectBuilder::new(essentials)
+                .mesh(Arc::new(mesh_creator::rectangle2d::create(1.0, 1.0)))
+                .await
+                .shader("Assets/shaders/unlit")
+                .await
+                .transform(Transform {
+                    scale: Vec3::new(text_scale, -text_scale, 1.0),
+                    ..Default::default()
+                })
+                .await
+                .material(material)
+                .await
+                .renderer_group_handler(renderer_group_handler.clone())
+                .build()
+                .await;
+
+            let entity_builder = entity_builder.with_component(UiEntityPosition::TopLeftWindow {
+                offset: (position_offset
+                    + glyph.compute_render_offset_px() / pixel_scale_f32
+                        * text_scale
+                        * Vec3::new(1.0, -1.0, 1.0))
+                .xy(),
+            });
+
+            entity_builder.build();
+
+            position_offset.x += glyph.h_advance() / pixel_scale_f32 * text_scale;
+        } else {
+            position_offset.x += text_scale / 2.0;
+        }
+    }
 }
 
 async fn spawn_ui(essentials: &Arc<EssentialServices>) {
-    let renderer_group_handler = essentials
-        .renderer_configuration
-        .ui_renderer_group_handler()
-        .await;
-
-    let scale = 0.1;
-
-    let material = create_material_for_char('H', &mut essentials.hack_font.write(), 128).unwrap();
-
-    let entity_builder = GameObjectBuilder::new(essentials)
-        .mesh(Arc::new(mesh_creator::rectangle2d::create(1.0, 1.0)))
-        .await
-        .shader("Assets/shaders/unlit")
-        .await
-        .transform(Transform {
-            position: Vec3::new(0.0, 0.0, 0.0),
-            scale: Vec3::broadcast(scale),
-            ..Default::default()
-        })
-        .await
-        .material(material)
-        .await
-        .renderer_group_handler(renderer_group_handler)
-        .build()
-        .await;
-
-    entity_builder.build();
+    spawn_text(
+        "Game 2",
+        128,
+        0.1,
+        essentials
+            .renderer_configuration
+            .ortho_overlay_renderer_group_handler()
+            .await,
+        essentials,
+    )
+    .await;
 }
 
 async fn spawn_ground(essentials: &Arc<EssentialServices>) {

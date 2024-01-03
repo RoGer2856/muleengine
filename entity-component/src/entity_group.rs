@@ -50,7 +50,7 @@ impl EntityGroup {
         self.entity_ids.lock().contains(entity_id)
     }
 
-    pub fn iter_entity_ids(&mut self) -> EntityGroupIterator {
+    pub fn iter_entity_ids(&self) -> EntityGroupIterator {
         self.is_locked_by_itself.fetch_or(true, Ordering::SeqCst);
         EntityGroupIterator {
             entity_ids_guard: self.entity_ids.lock(),
@@ -522,7 +522,7 @@ mod tests {
 
         let ids = add_test_entities(&mut entity_container);
 
-        let mut entity_group = entity_container.lock().entity_group(component_type_list![
+        let entity_group = entity_container.lock().entity_group(component_type_list![
             Position,
             Velocity,
             Orientation,
@@ -592,7 +592,7 @@ mod tests {
     fn entity_group_on_the_fly_adding_components_with_builder() {
         let mut entity_container = EntityContainer::new();
 
-        let mut entity_group = entity_container.lock().entity_group(component_type_list![
+        let entity_group = entity_container.lock().entity_group(component_type_list![
             Position,
             Velocity,
             Orientation,
@@ -662,7 +662,7 @@ mod tests {
     fn entity_group_on_the_fly_adding_components_without_builder() {
         let entity_container = EntityContainer::new();
 
-        let mut entity_group = entity_container.lock().entity_group(component_type_list![
+        let entity_group = entity_container.lock().entity_group(component_type_list![
             Position,
             Velocity,
             Orientation,
@@ -1022,7 +1022,7 @@ mod tests {
     fn change_component_in_handle_all_entities_in_entity_group() {
         let entity_container = EntityContainer::new();
 
-        let mut entity_group = entity_container.lock().entity_group(component_type_list![
+        let entity_group = entity_container.lock().entity_group(component_type_list![
             Position,
             Velocity,
             Orientation,
@@ -1051,7 +1051,7 @@ mod tests {
     fn remove_component_in_handle_all_entities_in_entity_group() {
         let entity_container = EntityContainer::new();
 
-        let mut entity_group = entity_container.lock().entity_group(component_type_list![
+        let entity_group = entity_container.lock().entity_group(component_type_list![
             Position,
             Velocity,
             Orientation,

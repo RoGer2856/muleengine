@@ -28,6 +28,7 @@ use crate::{
         physics_object_to_transform_coupler_system::PhysicsObjectToTransformCouplerSystem,
         renderer_configuration::RendererConfiguration,
         renderer_transform_updater::RendererTransformUpdaterSystem, top_down_player_controller,
+        ui_text_positioner::UiTextPositioner,
     },
 };
 
@@ -123,10 +124,16 @@ impl Game2 {
             CharacterControllerToTransformCouplerSystem::new(&essentials),
         );
 
-        let renderer_transform_updater = RendererTransformUpdaterSystem::new(&essentials);
         app_context
             .system_container_mut()
-            .add_system(renderer_transform_updater);
+            .add_system(UiTextPositioner::new(
+                essentials.entity_container.clone(),
+                window_context.clone(),
+            ));
+
+        app_context
+            .system_container_mut()
+            .add_system(RendererTransformUpdaterSystem::new(&essentials));
 
         flying_spectator_camera::init(window_context.clone(), app_context, essentials.clone());
         top_down_player_controller::init(window_context.clone(), app_context, essentials.clone());

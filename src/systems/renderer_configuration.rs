@@ -22,10 +22,10 @@ pub struct RendererConfigurationData {
     main_renderer_layer_handler: RendererLayerHandler,
     main_renderer_group_handler: RendererGroupHandler,
 
-    ui_camera_transform_handler: RendererTransformHandler,
-    ui_camera_handler: RendererCameraHandler,
-    ui_renderer_layer_handler: RendererLayerHandler,
-    ui_renderer_group_handler: RendererGroupHandler,
+    ortho_overlay_camera_transform_handler: RendererTransformHandler,
+    ortho_overlay_camera_handler: RendererCameraHandler,
+    ortho_overlay_renderer_layer_handler: RendererLayerHandler,
+    ortho_overlay_renderer_group_handler: RendererGroupHandler,
 }
 
 #[derive(Clone)]
@@ -61,14 +61,14 @@ impl RendererConfigurationData {
             .unwrap()
             .unwrap();
 
-        let ui_camera_transform_handler = renderer_client
+        let ortho_overlay_camera_transform_handler = renderer_client
             .create_transform(Transform::default())
             .await
             .inspect_err(|e| log::error!("{e:?}"))
             .unwrap()
             .unwrap();
-        let ui_camera_handler = renderer_client
-            .create_camera(ui_camera_transform_handler.clone())
+        let ortho_overlay_camera_handler = renderer_client
+            .create_camera(ortho_overlay_camera_transform_handler.clone())
             .await
             .inspect_err(|e| log::error!("{e:?}"))
             .unwrap()
@@ -122,13 +122,13 @@ impl RendererConfigurationData {
         let near_plane = 0.01;
         let far_plane = 1000.0;
 
-        let ui_renderer_layer_handler = renderer_client
-            .create_renderer_layer(ui_camera_handler.clone())
+        let ortho_overlay_renderer_layer_handler = renderer_client
+            .create_renderer_layer(ortho_overlay_camera_handler.clone())
             .await
             .inspect_err(|e| log::error!("{e:?}"))
             .unwrap()
             .unwrap();
-        let ui_renderer_group_handler = renderer_client
+        let ortho_overlay_renderer_group_handler = renderer_client
             .create_renderer_group()
             .await
             .inspect_err(|e| log::error!("{e:?}"))
@@ -136,8 +136,8 @@ impl RendererConfigurationData {
             .unwrap();
         renderer_client
             .add_renderer_group_to_layer(
-                ui_renderer_group_handler.clone(),
-                ui_renderer_layer_handler.clone(),
+                ortho_overlay_renderer_group_handler.clone(),
+                ortho_overlay_renderer_layer_handler.clone(),
             )
             .await
             .inspect_err(|e| log::error!("{e:?}"))
@@ -198,17 +198,18 @@ impl RendererConfigurationData {
                     color: false,
                 },
                 RendererPipelineStep::Draw {
-                    renderer_layer_handler: ui_renderer_layer_handler.clone(),
+                    renderer_layer_handler: ortho_overlay_renderer_layer_handler.clone(),
 
                     viewport_start_ndc: Vec2::broadcast(0.0),
                     viewport_end_ndc: Vec2::broadcast(1.0),
 
-                    compute_projection_matrix: Arc::new(move |_window_width, _window_height| {
+                    compute_projection_matrix: Arc::new(move |window_width, window_height| {
+                        let ratio = window_height as f32 / window_width as f32;
                         Mat4::orthographic_rh_no(FrustumPlanes {
                             left: -1.0,
                             right: 1.0,
-                            bottom: -1.0,
-                            top: 1.0,
+                            bottom: -ratio,
+                            top: ratio,
                             near: 1.0,
                             far: -1.0,
                         })
@@ -231,10 +232,10 @@ impl RendererConfigurationData {
             main_renderer_layer_handler,
             main_renderer_group_handler,
 
-            ui_camera_transform_handler,
-            ui_camera_handler,
-            ui_renderer_layer_handler,
-            ui_renderer_group_handler,
+            ortho_overlay_camera_transform_handler,
+            ortho_overlay_camera_handler,
+            ortho_overlay_renderer_layer_handler,
+            ortho_overlay_renderer_group_handler,
         }
     }
 }
@@ -305,19 +306,31 @@ impl RendererConfiguration {
         self.data.read().await.main_renderer_group_handler.clone()
     }
 
-    pub async fn ui_camera_transform_handler(&self) -> RendererTransformHandler {
-        self.data.read().await.ui_camera_transform_handler.clone()
+    pub async fn ortho_overlay_camera_transform_handler(&self) -> RendererTransformHandler {
+        self.data
+            .read()
+            .await
+            .ortho_overlay_camera_transform_handler
+            .clone()
     }
 
-    pub async fn ui_camera_handler(&self) -> RendererCameraHandler {
-        self.data.read().await.ui_camera_handler.clone()
+    pub async fn ortho_overlay_camera_handler(&self) -> RendererCameraHandler {
+        self.data.read().await.ortho_overlay_camera_handler.clone()
     }
 
-    pub async fn ui_renderer_layer_handler(&self) -> RendererLayerHandler {
-        self.data.read().await.ui_renderer_layer_handler.clone()
+    pub async fn ortho_overlay_renderer_layer_handler(&self) -> RendererLayerHandler {
+        self.data
+            .read()
+            .await
+            .ortho_overlay_renderer_layer_handler
+            .clone()
     }
 
-    pub async fn ui_renderer_group_handler(&self) -> RendererGroupHandler {
-        self.data.read().await.ui_renderer_group_handler.clone()
+    pub async fn ortho_overlay_renderer_group_handler(&self) -> RendererGroupHandler {
+        self.data
+            .read()
+            .await
+            .ortho_overlay_renderer_group_handler
+            .clone()
     }
 }
