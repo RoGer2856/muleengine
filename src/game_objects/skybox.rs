@@ -56,7 +56,9 @@ pub async fn spawn_skybox(essentials: &Arc<EssentialServices>) {
                         .asset_container
                         .image_container()
                         .write()
-                        .get_image(texture_path, essentials.asset_container.asset_reader()),
+                        .get_image(texture_path, essentials.asset_container.asset_reader())
+                        .inspect_err(|e| log::error!("Could not load image, error = {e:?}"))
+                        .unwrap(),
                     texture_type: MaterialTextureType::Albedo,
                     texture_map_mode: TextureMapMode::Clamp,
                     blend: 0.0,

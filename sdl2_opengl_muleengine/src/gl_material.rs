@@ -2,11 +2,7 @@ use std::sync::Arc;
 
 use vek::Vec3;
 
-use muleengine::{
-    bytifex_utils::result_option_inspect::ResultInspector,
-    image_container::ImageContainerError,
-    mesh::{Material, MaterialTexture, MaterialTextureType, TextureMapMode},
-};
+use muleengine::mesh::{Material, MaterialTexture, MaterialTextureType, TextureMapMode};
 
 use super::{
     gl_texture_container::GLTextureContainer,
@@ -38,12 +34,7 @@ impl GLMaterial {
         let mut textures = Vec::new();
 
         for texture in material.textures.iter() {
-            let material_texture = GLMaterialTexture::new(texture, gl_texture_container);
-            let material_texture = material_texture
-                .inspect_err(|e| log::error!("Could not load texture for material, msg = '{e:?}'"));
-            if let Ok(material_texture) = material_texture {
-                textures.push(material_texture);
-            }
+            textures.push(GLMaterialTexture::new(texture, gl_texture_container));
         }
 
         Self {
@@ -57,23 +48,20 @@ impl GLMaterial {
 }
 
 impl GLMaterialTexture {
-    pub fn new(
-        texture: &MaterialTexture,
-        gl_texture_container: &mut GLTextureContainer,
-    ) -> Result<Self, ImageContainerError> {
+    pub fn new(texture: &MaterialTexture, gl_texture_container: &mut GLTextureContainer) -> Self {
         let texture_map_mode = match texture.texture_map_mode {
             TextureMapMode::Clamp => GLTextureMapMode::Clamp,
             TextureMapMode::Repeat => GLTextureMapMode::Repeat,
             TextureMapMode::Mirror => GLTextureMapMode::Mirror,
         };
 
-        Ok(Self {
-            texture: gl_texture_container.get_texture(texture.image.clone()?),
+        Self {
+            texture: gl_texture_container.get_texture(texture.image.clone()),
             texture_type: texture.texture_type,
             texture_map_mode,
             blend: texture.blend,
             uv_channel_id: texture.uv_channel_id,
-        })
+        }
     }
 }
 

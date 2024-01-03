@@ -3,7 +3,7 @@ use std::os::raw::{c_float, c_uint};
 use std::str::Utf8Error;
 use std::sync::Arc;
 
-use vek::{Mat4, Vec2, Vec3, Vec4};
+use vek::{Mat2, Mat4, Vec2, Vec3, Vec4};
 
 use super::aabb::AxisAlignedBoundingBox;
 use super::asset_reader::{canonicalize_path, parent_path, AssetReader};
@@ -47,6 +47,7 @@ pub enum MeshConvertError {
     MissingBitangent {
         vertex_index: u32,
     },
+    MaterialTextureConversionError(MaterialTextureConversionError),
     Utf8Error(Utf8Error),
 }
 
@@ -76,9 +77,15 @@ pub enum TextureMapMode {
     Mirror,
 }
 
+#[derive(Debug, Clone)]
+pub enum MaterialTextureConversionError {
+    Utf8Error(Utf8Error),
+    ImageContainerError(ImageContainerError),
+}
+
 #[derive(Clone)]
 pub struct MaterialTexture {
-    pub image: Result<Arc<Image>, ImageContainerError>,
+    pub image: Arc<Image>,
     pub texture_type: MaterialTextureType,
     pub texture_map_mode: TextureMapMode,
     pub blend: f32,
@@ -94,7 +101,6 @@ pub struct Material {
     pub emissive_color: Vec3<f32>,
 }
 
-#[repr(C)]
 pub struct Mesh {
     faces: Vec<u32>,
     vertex_bone_weights: Vec<VertexBoneWeight>,
@@ -148,7 +154,7 @@ impl MaterialTexture {
         uv_channel_id: usize,
     ) -> Self {
         Self {
-            image: Ok(image),
+            image,
             texture_type,
             texture_map_mode,
             blend,
@@ -163,7 +169,7 @@ impl MaterialTexture {
         texture_type: assimp_sys::AiTextureType,
         index: usize,
         image_container: &mut ImageContainer,
-    ) -> Result<Self, Utf8Error> {
+    ) -> Result<Self, MaterialTextureConversionError> {
         let mut path = assimp_sys::AiString {
             length: 0,
             data: [0; 1024],
@@ -189,7 +195,11 @@ impl MaterialTexture {
             );
         };
 
-        let path = canonicalize_path(ai_string_to_str(&path)?.to_string());
+        let path = canonicalize_path(
+            ai_string_to_str(&path)
+                .map_err(MaterialTextureConversionError::Utf8Error)?
+                .to_string(),
+        );
 
         let tmp_path = scene_parent_dir + "/" + &path;
         let image_path = if asset_reader.get_reader(&tmp_path).is_some() {
@@ -198,7 +208,9 @@ impl MaterialTexture {
             path
         };
 
-        let image = image_container.get_image(&image_path, asset_reader);
+        let image = image_container
+            .get_image(&image_path, asset_reader)
+            .map_err(MaterialTextureConversionError::ImageContainerError)?;
 
         Ok(Self {
             image,
@@ -440,7 +452,7 @@ impl Mesh {
                 0,
                 image_container,
             )
-            .map_err(MeshConvertError::Utf8Error)?;
+            .map_err(MeshConvertError::MaterialTextureConversionError)?;
 
             material.add_texture(material_texture);
         }
@@ -457,7 +469,7 @@ impl Mesh {
                 0,
                 image_container,
             )
-            .map_err(MeshConvertError::Utf8Error)?;
+            .map_err(MeshConvertError::MaterialTextureConversionError)?;
 
             material.add_texture(material_texture);
         }
@@ -477,7 +489,7 @@ impl Mesh {
                 0,
                 image_container,
             )
-            .map_err(MeshConvertError::Utf8Error)?;
+            .map_err(MeshConvertError::MaterialTextureConversionError)?;
 
             material.add_texture(material_texture);
         }
@@ -494,7 +506,7 @@ impl Mesh {
                 0,
                 image_container,
             )
-            .map_err(MeshConvertError::Utf8Error)?;
+            .map_err(MeshConvertError::MaterialTextureConversionError)?;
 
             material.add_texture(material_texture);
         }
@@ -511,7 +523,7 @@ impl Mesh {
                 0,
                 image_container,
             )
-            .map_err(MeshConvertError::Utf8Error)?;
+            .map_err(MeshConvertError::MaterialTextureConversionError)?;
 
             material.add_texture(material_texture);
         }
@@ -629,9 +641,9 @@ impl Mesh {
                 .map(|_| Vec3::new(0.0, 1.0, 0.0))
                 .collect();
 
-            let mut tangent_vectors: Vec<Vec<vek::Vec3<f32>>> =
+            let mut tangent_vectors: Vec<Vec<Vec3<f32>>> =
                 (0..positions.len()).map(|_| Vec::new()).collect();
-            let mut bitangent_vectors: Vec<Vec<vek::Vec3<f32>>> =
+            let mut bitangent_vectors: Vec<Vec<Vec3<f32>>> =
                 (0..positions.len()).map(|_| Vec::new()).collect();
 
             for i in (0..faces.len()).step_by(3) {
@@ -645,23 +657,21 @@ impl Mesh {
                 let a2b = positions[index_b] - positions[index_a];
                 let a2c = positions[index_c] - positions[index_a];
 
-                let m = vek::mat::repr_c::column_major::Mat2::new(
-                    a2c_tex.x, a2b_tex.x, a2c_tex.y, a2b_tex.y,
-                );
+                let m = Mat2::new(a2c_tex.x, a2b_tex.x, a2c_tex.y, a2b_tex.y);
                 let determinant_reciprocal: f32 = 1.0 / m.determinant();
-                let m = vek::mat::repr_c::column_major::Mat2::new(
+                let m = Mat2::new(
                     determinant_reciprocal * m.cols[1][1],
                     -determinant_reciprocal * m.cols[1][0],
                     -determinant_reciprocal * m.cols[0][1],
                     determinant_reciprocal * m.cols[0][0],
                 );
 
-                let tmp0: vek::Vec2<f32> = m * vek::Vec2::new(a2b.x, a2c.x);
-                let tmp1: vek::Vec2<f32> = m * vek::Vec2::new(a2b.y, a2c.y);
-                let tmp2: vek::Vec2<f32> = m * vek::Vec2::new(a2b.z, a2c.z);
+                let tmp0: Vec2<f32> = m * Vec2::new(a2b.x, a2c.x);
+                let tmp1: Vec2<f32> = m * Vec2::new(a2b.y, a2c.y);
+                let tmp2: Vec2<f32> = m * Vec2::new(a2b.z, a2c.z);
 
-                // let tangent = vek::Vec3::new(tmp0.x, tmp1.x, tmp2.x);
-                let bitangent = vek::Vec3::new(tmp0.y, tmp1.y, tmp2.y);
+                // let tangent = Vec3::new(tmp0.x, tmp1.x, tmp2.x);
+                let bitangent = Vec3::new(tmp0.y, tmp1.y, tmp2.y);
 
                 // tangent_vectors[index_a].push(tangent);
                 // tangent_vectors[index_b].push(tangent);
@@ -678,7 +688,7 @@ impl Mesh {
             }
 
             for (vertex_index, tangent_vectors_for_vertex) in tangent_vectors.iter().enumerate() {
-                let mut sum = vek::Vec3::broadcast(0.0);
+                let mut sum = Vec3::broadcast(0.0);
                 for v in tangent_vectors_for_vertex.iter() {
                     sum += *v;
                 }
@@ -689,7 +699,7 @@ impl Mesh {
 
             for (vertex_index, bitangent_vectors_for_vertex) in bitangent_vectors.iter().enumerate()
             {
-                let mut sum = vek::Vec3::broadcast(0.0);
+                let mut sum = Vec3::broadcast(0.0);
                 for v in bitangent_vectors_for_vertex.iter() {
                     sum += *v;
                 }

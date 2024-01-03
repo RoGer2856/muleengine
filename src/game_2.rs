@@ -43,7 +43,7 @@ impl Game2 {
         service_container.get_or_insert_service(|| RwLock::new(SceneContainer::new()));
         service_container.get_or_insert_service(|| AssetContainer::new(service_container));
         service_container.get_or_insert_service(EntityContainer::new);
-        service_container.get_or_insert_service(HackFontContainer::new);
+        service_container.get_or_insert_service(|| RwLock::new(HackFontContainer::new()));
     }
 
     pub fn new(app_context: &mut ApplicationContext) -> Self {

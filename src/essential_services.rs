@@ -5,13 +5,16 @@ use muleengine::{
     application_runner::{ApplicationContext, ClosureTaskSender},
     asset_container::AssetContainer,
     bytifex_utils::{
-        result_option_inspect::ResultInspector, sync::app_loop_state::AppLoopStateWatcher,
+        result_option_inspect::ResultInspector,
+        sync::{app_loop_state::AppLoopStateWatcher, types::ArcRwLock},
     },
+    font::HackFontContainer,
     renderer::renderer_system::RendererClient,
     service_container::ServiceContainer,
     system_container::SystemContainerClient,
     window_context::EventReceiver,
 };
+use parking_lot::RwLock;
 
 use crate::{
     physics::Rapier3dPhysicsEngineService, systems::renderer_configuration::RendererConfiguration,
@@ -32,6 +35,8 @@ pub struct EssentialServices {
     pub physics_engine: Arc<Rapier3dPhysicsEngineService>,
 
     pub entity_container: EntityContainer,
+
+    pub hack_font: ArcRwLock<HackFontContainer>,
 }
 
 impl EssentialServices {
@@ -89,6 +94,12 @@ impl EssentialServices {
             physics_engine: app_context
                 .service_container_ref()
                 .get_service::<Rapier3dPhysicsEngineService>()
+                .inspect_err(|e| log::error!("{e:?}"))
+                .unwrap()
+                .clone(),
+            hack_font: app_context
+                .service_container_ref()
+                .get_service::<RwLock<HackFontContainer>>()
                 .inspect_err(|e| log::error!("{e:?}"))
                 .unwrap()
                 .clone(),

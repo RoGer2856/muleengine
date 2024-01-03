@@ -2,8 +2,9 @@ use std::sync::Arc;
 
 use muleengine::{
     bytifex_utils::result_option_inspect::ResultInspector,
+    font::HackFontContainer,
     heightmap::HeightMap,
-    mesh::{Material, MaterialTexture},
+    mesh::{Material, MaterialTexture, MaterialTextureType, TextureMapMode},
     mesh_creator,
 };
 use vek::{Transform, Vec3};
@@ -23,6 +24,8 @@ pub mod skybox;
 pub mod tools;
 
 pub async fn populate_with_objects(essentials: &Arc<EssentialServices>) {
+    spawn_ui(essentials).await;
+
     spawn_skybox(essentials).await;
     spawn_ground(essentials).await;
     spawn_player(essentials).await;
@@ -35,6 +38,57 @@ pub async fn populate_with_objects(essentials: &Arc<EssentialServices>) {
     // let scene_path = "Assets/sponza/sponza.fbx";
     // let scene_path = "Assets/objects/skybox/Skybox.obj";
     spawn_scene_from_file(essentials, scene_path, Vec3::new(0.0, 0.0, -5.0)).await;
+}
+
+fn create_material_for_char(
+    chr: char,
+    font: &mut HackFontContainer,
+    pixel_scale: usize,
+) -> Option<Material> {
+    let glyph = font.get_rendered_glyph(chr, pixel_scale)?;
+    Some(Material {
+        textures: vec![MaterialTexture {
+            image: glyph.image().clone(),
+            texture_type: MaterialTextureType::Albedo,
+            texture_map_mode: TextureMapMode::Clamp,
+            blend: 1.0,
+            uv_channel_id: 0,
+        }],
+        opacity: 1.0,
+        albedo_color: Vec3::broadcast(1.0),
+        shininess_color: Vec3::broadcast(0.0),
+        emissive_color: Vec3::broadcast(0.0),
+    })
+}
+
+async fn spawn_ui(essentials: &Arc<EssentialServices>) {
+    let renderer_group_handler = essentials
+        .renderer_configuration
+        .ui_renderer_group_handler()
+        .await;
+
+    let scale = 0.1;
+
+    let material = create_material_for_char('H', &mut essentials.hack_font.write(), 128).unwrap();
+
+    let entity_builder = GameObjectBuilder::new(essentials)
+        .mesh(Arc::new(mesh_creator::rectangle2d::create(1.0, 1.0)))
+        .await
+        .shader("Assets/shaders/unlit")
+        .await
+        .transform(Transform {
+            position: Vec3::new(0.0, 0.0, 0.0),
+            scale: Vec3::broadcast(scale),
+            ..Default::default()
+        })
+        .await
+        .material(material)
+        .await
+        .renderer_group_handler(renderer_group_handler)
+        .build()
+        .await;
+
+    entity_builder.build();
 }
 
 async fn spawn_ground(essentials: &Arc<EssentialServices>) {
