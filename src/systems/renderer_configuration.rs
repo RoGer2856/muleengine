@@ -9,20 +9,23 @@ use muleengine::{
     },
     service_container::ServiceContainer,
 };
-use vek::{Mat4, Transform, Vec2};
+use vek::{FrustumPlanes, Mat4, Transform, Vec2};
 
 pub struct RendererConfigurationData {
     skydome_camera_transform_handler: RendererTransformHandler,
     skydome_camera_handler: RendererCameraHandler,
+    skydome_renderer_layer_handler: RendererLayerHandler,
+    skydome_renderer_group_handler: RendererGroupHandler,
 
     main_camera_transform_handler: RendererTransformHandler,
     main_camera_handler: RendererCameraHandler,
-
-    skydome_renderer_layer_handler: RendererLayerHandler,
     main_renderer_layer_handler: RendererLayerHandler,
-
-    skydome_renderer_group_handler: RendererGroupHandler,
     main_renderer_group_handler: RendererGroupHandler,
+
+    ui_camera_transform_handler: RendererTransformHandler,
+    ui_camera_handler: RendererCameraHandler,
+    ui_renderer_layer_handler: RendererLayerHandler,
+    ui_renderer_group_handler: RendererGroupHandler,
 }
 
 #[derive(Clone)]
@@ -53,6 +56,19 @@ impl RendererConfigurationData {
             .unwrap();
         let main_camera_handler = renderer_client
             .create_camera(main_camera_transform_handler.clone())
+            .await
+            .inspect_err(|e| log::error!("{e:?}"))
+            .unwrap()
+            .unwrap();
+
+        let ui_camera_transform_handler = renderer_client
+            .create_transform(Transform::default())
+            .await
+            .inspect_err(|e| log::error!("{e:?}"))
+            .unwrap()
+            .unwrap();
+        let ui_camera_handler = renderer_client
+            .create_camera(ui_camera_transform_handler.clone())
             .await
             .inspect_err(|e| log::error!("{e:?}"))
             .unwrap()
@@ -106,6 +122,28 @@ impl RendererConfigurationData {
         let near_plane = 0.01;
         let far_plane = 1000.0;
 
+        let ui_renderer_layer_handler = renderer_client
+            .create_renderer_layer(ui_camera_handler.clone())
+            .await
+            .inspect_err(|e| log::error!("{e:?}"))
+            .unwrap()
+            .unwrap();
+        let ui_renderer_group_handler = renderer_client
+            .create_renderer_group()
+            .await
+            .inspect_err(|e| log::error!("{e:?}"))
+            .unwrap()
+            .unwrap();
+        renderer_client
+            .add_renderer_group_to_layer(
+                ui_renderer_group_handler.clone(),
+                ui_renderer_layer_handler.clone(),
+            )
+            .await
+            .inspect_err(|e| log::error!("{e:?}"))
+            .unwrap()
+            .unwrap();
+
         renderer_client
             .set_renderer_pipeline(vec![
                 RendererPipelineStep::Clear {
@@ -153,6 +191,29 @@ impl RendererConfigurationData {
                         )
                     }),
                 },
+                RendererPipelineStep::Clear {
+                    viewport_start_ndc: Vec2::broadcast(0.0),
+                    viewport_end_ndc: Vec2::broadcast(1.0),
+                    depth: true,
+                    color: false,
+                },
+                RendererPipelineStep::Draw {
+                    renderer_layer_handler: ui_renderer_layer_handler.clone(),
+
+                    viewport_start_ndc: Vec2::broadcast(0.0),
+                    viewport_end_ndc: Vec2::broadcast(1.0),
+
+                    compute_projection_matrix: Arc::new(move |_window_width, _window_height| {
+                        Mat4::orthographic_rh_no(FrustumPlanes {
+                            left: -1.0,
+                            right: 1.0,
+                            bottom: -1.0,
+                            top: 1.0,
+                            near: 1.0,
+                            far: -1.0,
+                        })
+                    }),
+                },
             ])
             .await
             .inspect_err(|e| log::error!("{e:?}"))
@@ -162,15 +223,18 @@ impl RendererConfigurationData {
         Self {
             skydome_camera_transform_handler,
             skydome_camera_handler,
+            skydome_renderer_layer_handler,
+            skydome_renderer_group_handler,
 
             main_camera_transform_handler,
             main_camera_handler,
-
-            skydome_renderer_layer_handler,
             main_renderer_layer_handler,
-
-            skydome_renderer_group_handler,
             main_renderer_group_handler,
+
+            ui_camera_transform_handler,
+            ui_camera_handler,
+            ui_renderer_layer_handler,
+            ui_renderer_group_handler,
         }
     }
 }
@@ -209,24 +273,12 @@ impl RendererConfiguration {
         self.data.read().await.skydome_camera_handler.clone()
     }
 
-    pub async fn main_camera_transform_handler(&self) -> RendererTransformHandler {
-        self.data.read().await.main_camera_transform_handler.clone()
-    }
-
-    pub async fn main_camera_handler(&self) -> RendererCameraHandler {
-        self.data.read().await.main_camera_handler.clone()
-    }
-
     pub async fn skydome_renderer_layer_handler(&self) -> RendererLayerHandler {
         self.data
             .read()
             .await
             .skydome_renderer_layer_handler
             .clone()
-    }
-
-    pub async fn main_renderer_layer_handler(&self) -> RendererLayerHandler {
-        self.data.read().await.main_renderer_layer_handler.clone()
     }
 
     pub async fn skydome_renderer_group_handler(&self) -> RendererGroupHandler {
@@ -237,7 +289,35 @@ impl RendererConfiguration {
             .clone()
     }
 
+    pub async fn main_camera_transform_handler(&self) -> RendererTransformHandler {
+        self.data.read().await.main_camera_transform_handler.clone()
+    }
+
+    pub async fn main_camera_handler(&self) -> RendererCameraHandler {
+        self.data.read().await.main_camera_handler.clone()
+    }
+
+    pub async fn main_renderer_layer_handler(&self) -> RendererLayerHandler {
+        self.data.read().await.main_renderer_layer_handler.clone()
+    }
+
     pub async fn main_renderer_group_handler(&self) -> RendererGroupHandler {
         self.data.read().await.main_renderer_group_handler.clone()
+    }
+
+    pub async fn ui_camera_transform_handler(&self) -> RendererTransformHandler {
+        self.data.read().await.ui_camera_transform_handler.clone()
+    }
+
+    pub async fn ui_camera_handler(&self) -> RendererCameraHandler {
+        self.data.read().await.ui_camera_handler.clone()
+    }
+
+    pub async fn ui_renderer_layer_handler(&self) -> RendererLayerHandler {
+        self.data.read().await.ui_renderer_layer_handler.clone()
+    }
+
+    pub async fn ui_renderer_group_handler(&self) -> RendererGroupHandler {
+        self.data.read().await.ui_renderer_group_handler.clone()
     }
 }
