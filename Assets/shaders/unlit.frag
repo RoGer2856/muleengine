@@ -52,6 +52,9 @@ void main()
 	vec4 tmp = getAlbedoColor(texCoordsOffset);
 	albedo = vec3(tmp);
 	float alpha = tmp.a;
+	if (alpha < 0.05) {
+		discard;
+	}
 
 	fragColor = vec4(max(albedo, emissiveColor) * albedoColor, alpha);
 }
