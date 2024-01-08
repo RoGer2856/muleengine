@@ -57,7 +57,7 @@ impl CameraController {
 impl System for CameraController {
     fn tick(&mut self, _loop_start: &std::time::Instant, last_loop_time_secs: f32) {
         // accelerating or decelerating the camera
-        while let Some(event) = self.input_receiver.velocity_change_event_receiver.pop() {
+        while let Ok(Some(event)) = self.input_receiver.velocity_change_event_receiver.try_pop() {
             match event {
                 VelocityChangeEvent::Accelerate => {
                     self.moving_velocity *= 1.5;
@@ -77,7 +77,8 @@ impl System for CameraController {
         // turning the camera
         const TURNING_VELOCITY_RAD: f32 = std::f32::consts::FRAC_PI_2 * 0.1;
         let mut accumulated_camera_turn_input = Vec2::<f32>::zero();
-        while let Some(camera_turn_input) = self.input_receiver.turning_event_receiver.pop() {
+        while let Ok(Some(camera_turn_input)) = self.input_receiver.turning_event_receiver.try_pop()
+        {
             let direction = camera_turn_input
                 .try_normalized()
                 .unwrap_or_else(Vec2::zero);

@@ -61,7 +61,7 @@ impl MovementEventReceiver {
 
     pub fn get_aggregated_moving_direction(&self) -> Vec3<f32> {
         let mut moving_direction = Vec3::<f32>::zero();
-        while let Some(moving_input) = self.0.pop() {
+        while let Ok(Some(moving_input)) = self.0.try_pop() {
             moving_direction += moving_input;
         }
 

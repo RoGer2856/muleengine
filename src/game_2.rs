@@ -28,7 +28,7 @@ use crate::{
         physics_object_to_transform_coupler_system::PhysicsObjectToTransformCouplerSystem,
         renderer_configuration::RendererConfiguration,
         renderer_transform_updater::RendererTransformUpdaterSystem, top_down_player_controller,
-        ui_text_positioner::UiTextPositioner,
+        ui_text_positioner,
     },
 };
 
@@ -124,12 +124,7 @@ impl Game2 {
             CharacterControllerToTransformCouplerSystem::new(&essentials),
         );
 
-        app_context
-            .system_container_mut()
-            .add_system(UiTextPositioner::new(
-                essentials.entity_container.clone(),
-                window_context.clone(),
-            ));
+        ui_text_positioner::run(essentials.entity_container.clone(), window_context.clone());
 
         app_context
             .system_container_mut()
@@ -176,7 +171,7 @@ impl Application for Game2 {
             .system_container_mut()
             .tick(loop_start, last_loop_time_secs);
 
-        while let Some(event) = self.event_receiver.pop() {
+        while let Ok(Some(event)) = self.event_receiver.try_pop() {
             log::trace!("EVENT = {event:?}");
 
             self.process_event(event, app_context);

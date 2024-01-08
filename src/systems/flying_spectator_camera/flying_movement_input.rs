@@ -77,7 +77,7 @@ impl FlyingMovementEventReceiver {
         let mut moving_direction = self
             .movement_event_receiver
             .get_aggregated_moving_direction();
-        while let Some(moving_input) = self.elevation_movement_event_receiver.pop() {
+        while let Ok(Some(moving_input)) = self.elevation_movement_event_receiver.try_pop() {
             moving_direction += moving_input;
         }
 

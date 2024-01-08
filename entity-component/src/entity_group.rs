@@ -26,7 +26,7 @@ pub struct EntityGroup {
     to_be_handled_entity_ids: ArcMutex<Vec<(EntityId, EntityHandlingType)>>,
     is_locked_by_itself: Arc<AtomicBool>,
 
-    entity_group_event: EntityGroupEventSender,
+    entity_group_event_sender: EntityGroupEventSender,
 
     _entity_modified_event_subscription: callback_event::Subscription<EntityModifiedEvent>,
 }
@@ -37,7 +37,7 @@ impl EntityGroup {
         resend_events: bool,
         entity_container_guard: &mut EntityContainerGuard<'_>,
     ) -> EntityGroupEventReceiver {
-        let receiver = self.entity_group_event.create_receiver();
+        let receiver = self.entity_group_event_sender.create_receiver();
 
         if resend_events {
             self.resend_events_directly(&receiver, entity_container_guard);
@@ -79,7 +79,7 @@ impl EntityGroup {
             is_locked_by_itself: is_locked_by_itself.clone(),
             to_be_handled_entity_ids: to_be_handled_entity_ids.clone(),
 
-            entity_group_event: entity_group_event.clone(),
+            entity_group_event_sender: entity_group_event.clone(),
 
             _entity_modified_event_subscription: entity_modified_event_subscriber.subscribe(
                 move |event| {
@@ -133,7 +133,7 @@ impl EntityGroup {
     ) {
         for entity_id_ref in self.entity_ids.lock().iter() {
             if let Some(entity_handler) = entity_container_guard.handler_for_entity(entity_id_ref) {
-                self.entity_group_event.send_directly(
+                self.entity_group_event_sender.send_directly(
                     EntityGroupEvent::EntityAdded {
                         entity_id: *entity_id_ref,
                     },
@@ -141,7 +141,7 @@ impl EntityGroup {
                 );
 
                 for component_id_ref in entity_handler.iter_entity_component_ids() {
-                    self.entity_group_event.send_directly(
+                    self.entity_group_event_sender.send_directly(
                         EntityGroupEvent::ComponentAdded {
                             entity_id: *entity_id_ref,
                             component_id: component_id_ref.clone(),

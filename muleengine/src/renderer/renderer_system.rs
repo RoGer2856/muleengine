@@ -166,7 +166,7 @@ impl AsyncRenderer {
                         )
                         .await;
 
-                    while let Some(event) = event_receiver.pop() {
+                    while let Ok(Some(event)) = event_receiver.try_pop() {
                         if let Event::Resized { width, height } = event {
                             let _ = renderer_pri
                                 .window_dimensions_changed(width, height)
@@ -933,7 +933,7 @@ impl System for SyncRenderer {
             self.renderer_pri.execute_channeled_task(task);
         }
 
-        while let Some(event) = self.event_receiver.pop() {
+        while let Ok(Some(event)) = self.event_receiver.try_pop() {
             if let Event::Resized { width, height } = event {
                 let _ = self
                     .renderer_pri

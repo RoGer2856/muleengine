@@ -132,7 +132,7 @@ impl System for InputProvider {
 
         let mut window_context = self.window_context.write();
 
-        while let Some(event) = self.event_receiver.pop() {
+        while let Ok(Some(event)) = self.event_receiver.try_pop() {
             if let Event::MouseWheel { amount } = event {
                 if amount > 0 {
                     self.velocity_change_event_sender
