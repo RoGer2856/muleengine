@@ -36,9 +36,22 @@ impl System for CharacterControllerToTransformCouplerSystem {
                     .as_deref()
                     .cloned();
 
+                let transform = if let Some(component) =
+                    entity_handler.get_component_ref::<Transform<f32, f32, f32>>()
+                {
+                    *component
+                } else {
+                    continue;
+                };
+
                 if let Some(character_controller_handler) = character_controller_handler {
                     let position =
                         character_controller_handler.get_interpolated_position(loop_start);
+
+                    if transform.position == position {
+                        continue;
+                    }
+
                     entity_handler.change_component(|transform: &mut Transform<f32, f32, f32>| {
                         transform.position = position;
                     });

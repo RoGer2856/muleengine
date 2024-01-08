@@ -51,9 +51,21 @@ impl System for PhysicsObjectToTransformCouplerSystem {
                     continue;
                 };
 
+                let transform = if let Some(component) =
+                    entity_handler.get_component_ref::<Transform<f32, f32, f32>>()
+                {
+                    *component
+                } else {
+                    continue;
+                };
+
                 if let Some((position, rotation)) = physics_engine
                     .get_interpolated_transform_of_rigidbody(&rigid_body_handler, loop_start)
                 {
+                    if position == transform.position && rotation == transform.orientation {
+                        continue;
+                    }
+
                     entity_handler.change_component(|transform: &mut Transform<f32, f32, f32>| {
                         transform.position = position;
                         transform.orientation = rotation;
