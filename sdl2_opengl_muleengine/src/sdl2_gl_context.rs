@@ -173,6 +173,7 @@ impl Sdl2GlContext {
                 rel: Vec2::new(xrel as isize, yrel as isize),
             },
             sdl2_event::Event::MouseWheel { y, .. } => Event::MouseWheel { amount: y },
+            sdl2_event::Event::TextInput { text, .. } => Event::Text { text },
             _ => None?,
         })
     }

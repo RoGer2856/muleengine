@@ -192,6 +192,9 @@ pub enum Event {
     KeyUp {
         key: Key,
     },
+    Text {
+        text: String,
+    },
     MouseWheel {
         amount: i32,
     },
