@@ -26,7 +26,7 @@ use crate::{
         character_controller_to_transform_coupler_system::CharacterControllerToTransformCouplerSystem,
         controller_changer, flying_spectator_camera,
         physics_object_to_transform_coupler_system::PhysicsObjectToTransformCouplerSystem,
-        renderer_configuration::RendererConfiguration, renderer_transform_updater,
+        renderer_configuration::RendererConfiguration, renderer_transform_updater, terminal,
         top_down_player_controller, ui_text_positioner,
     },
 };
@@ -125,6 +125,7 @@ impl Game2 {
 
         ui_text_positioner::run(essentials.entity_container.clone(), window_context.clone());
         renderer_transform_updater::run(&essentials);
+        terminal::run(&essentials, window_context.clone());
 
         flying_spectator_camera::init(window_context.clone(), app_context, essentials.clone());
         top_down_player_controller::init(window_context.clone(), app_context, essentials.clone());

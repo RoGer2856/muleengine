@@ -5,5 +5,6 @@ pub mod general_input_providers;
 pub mod physics_object_to_transform_coupler_system;
 pub mod renderer_configuration;
 pub mod renderer_transform_updater;
+pub mod terminal;
 pub mod top_down_player_controller;
 pub mod ui_text_positioner;
