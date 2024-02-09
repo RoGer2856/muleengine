@@ -17,12 +17,12 @@ tokio = { version = "1.20", features = ["full"] }
 futures = "0.3"
 serde = { version = "1.0", features = ["derive"] }
 ab_glyph = "0.2.23"
+option-inspect-none = "1.0.0"
 
-# todo!("miniz_oxide = "0.7"")
-minizip-sys = { git = "https://github.com/bytifex/minizip-sys.git" }
+miniz_oxide = "0.7.2"
 method-taskifier = { git = "https://github.com/bytifex/method-taskifier.git" }
 bytifex-utils = { git = "https://github.com/bytifex/bytifex-utils.git" }
 
 [dev-dependencies]
 closure = "0.3.0"
-env_logger = "0.10"
+env_logger = "0.11"

@@ -4,10 +4,7 @@ use entity_component::EntityContainer;
 use muleengine::{
     application_runner::{ApplicationContext, ClosureTaskSender},
     asset_container::AssetContainer,
-    bytifex_utils::{
-        result_option_inspect::ResultInspector,
-        sync::{app_loop_state::AppLoopStateWatcher, types::ArcRwLock},
-    },
+    bytifex_utils::sync::{app_loop_state::AppLoopStateWatcher, types::ArcRwLock},
     font::HackFontContainer,
     renderer::renderer_system::RendererClient,
     service_container::ServiceContainer,

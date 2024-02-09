@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use entity_component::EntityBuilder;
 use muleengine::{
-    bytifex_utils::result_option_inspect::ResultInspector,
     mesh::{Material, Mesh},
     renderer::{
         RendererGroupHandler, RendererMaterialHandler, RendererMeshHandler, RendererShaderHandler,

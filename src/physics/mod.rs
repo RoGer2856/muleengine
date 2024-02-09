@@ -9,10 +9,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use method_taskifier::{
-    method_taskifier_impl,
-    prelude::{OptionInspector, ResultInspector},
-};
+use method_taskifier::method_taskifier_impl;
 use muleengine::{
     application_runner::ApplicationContext,
     bytifex_utils::{

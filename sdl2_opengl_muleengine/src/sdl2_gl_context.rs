@@ -1,4 +1,3 @@
-use muleengine::bytifex_utils::result_option_inspect::ResultInspector;
 use muleengine::system_container::System;
 use sdl2::event as sdl2_event;
 use sdl2::keyboard::{Keycode, Scancode};

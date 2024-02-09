@@ -2,7 +2,6 @@ use std::{collections::BTreeSet, sync::Arc};
 
 use bytifex_utils::{
     containers::object_pool::{ObjectPool, ObjectPoolIndex},
-    result_option_inspect::{OptionInspector, ResultInspector},
     sync::types::{arc_rw_lock_new, ArcRwLock},
 };
 use method_taskifier::{
@@ -10,6 +9,7 @@ use method_taskifier::{
     task_channel::{TaskReceiver, TaskSender},
     AsyncWorkerRunner, InvalidNumberOfExecutors,
 };
+use option_inspect_none::OptionInspectNone;
 use vek::Transform;
 
 use crate::{
@@ -323,7 +323,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
                 self.renderer_groups
                     .write()
                     .get_mut(renderer_group_index)
-                    .inspect_none(|| log::warn!("ReleaseRendererLayer, msg = found invalid renderer group index"))
+                    .or_else(|| { log::warn!("ReleaseRendererLayer, msg = found invalid renderer group index"); None })
                     .map(|renderer_group_data| {
                         let _ = self.renderer_impl.remove_renderer_group_from_layer(
                             renderer_group_data.renderer_group.clone(),

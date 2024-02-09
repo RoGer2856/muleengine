@@ -1,4 +1,3 @@
-#![allow(unstable_name_collisions)]
 #![allow(
     clippy::comparison_chain,
     clippy::let_and_return,
@@ -7,8 +6,7 @@
     clippy::collapsible_if
 )]
 
-// todo!("extern crate miniz_oxide;")
-extern crate minizip_sys;
+extern crate miniz_oxide;
 
 pub use bytifex_utils;
 

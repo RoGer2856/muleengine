@@ -1,4 +1,3 @@
-#![allow(unstable_name_collisions)]
 #![allow(
     clippy::comparison_chain,
     clippy::let_and_return,

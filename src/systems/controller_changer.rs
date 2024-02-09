@@ -1,9 +1,6 @@
 use std::sync::Arc;
 
-use muleengine::{
-    bytifex_utils::result_option_inspect::ResultInspector,
-    window_context::{Event, EventReceiver, Key},
-};
+use muleengine::window_context::{Event, EventReceiver, Key};
 
 use crate::essential_services::EssentialServices;
 

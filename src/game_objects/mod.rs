@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use muleengine::{
-    bytifex_utils::result_option_inspect::ResultInspector,
     font::{HackFontContainer, RenderedGlyph},
     heightmap::HeightMap,
     mesh::{Material, MaterialTexture, MaterialTextureType, TextureMapMode},
