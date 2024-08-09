@@ -150,10 +150,8 @@ impl Terminal {
             (TEXT_SCALE, None)
         };
 
-        self.printed_characters.push(PrintedCharacter {
-            entity_id,
-            advance,
-        });
+        self.printed_characters
+            .push(PrintedCharacter { entity_id, advance });
         self.next_character_position.x += advance;
     }
 }
