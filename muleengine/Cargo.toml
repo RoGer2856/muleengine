@@ -8,9 +8,7 @@ edition = "2021"
 [dependencies]
 log = "0.4"
 vek = "0.16"
-image = "0.24"
-assimp = "0.3.1"
-assimp-sys = "0.3.1"
+image = "0.25"
 tempfile = "3"
 parking_lot = "*"
 tokio = { version = "1.20", features = ["full"] }
@@ -18,8 +16,9 @@ futures = "0.3"
 serde = { version = "1.0", features = ["derive"] }
 ab_glyph = "0.2.23"
 option-inspect-none = "1.0.0"
+fbxcel-dom = "0.0"
+tobj = "4.0.1"
 
-miniz_oxide = "0.7.2"
 method-taskifier = { git = "https://github.com/bytifex/method-taskifier.git" }
 bytifex-utils = { git = "https://github.com/bytifex/bytifex-utils.git" }
 

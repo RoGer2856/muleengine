@@ -1,9 +1,14 @@
+use std::ffi::OsStr;
 use std::ops::Index;
 use std::os::raw::{c_float, c_uint};
+use std::path::Path;
 use std::str::Utf8Error;
 use std::sync::Arc;
 
 use vek::{Mat2, Mat4, Vec2, Vec3, Vec4};
+
+use crate::mesh_loader::fbx::{self, FbxLoadError};
+use crate::mesh_loader::obj::{self, ObjLoadError};
 
 use super::aabb::AxisAlignedBoundingBox;
 use super::asset_reader::{canonicalize_path, parent_path, AssetReader};
@@ -12,6 +17,9 @@ use super::image_container::{ImageContainer, ImageContainerError};
 
 #[derive(Debug)]
 pub enum SceneLoadError {
+    FbxLoadError(FbxLoadError),
+    ObjLoadError(ObjLoadError),
+    UnsuppoertedExtensionsFormat(String),
     CannotCreateTempFile(std::io::Error),
     TempFileCopyError(std::io::Error),
     CannotOpenAsset { path: String },
@@ -118,32 +126,35 @@ pub struct Scene {
     meshes: Vec<Result<Arc<Mesh>, MeshConvertError>>,
 }
 
-fn ai_string_to_str(ai_string: &assimp_sys::AiString) -> Result<&str, Utf8Error> {
-    std::str::from_utf8(&ai_string.data[0..ai_string.length])
-}
+// // todo!
+// fn ai_string_to_str(ai_string: &assimp_sys::AiString) -> Result<&str, Utf8Error> {
+//     std::str::from_utf8(&ai_string.data[0..ai_string.length])
+// }
 
-impl std::convert::From<assimp_sys::AiTextureType> for MaterialTextureType {
-    fn from(ai_texture_type: assimp_sys::AiTextureType) -> Self {
-        match ai_texture_type {
-            assimp_sys::AiTextureType::Diffuse => MaterialTextureType::Albedo,
-            assimp_sys::AiTextureType::Normals => MaterialTextureType::Normal,
-            assimp_sys::AiTextureType::Displacement => MaterialTextureType::Displacement,
-            assimp_sys::AiTextureType::Specular => MaterialTextureType::Shininess,
-            _ => MaterialTextureType::Albedo,
-        }
-    }
-}
+// // todo!
+// impl std::convert::From<assimp_sys::AiTextureType> for MaterialTextureType {
+//     fn from(ai_texture_type: assimp_sys::AiTextureType) -> Self {
+//         match ai_texture_type {
+//             assimp_sys::AiTextureType::Diffuse => MaterialTextureType::Albedo,
+//             assimp_sys::AiTextureType::Normals => MaterialTextureType::Normal,
+//             assimp_sys::AiTextureType::Displacement => MaterialTextureType::Displacement,
+//             assimp_sys::AiTextureType::Specular => MaterialTextureType::Shininess,
+//             _ => MaterialTextureType::Albedo,
+//         }
+//     }
+// }
 
-impl std::convert::From<assimp_sys::AiTextureMapMode> for TextureMapMode {
-    fn from(ai_texture_map_mode: assimp_sys::AiTextureMapMode) -> Self {
-        match ai_texture_map_mode {
-            assimp_sys::AiTextureMapMode::Clamp => TextureMapMode::Clamp,
-            assimp_sys::AiTextureMapMode::Mirror => TextureMapMode::Mirror,
-            assimp_sys::AiTextureMapMode::Wrap => TextureMapMode::Repeat,
-            _ => TextureMapMode::Clamp,
-        }
-    }
-}
+// // todo!
+// impl std::convert::From<assimp_sys::AiTextureMapMode> for TextureMapMode {
+//     fn from(ai_texture_map_mode: assimp_sys::AiTextureMapMode) -> Self {
+//         match ai_texture_map_mode {
+//             assimp_sys::AiTextureMapMode::Clamp => TextureMapMode::Clamp,
+//             assimp_sys::AiTextureMapMode::Mirror => TextureMapMode::Mirror,
+//             assimp_sys::AiTextureMapMode::Wrap => TextureMapMode::Repeat,
+//             _ => TextureMapMode::Clamp,
+//         }
+//     }
+// }
 
 impl MaterialTexture {
     pub fn new(
@@ -162,64 +173,65 @@ impl MaterialTexture {
         }
     }
 
-    pub fn from_assimp_material_texture(
-        asset_reader: &AssetReader,
-        scene_parent_dir: String,
-        ai_material: &assimp_sys::AiMaterial,
-        texture_type: assimp_sys::AiTextureType,
-        index: usize,
-        image_container: &mut ImageContainer,
-    ) -> Result<Self, MaterialTextureConversionError> {
-        let mut path = assimp_sys::AiString {
-            length: 0,
-            data: [0; 1024],
-        };
-        let mapping = assimp_sys::AiTextureMapping::UV;
-        let mut uv_index: c_uint = 0;
-        let mut blend: c_float = 0.0;
-        let mut op = assimp_sys::AiTextureOp::Multiply;
-        let mut map_mode = assimp_sys::AiTextureMapMode::Wrap;
-        let mut flags: c_uint = 0;
-        unsafe {
-            assimp_sys::aiGetMaterialTexture(
-                ai_material,
-                texture_type,
-                index as c_uint,
-                &mut path,
-                &mapping,
-                &mut uv_index,
-                &mut blend,
-                &mut op,
-                &mut map_mode,
-                &mut flags,
-            );
-        };
+    // // todo!
+    // pub fn from_assimp_material_texture(
+    //     asset_reader: &AssetReader,
+    //     scene_parent_dir: String,
+    //     ai_material: &assimp_sys::AiMaterial,
+    //     texture_type: assimp_sys::AiTextureType,
+    //     index: usize,
+    //     image_container: &mut ImageContainer,
+    // ) -> Result<Self, MaterialTextureConversionError> {
+    //     let mut path = assimp_sys::AiString {
+    //         length: 0,
+    //         data: [0; 1024],
+    //     };
+    //     let mapping = assimp_sys::AiTextureMapping::UV;
+    //     let mut uv_index: c_uint = 0;
+    //     let mut blend: c_float = 0.0;
+    //     let mut op = assimp_sys::AiTextureOp::Multiply;
+    //     let mut map_mode = assimp_sys::AiTextureMapMode::Wrap;
+    //     let mut flags: c_uint = 0;
+    //     unsafe {
+    //         assimp_sys::aiGetMaterialTexture(
+    //             ai_material,
+    //             texture_type,
+    //             index as c_uint,
+    //             &mut path,
+    //             &mapping,
+    //             &mut uv_index,
+    //             &mut blend,
+    //             &mut op,
+    //             &mut map_mode,
+    //             &mut flags,
+    //         );
+    //     };
 
-        let path = canonicalize_path(
-            ai_string_to_str(&path)
-                .map_err(MaterialTextureConversionError::Utf8Error)?
-                .to_string(),
-        );
+    //     let path = canonicalize_path(
+    //         ai_string_to_str(&path)
+    //             .map_err(MaterialTextureConversionError::Utf8Error)?
+    //             .to_string(),
+    //     );
 
-        let tmp_path = scene_parent_dir + "/" + &path;
-        let image_path = if asset_reader.get_reader(&tmp_path).is_some() {
-            tmp_path
-        } else {
-            path
-        };
+    //     let tmp_path = scene_parent_dir + "/" + &path;
+    //     let image_path = if asset_reader.get_reader(&tmp_path).is_some() {
+    //         tmp_path
+    //     } else {
+    //         path
+    //     };
 
-        let image = image_container
-            .get_image(&image_path, asset_reader)
-            .map_err(MaterialTextureConversionError::ImageContainerError)?;
+    //     let image = image_container
+    //         .get_image(&image_path, asset_reader)
+    //         .map_err(MaterialTextureConversionError::ImageContainerError)?;
 
-        Ok(Self {
-            image,
-            texture_type: MaterialTextureType::from(texture_type),
-            texture_map_mode: TextureMapMode::from(map_mode),
-            blend,
-            uv_channel_id: uv_index as usize,
-        })
-    }
+    //     Ok(Self {
+    //         image,
+    //         texture_type: MaterialTextureType::from(texture_type),
+    //         texture_map_mode: TextureMapMode::from(map_mode),
+    //         blend,
+    //         uv_channel_id: uv_index as usize,
+    //     })
+    // }
 }
 
 impl Default for Material {
@@ -261,6 +273,10 @@ impl Default for Mesh {
 
 impl Mesh {
     pub fn new() -> Self {
+        Self::with_material(Material::new())
+    }
+
+    pub fn with_material(material: Material) -> Self {
         Self {
             faces: Vec::new(),
             vertex_bone_weights: Vec::new(),
@@ -270,300 +286,301 @@ impl Mesh {
             tangents: Vec::new(),
             bitangents: Vec::new(),
             uv_channels: Vec::new(),
-            material: Material::new(),
+            material,
             aabb: AxisAlignedBoundingBox::new(Vec3::broadcast(0.0)),
         }
     }
 
-    fn from_assimp_mesh(
-        asset_reader: &AssetReader,
-        scene_path: &str,
-        ai_mesh: assimp::Mesh,
-        materials: &[*mut assimp_sys::AiMaterial],
-        image_container: &mut ImageContainer,
-    ) -> Result<Self, MeshConvertError> {
-        let mut mesh = Self::new();
+    // // todo!
+    // fn from_assimp_mesh(
+    //     asset_reader: &AssetReader,
+    //     scene_path: &str,
+    //     ai_mesh: assimp::Mesh,
+    //     materials: &[*mut assimp_sys::AiMaterial],
+    //     image_container: &mut ImageContainer,
+    // ) -> Result<Self, MeshConvertError> {
+    //     let mut mesh = Self::new();
 
-        for i in 0..ai_mesh.num_faces() {
-            for j in 0..3 {
-                let mut vertex_bone_weight = VertexBoneWeight {
-                    bone_ids: Vec4::new(0, 0, 0, 0),
-                    weights: Vec4::new(0.0, 0.0, 0.0, 0.0),
-                };
+    //     for i in 0..ai_mesh.num_faces() {
+    //         for j in 0..3 {
+    //             let mut vertex_bone_weight = VertexBoneWeight {
+    //                 bone_ids: Vec4::new(0, 0, 0, 0),
+    //                 weights: Vec4::new(0.0, 0.0, 0.0, 0.0),
+    //             };
 
-                let mut bone_weights = Vec::new();
+    //             let mut bone_weights = Vec::new();
 
-                let vertex_index = *ai_mesh
-                    .get_face(i)
-                    .ok_or(MeshConvertError::FaceIndexError { face_id: i })?
-                    .index(j);
-                if ai_mesh.num_bones() != 0 {
-                    for bone_id in 0..ai_mesh.num_bones() {
-                        let bone = ai_mesh
-                            .get_bone(bone_id)
-                            .ok_or(MeshConvertError::MissingBone { bone_id })?;
-                        for l in 0..bone.num_weights() {
-                            let weight = bone.get_weight(l).ok_or(
-                                MeshConvertError::MissingVertexWeight {
-                                    vertex_weight_id: l,
-                                    bone_id,
-                                },
-                            )?;
-                            if weight.vertex_id == vertex_index {
-                                bone_weights.push((bone_id, weight.weight));
-                                break;
-                            }
-                        }
-                    }
-                } else {
-                    vertex_bone_weight.bone_ids.x = 0;
-                    vertex_bone_weight.weights.x = 1.0;
-                }
+    //             let vertex_index = *ai_mesh
+    //                 .get_face(i)
+    //                 .ok_or(MeshConvertError::FaceIndexError { face_id: i })?
+    //                 .index(j);
+    //             if ai_mesh.num_bones() != 0 {
+    //                 for bone_id in 0..ai_mesh.num_bones() {
+    //                     let bone = ai_mesh
+    //                         .get_bone(bone_id)
+    //                         .ok_or(MeshConvertError::MissingBone { bone_id })?;
+    //                     for l in 0..bone.num_weights() {
+    //                         let weight = bone.get_weight(l).ok_or(
+    //                             MeshConvertError::MissingVertexWeight {
+    //                                 vertex_weight_id: l,
+    //                                 bone_id,
+    //                             },
+    //                         )?;
+    //                         if weight.vertex_id == vertex_index {
+    //                             bone_weights.push((bone_id, weight.weight));
+    //                             break;
+    //                         }
+    //                     }
+    //                 }
+    //             } else {
+    //                 vertex_bone_weight.bone_ids.x = 0;
+    //                 vertex_bone_weight.weights.x = 1.0;
+    //             }
 
-                bone_weights
-                    .sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    //             bone_weights
+    //                 .sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
-                for (bone_weight_counter, bone_weight) in bone_weights.into_iter().enumerate() {
-                    match bone_weight_counter {
-                        0 => {
-                            vertex_bone_weight.bone_ids.x = bone_weight.0 as usize;
-                            vertex_bone_weight.weights.x = bone_weight.1;
-                        }
-                        1 => {
-                            vertex_bone_weight.bone_ids.y = bone_weight.0 as usize;
-                            vertex_bone_weight.weights.y = bone_weight.1;
-                        }
-                        2 => {
-                            vertex_bone_weight.bone_ids.z = bone_weight.0 as usize;
-                            vertex_bone_weight.weights.z = bone_weight.1;
-                        }
-                        3 => {
-                            vertex_bone_weight.bone_ids.w = bone_weight.0 as usize;
-                            vertex_bone_weight.weights.w = bone_weight.1;
-                        }
-                        _ => (),
-                    }
-                }
+    //             for (bone_weight_counter, bone_weight) in bone_weights.into_iter().enumerate() {
+    //                 match bone_weight_counter {
+    //                     0 => {
+    //                         vertex_bone_weight.bone_ids.x = bone_weight.0 as usize;
+    //                         vertex_bone_weight.weights.x = bone_weight.1;
+    //                     }
+    //                     1 => {
+    //                         vertex_bone_weight.bone_ids.y = bone_weight.0 as usize;
+    //                         vertex_bone_weight.weights.y = bone_weight.1;
+    //                     }
+    //                     2 => {
+    //                         vertex_bone_weight.bone_ids.z = bone_weight.0 as usize;
+    //                         vertex_bone_weight.weights.z = bone_weight.1;
+    //                     }
+    //                     3 => {
+    //                         vertex_bone_weight.bone_ids.w = bone_weight.0 as usize;
+    //                         vertex_bone_weight.weights.w = bone_weight.1;
+    //                     }
+    //                     _ => (),
+    //                 }
+    //             }
 
-                let mut vertex_uv_channels = Vec::new();
-                for channel_id in 0..ai_mesh.get_num_uv_channels() {
-                    let texture_coords = ai_mesh
-                        .get_texture_coord(channel_id, vertex_index)
-                        .ok_or(MeshConvertError::MissingTextureCoords {
-                            channel_id,
-                            vertex_index,
-                        })?;
-                    vertex_uv_channels.push(Vec2 {
-                        x: texture_coords.x,
-                        y: texture_coords.y,
-                    });
-                }
+    //             let mut vertex_uv_channels = Vec::new();
+    //             for channel_id in 0..ai_mesh.get_num_uv_channels() {
+    //                 let texture_coords = ai_mesh
+    //                     .get_texture_coord(channel_id, vertex_index)
+    //                     .ok_or(MeshConvertError::MissingTextureCoords {
+    //                         channel_id,
+    //                         vertex_index,
+    //                     })?;
+    //                 vertex_uv_channels.push(Vec2 {
+    //                     x: texture_coords.x,
+    //                     y: texture_coords.y,
+    //                 });
+    //             }
 
-                // add vertex to the mesh
-                let position = ai_mesh
-                    .get_vertex(vertex_index)
-                    .ok_or(MeshConvertError::MissingVertex { vertex_index })?;
-                let normal = ai_mesh
-                    .get_normal(vertex_index)
-                    .ok_or(MeshConvertError::MissingNormal { vertex_index })?;
+    //             // add vertex to the mesh
+    //             let position = ai_mesh
+    //                 .get_vertex(vertex_index)
+    //                 .ok_or(MeshConvertError::MissingVertex { vertex_index })?;
+    //             let normal = ai_mesh
+    //                 .get_normal(vertex_index)
+    //                 .ok_or(MeshConvertError::MissingNormal { vertex_index })?;
 
-                let position = Vec3 {
-                    x: position.x,
-                    y: position.y,
-                    z: position.z,
-                };
+    //             let position = Vec3 {
+    //                 x: position.x,
+    //                 y: position.y,
+    //                 z: position.z,
+    //             };
 
-                let normal = Vec3 {
-                    x: normal.x,
-                    y: normal.y,
-                    z: normal.z,
-                };
+    //             let normal = Vec3 {
+    //                 x: normal.x,
+    //                 y: normal.y,
+    //                 z: normal.z,
+    //             };
 
-                let (tangent, bitangent) = if ai_mesh.has_tangents_and_bitangents() {
-                    let tangent = ai_mesh
-                        .get_tangent(vertex_index)
-                        .ok_or(MeshConvertError::MissingTangent { vertex_index })?;
-                    let bitangent = ai_mesh
-                        .get_bitangent(vertex_index)
-                        .ok_or(MeshConvertError::MissingBitangent { vertex_index })?;
+    //             let (tangent, bitangent) = if ai_mesh.has_tangents_and_bitangents() {
+    //                 let tangent = ai_mesh
+    //                     .get_tangent(vertex_index)
+    //                     .ok_or(MeshConvertError::MissingTangent { vertex_index })?;
+    //                 let bitangent = ai_mesh
+    //                     .get_bitangent(vertex_index)
+    //                     .ok_or(MeshConvertError::MissingBitangent { vertex_index })?;
 
-                    (
-                        Some(Vec3 {
-                            x: tangent.x,
-                            y: tangent.y,
-                            z: tangent.z,
-                        }),
-                        Some(Vec3 {
-                            x: bitangent.x,
-                            y: bitangent.y,
-                            z: bitangent.z,
-                        }),
-                    )
-                } else {
-                    (None, None)
-                };
+    //                 (
+    //                     Some(Vec3 {
+    //                         x: tangent.x,
+    //                         y: tangent.y,
+    //                         z: tangent.z,
+    //                     }),
+    //                     Some(Vec3 {
+    //                         x: bitangent.x,
+    //                         y: bitangent.y,
+    //                         z: bitangent.z,
+    //                     }),
+    //                 )
+    //             } else {
+    //                 (None, None)
+    //             };
 
-                mesh.add_vertex(
-                    position,
-                    normal,
-                    tangent,
-                    bitangent,
-                    vertex_uv_channels,
-                    vertex_bone_weight,
-                );
-            }
+    //             mesh.add_vertex(
+    //                 position,
+    //                 normal,
+    //                 tangent,
+    //                 bitangent,
+    //                 vertex_uv_channels,
+    //                 vertex_bone_weight,
+    //             );
+    //         }
 
-            // add face to mesh
-            mesh.add_face(
-                (mesh.number_of_vertices() - 3) as u32,
-                (mesh.number_of_vertices() - 2) as u32,
-                (mesh.number_of_vertices() - 1) as u32,
-            );
-        }
+    //         // add face to mesh
+    //         mesh.add_face(
+    //             (mesh.number_of_vertices() - 3) as u32,
+    //             (mesh.number_of_vertices() - 2) as u32,
+    //             (mesh.number_of_vertices() - 1) as u32,
+    //         );
+    //     }
 
-        if ai_mesh.num_bones() != 0 {
-            for bone in ai_mesh.bone_iter() {
-                mesh.add_bone(Bone::new(
-                    bone.name().to_string(),
-                    assimp_matrix4x4_to_vek_mat4(&bone.offset_matrix()),
-                ));
-            }
-        } else {
-            mesh.add_bone(Bone::new("root".to_string(), Mat4::identity()));
-        }
+    //     if ai_mesh.num_bones() != 0 {
+    //         for bone in ai_mesh.bone_iter() {
+    //             mesh.add_bone(Bone::new(
+    //                 bone.name().to_string(),
+    //                 assimp_matrix4x4_to_vek_mat4(&bone.offset_matrix()),
+    //             ));
+    //         }
+    //     } else {
+    //         mesh.add_bone(Bone::new("root".to_string(), Mat4::identity()));
+    //     }
 
-        // material
-        let mut material = Material::new();
+    //     // material
+    //     let mut material = Material::new();
 
-        let ai_material = materials[ai_mesh.material_index as usize];
-        let ai_material = unsafe { &*ai_material };
+    //     let ai_material = materials[ai_mesh.material_index as usize];
+    //     let ai_material = unsafe { &*ai_material };
 
-        let scene_path = scene_path.to_string();
+    //     let scene_path = scene_path.to_string();
 
-        if unsafe {
-            assimp_sys::aiGetMaterialTextureCount(ai_material, assimp_sys::AiTextureType::Diffuse)
-        } != 0
-        {
-            let material_texture = MaterialTexture::from_assimp_material_texture(
-                asset_reader,
-                parent_path(scene_path.clone()),
-                ai_material,
-                assimp_sys::AiTextureType::Diffuse,
-                0,
-                image_container,
-            )
-            .map_err(MeshConvertError::MaterialTextureConversionError)?;
+    //     if unsafe {
+    //         assimp_sys::aiGetMaterialTextureCount(ai_material, assimp_sys::AiTextureType::Diffuse)
+    //     } != 0
+    //     {
+    //         let material_texture = MaterialTexture::from_assimp_material_texture(
+    //             asset_reader,
+    //             parent_path(scene_path.clone()),
+    //             ai_material,
+    //             assimp_sys::AiTextureType::Diffuse,
+    //             0,
+    //             image_container,
+    //         )
+    //         .map_err(MeshConvertError::MaterialTextureConversionError)?;
 
-            material.add_texture(material_texture);
-        }
+    //         material.add_texture(material_texture);
+    //     }
 
-        if unsafe {
-            assimp_sys::aiGetMaterialTextureCount(ai_material, assimp_sys::AiTextureType::Normals)
-        } != 0
-        {
-            let material_texture = MaterialTexture::from_assimp_material_texture(
-                asset_reader,
-                parent_path(scene_path.clone()),
-                ai_material,
-                assimp_sys::AiTextureType::Normals,
-                0,
-                image_container,
-            )
-            .map_err(MeshConvertError::MaterialTextureConversionError)?;
+    //     if unsafe {
+    //         assimp_sys::aiGetMaterialTextureCount(ai_material, assimp_sys::AiTextureType::Normals)
+    //     } != 0
+    //     {
+    //         let material_texture = MaterialTexture::from_assimp_material_texture(
+    //             asset_reader,
+    //             parent_path(scene_path.clone()),
+    //             ai_material,
+    //             assimp_sys::AiTextureType::Normals,
+    //             0,
+    //             image_container,
+    //         )
+    //         .map_err(MeshConvertError::MaterialTextureConversionError)?;
 
-            material.add_texture(material_texture);
-        }
+    //         material.add_texture(material_texture);
+    //     }
 
-        if unsafe {
-            assimp_sys::aiGetMaterialTextureCount(
-                ai_material,
-                assimp_sys::AiTextureType::Displacement,
-            )
-        } != 0
-        {
-            let material_texture = MaterialTexture::from_assimp_material_texture(
-                asset_reader,
-                parent_path(scene_path.clone()),
-                ai_material,
-                assimp_sys::AiTextureType::Displacement,
-                0,
-                image_container,
-            )
-            .map_err(MeshConvertError::MaterialTextureConversionError)?;
+    //     if unsafe {
+    //         assimp_sys::aiGetMaterialTextureCount(
+    //             ai_material,
+    //             assimp_sys::AiTextureType::Displacement,
+    //         )
+    //     } != 0
+    //     {
+    //         let material_texture = MaterialTexture::from_assimp_material_texture(
+    //             asset_reader,
+    //             parent_path(scene_path.clone()),
+    //             ai_material,
+    //             assimp_sys::AiTextureType::Displacement,
+    //             0,
+    //             image_container,
+    //         )
+    //         .map_err(MeshConvertError::MaterialTextureConversionError)?;
 
-            material.add_texture(material_texture);
-        }
+    //         material.add_texture(material_texture);
+    //     }
 
-        if unsafe {
-            assimp_sys::aiGetMaterialTextureCount(ai_material, assimp_sys::AiTextureType::Height)
-        } != 0
-        {
-            let material_texture = MaterialTexture::from_assimp_material_texture(
-                asset_reader,
-                parent_path(scene_path.clone()),
-                ai_material,
-                assimp_sys::AiTextureType::Height,
-                0,
-                image_container,
-            )
-            .map_err(MeshConvertError::MaterialTextureConversionError)?;
+    //     if unsafe {
+    //         assimp_sys::aiGetMaterialTextureCount(ai_material, assimp_sys::AiTextureType::Height)
+    //     } != 0
+    //     {
+    //         let material_texture = MaterialTexture::from_assimp_material_texture(
+    //             asset_reader,
+    //             parent_path(scene_path.clone()),
+    //             ai_material,
+    //             assimp_sys::AiTextureType::Height,
+    //             0,
+    //             image_container,
+    //         )
+    //         .map_err(MeshConvertError::MaterialTextureConversionError)?;
 
-            material.add_texture(material_texture);
-        }
+    //         material.add_texture(material_texture);
+    //     }
 
-        if unsafe {
-            assimp_sys::aiGetMaterialTextureCount(ai_material, assimp_sys::AiTextureType::Specular)
-        } != 0
-        {
-            let material_texture = MaterialTexture::from_assimp_material_texture(
-                asset_reader,
-                parent_path(scene_path),
-                ai_material,
-                assimp_sys::AiTextureType::Specular,
-                0,
-                image_container,
-            )
-            .map_err(MeshConvertError::MaterialTextureConversionError)?;
+    //     if unsafe {
+    //         assimp_sys::aiGetMaterialTextureCount(ai_material, assimp_sys::AiTextureType::Specular)
+    //     } != 0
+    //     {
+    //         let material_texture = MaterialTexture::from_assimp_material_texture(
+    //             asset_reader,
+    //             parent_path(scene_path),
+    //             ai_material,
+    //             assimp_sys::AiTextureType::Specular,
+    //             0,
+    //             image_container,
+    //         )
+    //         .map_err(MeshConvertError::MaterialTextureConversionError)?;
 
-            material.add_texture(material_texture);
-        }
+    //         material.add_texture(material_texture);
+    //     }
 
-        let material_properties: &[*mut assimp_sys::AiMaterialProperty] = unsafe {
-            std::slice::from_raw_parts(ai_material.properties, ai_material.num_properties as usize)
-        };
+    //     let material_properties: &[*mut assimp_sys::AiMaterialProperty] = unsafe {
+    //         std::slice::from_raw_parts(ai_material.properties, ai_material.num_properties as usize)
+    //     };
 
-        for property in material_properties {
-            let property = unsafe { &**property };
+    //     for property in material_properties {
+    //         let property = unsafe { &**property };
 
-            let key = ai_string_to_str(&property.key).map_err(MeshConvertError::Utf8Error)?;
-            if key == "$clr.diffuse" {
-                if property.data_length == 12 {
-                    let color = unsafe { *(property.data as *const assimp_sys::AiColor3D) };
-                    material.albedo_color = Vec3::new(color.r, color.g, color.b);
-                }
-            } else if key == "$clr.emissive" {
-                if property.data_length == 12 {
-                    let color = unsafe { *(property.data as *const assimp_sys::AiColor3D) };
-                    material.emissive_color = Vec3::new(color.r, color.g, color.b);
-                }
-            } else if key == "$clr.specular" {
-                if property.data_length == 12 {
-                    let color = unsafe { *(property.data as *const assimp_sys::AiColor3D) };
-                    material.shininess_color = Vec3::new(color.r, color.g, color.b);
-                }
-            } else if key == "$mat.opacity" {
-                if property.data_length == 4 {
-                    material.opacity = unsafe { *(property.data as *const f32) };
-                }
-            }
-        }
+    //         let key = ai_string_to_str(&property.key).map_err(MeshConvertError::Utf8Error)?;
+    //         if key == "$clr.diffuse" {
+    //             if property.data_length == 12 {
+    //                 let color = unsafe { *(property.data as *const assimp_sys::AiColor3D) };
+    //                 material.albedo_color = Vec3::new(color.r, color.g, color.b);
+    //             }
+    //         } else if key == "$clr.emissive" {
+    //             if property.data_length == 12 {
+    //                 let color = unsafe { *(property.data as *const assimp_sys::AiColor3D) };
+    //                 material.emissive_color = Vec3::new(color.r, color.g, color.b);
+    //             }
+    //         } else if key == "$clr.specular" {
+    //             if property.data_length == 12 {
+    //                 let color = unsafe { *(property.data as *const assimp_sys::AiColor3D) };
+    //                 material.shininess_color = Vec3::new(color.r, color.g, color.b);
+    //             }
+    //         } else if key == "$mat.opacity" {
+    //             if property.data_length == 4 {
+    //                 material.opacity = unsafe { *(property.data as *const f32) };
+    //             }
+    //         }
+    //     }
 
-        mesh.material = material;
+    //     mesh.material = material;
 
-        // mesh.compute_tangents(0);
+    //     // mesh.compute_tangents(0);
 
-        Ok(mesh)
-    }
+    //     Ok(mesh)
+    // }
 
     pub fn add_vertex(
         &mut self,
@@ -742,7 +759,7 @@ impl Mesh {
         &self.bones
     }
 
-    pub fn get_material(&self) -> &Material {
+    pub fn material(&self) -> &Material {
         &self.material
     }
 
@@ -752,36 +769,41 @@ impl Mesh {
 }
 
 impl Scene {
-    fn from_assimp_scene(
-        asset_reader: &AssetReader,
-        scene_path: &str,
-        scene: assimp::Scene,
-        image_container: &mut ImageContainer,
-    ) -> Scene {
-        let mut meshes = Vec::new();
+    // // todo!
+    // fn from_assimp_scene(
+    //     asset_reader: &AssetReader,
+    //     scene_path: &str,
+    //     scene: assimp::Scene,
+    //     image_container: &mut ImageContainer,
+    // ) -> Scene {
+    //     let mut meshes = Vec::new();
 
-        for index in 0..scene.num_meshes() as usize {
-            if let Some(mesh) = scene.mesh(index) {
-                let materials = unsafe {
-                    std::slice::from_raw_parts(scene.materials, scene.num_materials as usize)
-                };
-                meshes.push(
-                    Mesh::from_assimp_mesh(
-                        asset_reader,
-                        scene_path,
-                        mesh,
-                        materials,
-                        image_container,
-                    )
-                    .map(Arc::new),
-                );
-            }
-        }
+    //     for index in 0..scene.num_meshes() as usize {
+    //         if let Some(mesh) = scene.mesh(index) {
+    //             let materials = unsafe {
+    //                 std::slice::from_raw_parts(scene.materials, scene.num_materials as usize)
+    //             };
+    //             meshes.push(
+    //                 Mesh::from_assimp_mesh(
+    //                     asset_reader,
+    //                     scene_path,
+    //                     mesh,
+    //                     materials,
+    //                     image_container,
+    //                 )
+    //                 .map(Arc::new),
+    //             );
+    //         }
+    //     }
 
-        Scene { meshes }
+    //     Scene { meshes }
+    // }
+
+    pub fn new() -> Self {
+        Self { meshes: Vec::new() }
     }
 
-    pub fn load(
+    pub fn from_reader(
         asset_reader: &AssetReader,
         scene_path: &str,
         image_container: &mut ImageContainer,
@@ -793,47 +815,70 @@ impl Scene {
                     path: scene_path.to_string(),
                 })?;
 
-        let mut tmp_file =
-            tempfile::NamedTempFile::new().map_err(SceneLoadError::CannotCreateTempFile)?;
+        let path = Path::new(scene_path);
+        let extension = path
+            .extension()
+            .ok_or_else(|| SceneLoadError::UnsuppoertedExtensionsFormat("".into()))?
+            .to_ascii_lowercase();
 
-        std::io::copy(&mut reader, tmp_file.as_file_mut())
-            .map_err(SceneLoadError::TempFileCopyError)?;
+        Ok(if extension == OsStr::new("obj") {
+            obj::load(&mut reader, asset_reader, image_container)
+                .map_err(SceneLoadError::ObjLoadError)?
+        } else if extension == OsStr::new("fbx") {
+            fbx::load(&mut reader, asset_reader, image_container)
+                .map_err(SceneLoadError::FbxLoadError)?
+        } else {
+            Err(SceneLoadError::UnsuppoertedExtensionsFormat(
+                extension.to_string_lossy().into(),
+            ))?
+        })
 
-        let mut importer = assimp::Importer::new();
-        importer.triangulate(true);
-        importer.generate_normals(|generate_normals_mut| {
-            generate_normals_mut.enable = true;
-            generate_normals_mut.smooth = false;
-            generate_normals_mut.max_smoothing_angle = 0.0;
-        });
-        importer.calc_tangent_space(|calc_tanget_space| {
-            calc_tanget_space.enable = true;
-        });
-        importer.transform_uv_coords(|transform_uv_coords| {
-            transform_uv_coords.enable = true;
-        });
-        importer.gen_uv_coords(true);
-        importer.flip_uvs(true);
-        importer.gen_uv_coords(true);
-        importer.find_instances(true);
-        importer.join_identical_vertices(true);
-        importer.limit_bone_weights(|limit_bone_weights| {
-            limit_bone_weights.enable = true;
-            limit_bone_weights.max_weights = 4;
-        });
-        importer.validate_data_structure(true);
-        importer.fbx_read_textures(false);
+        // // todo!
+        // let mut tmp_file =
+        //     tempfile::NamedTempFile::new().map_err(SceneLoadError::CannotCreateTempFile)?;
 
-        let scene = importer
-            .read_file(tmp_file.path().to_str().ok_or(SceneLoadError::Unexpected)?)
-            .map_err(|e| SceneLoadError::AssimpReadError(e.to_string()))?;
+        // std::io::copy(&mut reader, tmp_file.as_file_mut())
+        //     .map_err(SceneLoadError::TempFileCopyError)?;
 
-        Ok(Self::from_assimp_scene(
-            asset_reader,
-            scene_path,
-            scene,
-            image_container,
-        ))
+        // let mut importer = assimp::Importer::new();
+        // importer.triangulate(true);
+        // importer.generate_normals(|generate_normals_mut| {
+        //     generate_normals_mut.enable = true;
+        //     generate_normals_mut.smooth = false;
+        //     generate_normals_mut.max_smoothing_angle = 0.0;
+        // });
+        // importer.calc_tangent_space(|calc_tanget_space| {
+        //     calc_tanget_space.enable = true;
+        // });
+        // importer.transform_uv_coords(|transform_uv_coords| {
+        //     transform_uv_coords.enable = true;
+        // });
+        // importer.gen_uv_coords(true);
+        // importer.flip_uvs(true);
+        // importer.gen_uv_coords(true);
+        // importer.find_instances(true);
+        // importer.join_identical_vertices(true);
+        // importer.limit_bone_weights(|limit_bone_weights| {
+        //     limit_bone_weights.enable = true;
+        //     limit_bone_weights.max_weights = 4;
+        // });
+        // importer.validate_data_structure(true);
+        // importer.fbx_read_textures(false);
+
+        // let scene = importer
+        //     .read_file(tmp_file.path().to_str().ok_or(SceneLoadError::Unexpected)?)
+        //     .map_err(|e| SceneLoadError::AssimpReadError(e.to_string()))?;
+
+        // Ok(Self::from_assimp_scene(
+        //     asset_reader,
+        //     scene_path,
+        //     scene,
+        //     image_container,
+        // ))
+    }
+
+    pub fn add_mesh(&mut self, mesh: Arc<Mesh>) {
+        self.meshes.push(Ok(mesh))
     }
 
     pub fn meshes_ref(&self) -> &Vec<Result<Arc<Mesh>, MeshConvertError>> {
@@ -841,9 +886,10 @@ impl Scene {
     }
 }
 
-fn assimp_matrix4x4_to_vek_mat4(m: &assimp::math::matrix4::Matrix4x4) -> Mat4<f32> {
-    Mat4::new(
-        m.a1, m.b1, m.c1, m.d1, m.a2, m.b2, m.c2, m.d2, m.a3, m.b3, m.c3, m.d3, m.a4, m.b4, m.c4,
-        m.d4,
-    )
-}
+// todo!
+// fn assimp_matrix4x4_to_vek_mat4(m: &assimp::math::matrix4::Matrix4x4) -> Mat4<f32> {
+//     Mat4::new(
+//         m.a1, m.b1, m.c1, m.d1, m.a2, m.b2, m.c2, m.d2, m.a3, m.b3, m.c3, m.d3, m.a4, m.b4, m.c4,
+//         m.d4,
+//     )
+// }

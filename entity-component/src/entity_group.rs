@@ -234,7 +234,7 @@ enum EntityHandlingType {
 fn process_entity_container_event(
     event: &EntityModifiedEvent,
     entity_ids: &ArcMutex<Vec<EntityId>>,
-    sorted_component_type_list: &Vec<TypeId>,
+    sorted_component_type_list: &[TypeId],
     entity_group_event: &EntityGroupEventSender,
     is_locked_by_itself: &Arc<AtomicBool>,
     to_be_handled_entity_ids: &ArcMutex<Vec<(EntityId, EntityHandlingType)>>,

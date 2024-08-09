@@ -73,7 +73,7 @@ impl<'a> GameObjectBuilder<'a> {
     }
 
     pub async fn mesh(mut self, mesh: Arc<Mesh>) -> GameObjectBuilder<'a> {
-        self.mesh_default_material = Some(mesh.get_material().clone());
+        self.mesh_default_material = Some(mesh.material().clone());
 
         self.mesh_handler = Some(
             self.essentials

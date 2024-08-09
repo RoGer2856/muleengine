@@ -34,8 +34,8 @@ pub async fn populate_with_objects(essentials: &Arc<EssentialServices>) {
 
     spawn_sample_capsule(essentials).await;
 
-    // let scene_path = "Assets/objects/MonkeySmooth.obj";
-    let scene_path = "Assets/demo/wall/wallTextured.fbx";
+    let scene_path = "Assets/objects/MonkeySmooth.obj";
+    // let scene_path = "Assets/demo/wall/wallTextured.fbx";
     // let scene_path = "Assets/sponza/sponza.fbx";
     // let scene_path = "Assets/objects/skybox/Skybox.obj";
     spawn_scene_from_file(essentials, scene_path, Vec3::new(0.0, 0.0, -5.0)).await;
@@ -116,7 +116,7 @@ async fn spawn_text(
 
 async fn spawn_ui(essentials: &Arc<EssentialServices>) {
     spawn_text(
-        "Game 2",
+        "Game VII",
         128,
         0.1,
         essentials

@@ -6,8 +6,6 @@
     clippy::collapsible_if
 )]
 
-extern crate miniz_oxide;
-
 pub use bytifex_utils;
 
 pub mod aabb;
@@ -22,6 +20,7 @@ pub mod image;
 pub mod image_container;
 pub mod mesh;
 pub mod mesh_creator;
+pub mod mesh_loader;
 pub mod renderer;
 pub mod scene_container;
 pub mod service_container;
