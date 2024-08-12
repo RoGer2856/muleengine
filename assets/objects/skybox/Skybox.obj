@@ -1,4 +1,4 @@
-mtllib Assets/objects/skybox/Skybox.mtl
+mtllib assets/objects/skybox/Skybox.mtl
 o Skybox
 v -1.000000 -1.000000 1.000000
 v -1.000000 -1.000000 -1.000000
