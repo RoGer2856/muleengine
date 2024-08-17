@@ -112,7 +112,11 @@ pub fn init(app_context: &mut ApplicationContext) {
     });
 }
 
-#[method_taskifier_impl(module_name = physics_decoupler)]
+#[method_taskifier_impl(
+    task_definitions_module_path = self,
+    client_name = PhysicsClient,
+    // debug,
+)]
 impl Rapier3dPhysicsEngine {
     pub fn character_controller_builder(
         &self,

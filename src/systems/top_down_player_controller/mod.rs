@@ -14,12 +14,8 @@ use muleengine::{
 
 use crate::essential_services::EssentialServices;
 
-use self::{
-    input::{client::Client, InputProvider},
-    player_controller::PlayerController,
-};
-
-pub use input::client::Client as TopDownPlayerControllerClient;
+use self::{input::InputProvider, player_controller::PlayerController};
+pub use input::InputProviderClient as TopDownPlayerControllerClient;
 
 pub fn init(
     window_context: ArcRwLock<dyn WindowContext>,
@@ -40,7 +36,7 @@ pub fn init(
         .system_container_mut()
         .add_system(input_provider);
 
-    let client = Client::new(task_sender);
+    let client = TopDownPlayerControllerClient::new(task_sender);
     essentials.service_container.insert(client.clone());
 
     let system_container_client = essentials.system_container_client.clone();

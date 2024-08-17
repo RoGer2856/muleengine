@@ -45,7 +45,7 @@ pub fn canonicalize_path(path: String) -> String {
 }
 
 pub fn parent_path(path: String) -> String {
-    std::path::Path::new(&canonicalize_path(path))
+    Path::new(&canonicalize_path(path))
         .ancestors()
         .nth(1)
         .map_or("".to_string(), |path| path.to_str().unwrap().to_string())

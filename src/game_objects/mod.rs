@@ -30,14 +30,14 @@ pub async fn populate_with_objects(essentials: &Arc<EssentialServices>) {
     spawn_skybox(essentials).await;
     spawn_ground(essentials).await;
     spawn_player(essentials).await;
-    spawn_physics_entities(essentials).await;
+    // spawn_physics_entities(essentials).await;
 
     spawn_sample_capsule(essentials).await;
 
-    let scene_path = "Assets/objects/MonkeySmooth.obj";
-    // let scene_path = "Assets/demo/wall/wallTextured.fbx";
-    // let scene_path = "Assets/sponza/sponza.fbx";
-    // let scene_path = "Assets/objects/skybox/Skybox.obj";
+    let scene_path = "assets/objects/MonkeySmooth.obj";
+    // let scene_path = "assets/demo/wall/wallTextured.fbx";
+    // let scene_path = "assets/sponza/sponza.fbx";
+    // let scene_path = "assets/objects/skybox/Skybox.obj";
     spawn_scene_from_file(essentials, scene_path, Vec3::new(0.0, 0.0, -5.0)).await;
 }
 
@@ -84,7 +84,7 @@ async fn spawn_text(
             let entity_builder = GameObjectBuilder::new(essentials)
                 .mesh(Arc::new(mesh_creator::rectangle2d::create(1.0, 1.0)))
                 .await
-                .shader("Assets/shaders/unlit")
+                .shader("assets/shaders/unlit")
                 .await
                 .transform(Transform {
                     scale: Vec3::new(text_scale, -text_scale, 1.0),
@@ -143,7 +143,7 @@ async fn spawn_ground(essentials: &Arc<EssentialServices>) {
         essentials,
         Vec3::new(-25.0, -2.0, 0.0),
         dimensions,
-        "Assets/heightmap.png",
+        "assets/heightmap.png",
         None,
     )
     .await;
@@ -153,9 +153,9 @@ async fn spawn_ground(essentials: &Arc<EssentialServices>) {
         essentials,
         Vec3::new(-25.0, -2.0, -50.0),
         dimensions,
-        &format!("Assets/ADG_Textures/walls_vol1/{wall_prefix}/{wall_prefix}_Height.png"),
+        &format!("assets/ADG_Textures/walls_vol1/{wall_prefix}/{wall_prefix}_Height.png"),
         Some(&format!(
-            "Assets/ADG_Textures/walls_vol1/{wall_prefix}/{wall_prefix}_Diffuse.png"
+            "assets/ADG_Textures/walls_vol1/{wall_prefix}/{wall_prefix}_Diffuse.png"
         )),
     )
     .await;
@@ -164,7 +164,7 @@ async fn spawn_ground(essentials: &Arc<EssentialServices>) {
         essentials,
         Vec3::new(25.0, -2.0, -50.0),
         dimensions,
-        &format!("Assets/ADG_Textures/walls_vol1/{wall_prefix}/{wall_prefix}_Height.png"),
+        &format!("assets/ADG_Textures/walls_vol1/{wall_prefix}/{wall_prefix}_Height.png"),
         None,
     )
     .await;
@@ -174,9 +174,9 @@ async fn spawn_ground(essentials: &Arc<EssentialServices>) {
         essentials,
         Vec3::new(25.0, -2.0, 0.0),
         dimensions,
-        &format!("Assets/ADG_Textures/walls_vol1/{wall_prefix}/{wall_prefix}_Height.png"),
+        &format!("assets/ADG_Textures/walls_vol1/{wall_prefix}/{wall_prefix}_Height.png"),
         Some(&format!(
-            "Assets/ADG_Textures/walls_vol1/{wall_prefix}/{wall_prefix}_Diffuse.png"
+            "assets/ADG_Textures/walls_vol1/{wall_prefix}/{wall_prefix}_Diffuse.png"
         )),
     )
     .await;
@@ -221,7 +221,7 @@ async fn add_heightmap(
         .await
         .mesh(Arc::new(mesh_creator::heightmap::create(&heightmap)))
         .await
-        .shader("Assets/shaders/lit_normal")
+        .shader("assets/shaders/lit_normal")
         .await
         .transform(Transform {
             position,
@@ -307,7 +307,7 @@ async fn spawn_sample_capsule(essentials: &Arc<EssentialServices>) {
     let entity_builder = GameObjectBuilder::new(essentials)
         .mesh(Arc::new(mesh_creator::capsule::create(0.5, 2.0, 16)))
         .await
-        .shader("Assets/shaders/lit_wo_normal")
+        .shader("assets/shaders/lit_wo_normal")
         .await
         .transform(Transform {
             position: Vec3::new(-2.0, 0.0, -5.0),
@@ -340,7 +340,7 @@ async fn spawn_scene_from_file(
                 .await
                 .clone(),
         )
-        .shader("Assets/shaders/lit_normal")
+        .shader("assets/shaders/lit_normal")
         .await
         .transform(Transform {
             position,
@@ -395,7 +395,7 @@ async fn spawn_player(essentials: &Arc<EssentialServices>) {
             16,
         )))
         .await
-        .shader("Assets/shaders/lit_wo_normal")
+        .shader("assets/shaders/lit_wo_normal")
         .await
         .transform(Transform {
             position,

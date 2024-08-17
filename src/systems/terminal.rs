@@ -126,7 +126,7 @@ impl Terminal {
             let entity_builder = GameObjectBuilder::new(&self.essentials)
                 .mesh(Arc::new(mesh_creator::rectangle2d::create(1.0, 1.0)))
                 .await
-                .shader("Assets/shaders/unlit")
+                .shader("assets/shaders/unlit")
                 .await
                 .transform(Transform {
                     position: self.next_character_position

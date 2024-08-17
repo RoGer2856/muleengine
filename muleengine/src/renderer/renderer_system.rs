@@ -71,8 +71,8 @@ pub(super) struct RendererPri<T: RendererImpl + ?Sized> {
     pub(super) renderer_meshes: ArcRwLock<ObjectPool<ArcRwLock<dyn RendererMesh>>>,
     pub(super) renderer_objects: ArcRwLock<ObjectPool<RendererObjectData>>,
 
-    task_receiver: TaskReceiver<client::ChanneledTask>,
-    task_sender: TaskSender<client::ChanneledTask>,
+    task_receiver: TaskReceiver<ChanneledTask>,
+    task_sender: TaskSender<ChanneledTask>,
 
     renderer_impl: Box<T>,
 }
@@ -192,12 +192,14 @@ impl AsyncRenderer {
     }
 }
 
-pub use client::Client as RendererClient;
-
-#[method_taskifier_impl(module_name = client)]
+#[method_taskifier_impl(
+    task_definitions_module_path = self,
+    client_name = RendererClient,
+    // debug,
+)]
 impl<T: RendererImpl + ?Sized> RendererPri<T> {
     pub fn new(renderer_impl: Box<T>) -> Self {
-        let (sender, receiver) = client::channel();
+        let (sender, receiver) = channel();
 
         Self {
             renderer_cameras: arc_rw_lock_new(ObjectPool::new()),

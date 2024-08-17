@@ -25,7 +25,7 @@ pub async fn create_box(
                 .await
                 .clone(),
         )
-        .shader("Assets/shaders/lit_normal")
+        .shader("assets/shaders/lit_normal")
         .await
         .transform(Transform::<f32, f32, f32> {
             position,
@@ -64,7 +64,7 @@ pub async fn create_sphere(
                 .await
                 .clone(),
         )
-        .shader("Assets/shaders/lit_normal")
+        .shader("assets/shaders/lit_normal")
         .await
         .transform(Transform::<f32, f32, f32> {
             position,

@@ -1,6 +1,4 @@
 use std::ffi::OsStr;
-use std::ops::Index;
-use std::os::raw::{c_float, c_uint};
 use std::path::Path;
 use std::str::Utf8Error;
 use std::sync::Arc;
@@ -19,7 +17,7 @@ use super::image_container::{ImageContainer, ImageContainerError};
 pub enum SceneLoadError {
     FbxLoadError(FbxLoadError),
     ObjLoadError(ObjLoadError),
-    UnsuppoertedExtensionsFormat(String),
+    UnsupportedExtensionsFormat(String),
     CannotCreateTempFile(std::io::Error),
     TempFileCopyError(std::io::Error),
     CannotOpenAsset { path: String },
@@ -642,6 +640,33 @@ impl Mesh {
         self.positions.len()
     }
 
+    pub fn compute_normals(&mut self) {
+        let faces = self.faces.as_slice();
+        let positions = self.positions.as_slice();
+
+        self.normals.clear();
+        self.normals.resize(positions.len(), Vec3::zero());
+
+        for i in (0..faces.len()).step_by(3) {
+            let index_a = faces[i + 0] as usize;
+            let index_b = faces[i + 1] as usize;
+            let index_c = faces[i + 2] as usize;
+
+            let a2b = positions[index_b] - positions[index_a];
+            let a2c = positions[index_c] - positions[index_a];
+
+            let face_normal = a2b.cross(a2c).normalized();
+
+            self.normals[index_a] += face_normal;
+            self.normals[index_b] += face_normal;
+            self.normals[index_c] += face_normal;
+        }
+
+        for normal in self.normals.iter_mut() {
+            normal.normalize();
+        }
+    }
+
     pub fn compute_tangents(&mut self, uv_channel_id: usize) {
         if uv_channel_id < self.uv_channels.len() {
             let faces = self.faces.as_slice();
@@ -818,7 +843,7 @@ impl Scene {
         let path = Path::new(scene_path);
         let extension = path
             .extension()
-            .ok_or_else(|| SceneLoadError::UnsuppoertedExtensionsFormat("".into()))?
+            .ok_or_else(|| SceneLoadError::UnsupportedExtensionsFormat("".into()))?
             .to_ascii_lowercase();
 
         Ok(if extension == OsStr::new("obj") {
@@ -828,7 +853,7 @@ impl Scene {
             fbx::load(&mut reader, asset_reader, image_container)
                 .map_err(SceneLoadError::FbxLoadError)?
         } else {
-            Err(SceneLoadError::UnsuppoertedExtensionsFormat(
+            Err(SceneLoadError::UnsupportedExtensionsFormat(
                 extension.to_string_lossy().into(),
             ))?
         })
