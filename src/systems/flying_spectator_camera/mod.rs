@@ -17,9 +17,8 @@ use muleengine::{
 
 use crate::essential_services::EssentialServices;
 
-use self::{input::client::Client, input::InputProvider};
-
-pub use input::client::Client as FlyingSpectatorCameraControllerClient;
+use self::input::InputProvider;
+pub use self::input::InputProviderClient as FlyingSpectatorCameraControllerClient;
 
 pub fn init(
     window_context: ArcRwLock<dyn WindowContext>,
@@ -29,7 +28,7 @@ pub fn init(
     let enabled = Arc::new(AtomicBool::new(true));
     let (task_sender, task_receiver) = task_channel();
 
-    let client = Client::new(task_sender);
+    let client = FlyingSpectatorCameraControllerClient::new(task_sender);
     essentials.service_container.insert(client.clone());
 
     let input_provider = InputProvider::new(enabled.clone(), window_context.clone(), task_receiver);

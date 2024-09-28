@@ -1,4 +1,3 @@
-#![allow(unstable_name_collisions)]
 #![allow(
     clippy::comparison_chain,
     clippy::let_and_return,
@@ -6,9 +5,6 @@
     clippy::needless_bool,
     clippy::collapsible_if
 )]
-
-// todo!("extern crate miniz_oxide;")
-extern crate minizip_sys;
 
 pub use bytifex_utils;
 
@@ -24,6 +20,7 @@ pub mod image;
 pub mod image_container;
 pub mod mesh;
 pub mod mesh_creator;
+pub mod mesh_loader;
 pub mod renderer;
 pub mod scene_container;
 pub mod service_container;

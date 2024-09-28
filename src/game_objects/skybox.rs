@@ -1,9 +1,6 @@
 use std::sync::Arc;
 
-use muleengine::{
-    bytifex_utils::result_option_inspect::ResultInspector,
-    mesh::{Material, MaterialTexture, MaterialTextureType, TextureMapMode},
-};
+use muleengine::mesh::{Material, MaterialTexture, MaterialTextureType, TextureMapMode};
 use vek::{Transform, Vec3};
 
 use crate::essential_services::EssentialServices;
@@ -19,12 +16,12 @@ pub async fn spawn_skybox(essentials: &Arc<EssentialServices>) {
                 .await
                 .clone(),
         )
-        .shader("Assets/shaders/unlit")
+        .shader("assets/shaders/unlit")
         .await
         .transform(Transform::<f32, f32, f32>::default())
         .await;
 
-    let scene_path = "Assets/objects/skybox/Skybox.obj";
+    let scene_path = "assets/objects/skybox/Skybox.obj";
     let scene = essentials
         .asset_container
         .scene_container()
@@ -38,12 +35,12 @@ pub async fn spawn_skybox(essentials: &Arc<EssentialServices>) {
         .unwrap();
 
     let texture_paths = [
-        "Assets/objects/skybox/skyboxRight.png",
-        "Assets/objects/skybox/skyboxLeft.png",
-        "Assets/objects/skybox/skyboxTop.png",
-        "Assets/objects/skybox/skyboxBottom.png",
-        "Assets/objects/skybox/skyboxFront.png",
-        "Assets/objects/skybox/skyboxBack.png",
+        "assets/objects/skybox/skyboxRight.png",
+        "assets/objects/skybox/skyboxLeft.png",
+        "assets/objects/skybox/skyboxTop.png",
+        "assets/objects/skybox/skyboxBottom.png",
+        "assets/objects/skybox/skyboxFront.png",
+        "assets/objects/skybox/skyboxBack.png",
     ];
 
     if scene.meshes_ref().len() == 6 {

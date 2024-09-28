@@ -19,12 +19,14 @@ pub trait System: 'static {
 pub struct SystemContainer {
     systems_multi_type_dict: MultiTypeDict,
     systems_by_type_id: HashMap<TypeId, ArcRwLock<dyn System>>,
-    task_receiver: TaskReceiver<client::ChanneledTask>,
+    task_receiver: TaskReceiver<ChanneledTask>,
 }
 
-pub use client::Client as SystemContainerClient;
-
-#[method_taskifier_impl(module_name = client)]
+#[method_taskifier_impl(
+    task_definitions_module_path = self,
+    client_name = SystemContainerClient,
+    // debug,
+)]
 impl SystemContainer {
     pub fn new_with_client() -> (Self, SystemContainerClient) {
         let (task_sender, task_receiver) = task_channel();

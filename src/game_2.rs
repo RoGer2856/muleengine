@@ -3,7 +3,7 @@ use muleengine::{
     application_runner::{Application, ApplicationContext},
     asset_container::AssetContainer,
     asset_reader::AssetReader,
-    bytifex_utils::{result_option_inspect::ResultInspector, sync::app_loop_state::AppLoopState},
+    bytifex_utils::sync::app_loop_state::AppLoopState,
     font::HackFontContainer,
     image_container::ImageContainer,
     renderer::renderer_system::SyncRenderer,

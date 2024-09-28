@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use bytifex_utils::{result_option_inspect::ResultInspector, sync::types::ArcRwLock};
+use bytifex_utils::sync::types::ArcRwLock;
 use parking_lot::RwLock;
 
 use crate::{

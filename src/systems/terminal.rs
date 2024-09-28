@@ -39,6 +39,8 @@ struct Terminal {
 impl Terminal {
     async fn run(&mut self) {
         let mut is_terminal_opened = false;
+        self.add_character('>', false).await;
+
         while let Ok(event) = self.event_receiver.pop().await {
             if let Event::KeyDown { key } = event {
                 if is_terminal_opened {
@@ -53,6 +55,7 @@ impl Terminal {
                             self.next_character_position.y - TEXT_SCALE,
                             self.next_character_position.z,
                         );
+                        self.add_character('>', false).await;
                     } else if key == Key::Backspace {
                         if let Some(_chr) = self.next_command_text.pop() {
                             if let Some(printed_character) = self.printed_characters.pop() {

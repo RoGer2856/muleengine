@@ -20,7 +20,7 @@ use super::player_controller::PlayerController;
 
 pub(super) struct InputProvider {
     enabled: Arc<AtomicBool>,
-    task_receiver: TaskReceiver<client::ChanneledTask>,
+    task_receiver: TaskReceiver<ChanneledTask>,
     window_context: ArcRwLock<dyn WindowContext>,
     input_receiver: InputReceiver,
 
@@ -34,12 +34,16 @@ pub(super) struct InputReceiver {
     pub(super) looking_direction: ArcRwLock<Vec2<f32>>,
 }
 
-#[method_taskifier_impl(module_name = client)]
+#[method_taskifier_impl(
+    task_definitions_module_path = self,
+    client_name = InputProviderClient,
+    // debug,
+)]
 impl InputProvider {
     pub fn new(
         enabled: Arc<AtomicBool>,
         window_context: ArcRwLock<dyn WindowContext>,
-        task_receiver: TaskReceiver<client::ChanneledTask>,
+        task_receiver: TaskReceiver<ChanneledTask>,
     ) -> Self {
         let movement_event_provider = MovementEventProvider::new();
         let movement_event_receiver = movement_event_provider.create_receiver();
@@ -93,7 +97,7 @@ impl InputProvider {
                 .remove::<PlayerController>();
             app_context
                 .service_container_ref()
-                .remove::<client::Client>();
+                .remove::<InputProviderClient>();
         });
     }
 }

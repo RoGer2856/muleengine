@@ -2,7 +2,6 @@ use std::{collections::BTreeSet, sync::Arc};
 
 use bytifex_utils::{
     containers::object_pool::{ObjectPool, ObjectPoolIndex},
-    result_option_inspect::{OptionInspector, ResultInspector},
     sync::types::{arc_rw_lock_new, ArcRwLock},
 };
 use method_taskifier::{
@@ -10,6 +9,7 @@ use method_taskifier::{
     task_channel::{TaskReceiver, TaskSender},
     AsyncWorkerRunner, InvalidNumberOfExecutors,
 };
+use option_inspect_none::OptionInspectNone;
 use vek::Transform;
 
 use crate::{
@@ -71,8 +71,8 @@ pub(super) struct RendererPri<T: RendererImpl + ?Sized> {
     pub(super) renderer_meshes: ArcRwLock<ObjectPool<ArcRwLock<dyn RendererMesh>>>,
     pub(super) renderer_objects: ArcRwLock<ObjectPool<RendererObjectData>>,
 
-    task_receiver: TaskReceiver<client::ChanneledTask>,
-    task_sender: TaskSender<client::ChanneledTask>,
+    task_receiver: TaskReceiver<ChanneledTask>,
+    task_sender: TaskSender<ChanneledTask>,
 
     renderer_impl: Box<T>,
 }
@@ -192,12 +192,14 @@ impl AsyncRenderer {
     }
 }
 
-pub use client::Client as RendererClient;
-
-#[method_taskifier_impl(module_name = client)]
+#[method_taskifier_impl(
+    task_definitions_module_path = self,
+    client_name = RendererClient,
+    // debug,
+)]
 impl<T: RendererImpl + ?Sized> RendererPri<T> {
     pub fn new(renderer_impl: Box<T>) -> Self {
-        let (sender, receiver) = client::channel();
+        let (sender, receiver) = channel();
 
         Self {
             renderer_cameras: arc_rw_lock_new(ObjectPool::new()),
@@ -323,7 +325,7 @@ impl<T: RendererImpl + ?Sized> RendererPri<T> {
                 self.renderer_groups
                     .write()
                     .get_mut(renderer_group_index)
-                    .inspect_none(|| log::warn!("ReleaseRendererLayer, msg = found invalid renderer group index"))
+                    .or_else(|| { log::warn!("ReleaseRendererLayer, msg = found invalid renderer group index"); None })
                     .map(|renderer_group_data| {
                         let _ = self.renderer_impl.remove_renderer_group_from_layer(
                             renderer_group_data.renderer_group.clone(),

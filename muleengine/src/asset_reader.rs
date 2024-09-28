@@ -1,3 +1,6 @@
+use std::path::Path;
+
+// the canonicalize() method of the Path resolves symlinks, therefore the following function is needed
 pub fn canonicalize_path(path: String) -> String {
     if path.is_empty() {
         path
@@ -42,7 +45,7 @@ pub fn canonicalize_path(path: String) -> String {
 }
 
 pub fn parent_path(path: String) -> String {
-    std::path::Path::new(&canonicalize_path(path))
+    Path::new(&canonicalize_path(path))
         .ancestors()
         .nth(1)
         .map_or("".to_string(), |path| path.to_str().unwrap().to_string())
@@ -62,8 +65,8 @@ impl AssetReader {
         Self {}
     }
 
-    pub fn get_reader(&self, path: &str) -> Option<impl std::io::Read> {
-        std::fs::File::open(canonicalize_path(path.to_string())).ok()
+    pub fn get_reader(&self, path: impl Into<String>) -> Option<impl std::io::Read> {
+        std::fs::File::open(canonicalize_path(path.into())).ok()
     }
 }
 

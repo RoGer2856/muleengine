@@ -31,7 +31,11 @@ impl SceneContainer {
         if let Some(scene_mut) = self.scenes.get_mut(scene_path) {
             Ok(scene_mut.clone())
         } else {
-            let scene = Arc::new(Scene::load(asset_reader, scene_path, image_container)?);
+            let scene = Arc::new(Scene::from_reader(
+                asset_reader,
+                scene_path,
+                image_container,
+            )?);
             self.scenes.insert(scene_path.to_string(), scene.clone());
 
             Ok(scene)

@@ -9,10 +9,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use method_taskifier::{
-    method_taskifier_impl,
-    prelude::{OptionInspector, ResultInspector},
-};
+use method_taskifier::method_taskifier_impl;
 use muleengine::{
     application_runner::ApplicationContext,
     bytifex_utils::{
@@ -115,7 +112,11 @@ pub fn init(app_context: &mut ApplicationContext) {
     });
 }
 
-#[method_taskifier_impl(module_name = physics_decoupler)]
+#[method_taskifier_impl(
+    task_definitions_module_path = self,
+    client_name = PhysicsClient,
+    // debug,
+)]
 impl Rapier3dPhysicsEngine {
     pub fn character_controller_builder(
         &self,

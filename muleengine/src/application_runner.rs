@@ -1,6 +1,6 @@
 use std::{panic, thread, time::Duration};
 
-use bytifex_utils::{result_option_inspect::ResultInspector, sync::app_loop_state::AppLoopState};
+use bytifex_utils::sync::app_loop_state::AppLoopState;
 use tokio::{
     sync::mpsc,
     time::{sleep_until, Instant},

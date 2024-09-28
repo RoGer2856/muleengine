@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use entity_component::EntityBuilder;
 use muleengine::{
-    bytifex_utils::result_option_inspect::ResultInspector,
     mesh::{Material, Mesh},
     renderer::{
         RendererGroupHandler, RendererMaterialHandler, RendererMeshHandler, RendererShaderHandler,
@@ -74,7 +73,7 @@ impl<'a> GameObjectBuilder<'a> {
     }
 
     pub async fn mesh(mut self, mesh: Arc<Mesh>) -> GameObjectBuilder<'a> {
-        self.mesh_default_material = Some(mesh.get_material().clone());
+        self.mesh_default_material = Some(mesh.material().clone());
 
         self.mesh_handler = Some(
             self.essentials

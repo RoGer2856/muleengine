@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use muleengine::{
-    bytifex_utils::{result_option_inspect::ResultInspector, sync::async_item::AsyncItem},
+    bytifex_utils::sync::async_item::AsyncItem,
     renderer::{
         renderer_pipeline_step::RendererPipelineStep, renderer_system::RendererClient,
         RendererCameraHandler, RendererGroupHandler, RendererLayerHandler,

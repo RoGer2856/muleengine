@@ -27,7 +27,7 @@ pub enum VelocityChangeEvent {
 
 pub(super) struct InputProvider {
     enabled: Arc<AtomicBool>,
-    task_receiver: TaskReceiver<client::ChanneledTask>,
+    task_receiver: TaskReceiver<ChanneledTask>,
 
     window_context: ArcRwLock<dyn WindowContext>,
     data: InputReceiver,
@@ -41,12 +41,16 @@ pub(super) struct InputProvider {
     was_active_last_tick: bool,
 }
 
-#[method_taskifier_impl(module_name = client)]
+#[method_taskifier_impl(
+    task_definitions_module_path = self,
+    client_name = InputProviderClient,
+    // debug,
+)]
 impl InputProvider {
     pub fn new(
         enabled: Arc<AtomicBool>,
         window_context: ArcRwLock<dyn WindowContext>,
-        task_receiver: TaskReceiver<client::ChanneledTask>,
+        task_receiver: TaskReceiver<ChanneledTask>,
     ) -> Self {
         let velocity_change_event_sender = broadcast::Sender::new();
         let velocity_change_event_receiver = velocity_change_event_sender.create_receiver();
@@ -115,7 +119,7 @@ impl InputProvider {
                 .remove::<CameraController>();
             app_context
                 .service_container_ref()
-                .remove::<client::Client>();
+                .remove::<InputProviderClient>();
         });
     }
 }
